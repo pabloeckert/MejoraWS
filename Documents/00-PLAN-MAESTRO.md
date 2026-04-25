@@ -777,4 +777,110 @@ Los KPIs se actualizan en tiempo real
 ---
 
 *Propuesta generada el 26 de abril de 2026*
+
+---
+
+## 📝 REGISTRO DE AVANCES
+
+> Sección actualizada con cada "documentar"
+
+### Estado General del Proyecto
+
+| Campo | Valor |
+|-------|-------|
+| **Nombre** | MejoraWS |
+| **Repo** | https://github.com/pabloeckert/MejoraContactos |
+| **Repo** | https://github.com/pabloeckert/MejoraWS |
+| **Fase actual** | Documentación / Pre-desarrollo |
+| **Sprint** | No iniciado |
+| **Commits** | 7 |
+| **Archivos** | Documents/00-PLAN-MAESTRO.md + README.md |
+
+### Repos Analizados: 89+
+
+**Por categoría:**
+| Categoría | Cantidad | Top picks |
+|-----------|----------|-----------|
+| Core libraries | 5 | whatsapp-web.js, Baileys |
+| Anti-ban middleware | 4 | baileys-antiban, WhatsApp-Campaign-Bot |
+| Bulk senders | 44 | dk1307, vSender, wpchatbot, wa-sender-pro |
+| Campaign bots | 4 | WhatsApp-Campaign-Bot, WhatsApp-RPA, n8n |
+| AI frameworks | 3 | whatsapp-ai-framework, wa-sender-pro (Groq) |
+| Gateways | 3 | wagate, Evolution API |
+| CRM | 3 | workshop-crm, whatsapp-sales-backend, wamelly-ai |
+| Bot IA | 4 | whatsapp-mcp, whatsapp-ai-platform, StayIQ, Car-and-Gen |
+| Importación | 1 | **MejoraContactos (pabloeckert)** |
+| Otros | 18 | misc |
+
+**Repos del propio usuario:**
+| Repo | Descripción | Estado |
+|------|-------------|--------|
+| [pabloeckert/MejoraContactos](https://github.com/pabloeckert/MejoraContactos) | Importación/limpieza/dedup contactos con IA | ✅ En producción (v10.0, 174 tests) |
+| [pabloeckert/MejoraWS](https://github.com/pabloeckert/MejoraWS) | CRM WhatsApp autónomo con IA | 📝 En documentación |
+
+### Documentación Consolidada
+
+**Archivo único:** `Documents/00-PLAN-MAESTRO.md` (780 líneas)
+
+**Contenido:**
+1. ✅ Visión general y filosofía autónoma
+2. ✅ Arquitectura del sistema (diagrama ASCII)
+3. ✅ 6 módulos autónomos detallados:
+   - Módulo 0: Importador (MejoraContactos)
+   - Módulo 1: Auto-Reply Engine
+   - Módulo 2: Campaign Generator
+   - Módulo 3: CRM Pipeline AI
+   - Módulo 4: Anti-Ban Guardian
+   - Módulo 5: Analytics & Reporting
+4. ✅ Flujo autónomo completo (ejemplo día normal)
+5. ✅ Stack técnico $0 (Groq + Ollama + SQLite + Baileys)
+6. ✅ Parámetros que el admin configura (5 secciones JSON)
+7. ✅ Estructura de archivos del proyecto
+8. ✅ Plan por 6 sprints (6 semanas)
+9. ✅ Ejemplo de uso real (Día 1, Día 2-14, Día 15+)
+10. ✅ Referencias técnicas (89+ repos)
+11. ✅ Veredicto final
+12. ✅ Registro de avances (esta sección)
+
+### Decisiones Técnicas Tomadas
+
+| Decisión | Valor | Justificación |
+|----------|-------|---------------|
+| WhatsApp library | Baileys + baileys-antiban | Más ligero que whatsapp-web.js (sin Chrome) |
+| LLM primario | Groq API free tier | Gratis, rápido, qwen-2.5-32b excelente en español |
+| LLM backup | Ollama + Llama 3.1 8B | Local, sin internet, $0 |
+| Database | SQLite + Prisma | $0, sin servidor, suficiente para uso personal |
+| Frontend | Next.js + Tailwind + shadcn/ui | Stack probado, rápido de construir |
+| Anti-ban | 6 capas + warm-up 14 días | Estándar del ecosistema, más conservador |
+| Importación | MejoraContactos (propio) | Ya en producción, 174 tests, pipeline completo |
+| Costo total | $0 desarrollo / $54/año prod | Sin inversión inicial |
+
+### Pendientes (Backlog)
+
+| Prioridad | Tarea | Estado |
+|-----------|-------|--------|
+| 🔴 Alta | Sprint 1: Setup + WhatsApp + Anti-ban | ⏳ No iniciado |
+| 🔴 Alta | Sprint 2: Motor auto-respuesta IA | ⏳ No iniciado |
+| 🟠 Media | Sprint 3: CRM + Importación MejoraContactos | ⏳ No iniciado |
+| 🟠 Media | Sprint 4: Marketing + Campaigns | ⏳ No iniciado |
+| 🟡 Baja | Sprint 5: Dashboard + KPIs | ⏳ No iniciado |
+| 🟡 Baja | Sprint 6: Autonomous orchestrator | ⏳ No iniciado |
+
+### Timeline de Documentación
+
+| Fecha | Hora | Acción | Detalle |
+|-------|------|--------|---------|
+| 26/04 | 23:46 | Análisis inicial | 17 repos originales |
+| 26/04 | 23:55 | +37 bulk senders | 54 repos total |
+| 26/04 | 00:01 | +10 anti-ban/gateways | 64 repos, subido a GitHub |
+| 26/04 | 00:03 | Consolidación | 9 docs → 1 plan maestro, costo $0 |
+| 26/04 | 00:08 | +14 repos nuevos | 78 repos, Groq AI, n8n, warm-up 14d |
+| 26/04 | 00:16 | +10 repos + propuesta | 89 repos, 5 módulos autónomos |
+| 26/04 | 00:22 | +MejoraContactos | Módulo 0 importación, 6 módulos total |
+| 26/04 | 00:25 | **documentar** | Registro de avances actualizado |
+
+---
+
+*Última actualización: 26 abril 2026 00:25 GMT+8*
+*89+ repos analizados · 6 módulos · Costo $0 · Listo para Sprint 1*
 *Basada en 88+ repositorios analizados de GitHub*
