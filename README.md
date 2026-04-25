@@ -10,7 +10,7 @@ Este proyecto evalúa la viabilidad de construir una aplicación de uso personal
 2. **CRM ligero** para gestión de contactos y pipeline de ventas
 3. **Bot con IA** que aprende de las conversaciones
 
-Se analizaron **17 repositorios de GitHub** como referencia técnica y se evaluó la viabilidad desde **36 perspectivas profesionales** (técnica, producto, comercial, legal y operaciones).
+Se analizaron **54 repositorios de GitHub** como referencia técnica (17 originales + 37 bulk senders) y se evaluó la viabilidad desde **36 perspectivas profesionales** (técnica, producto, comercial, legal y operaciones).
 
 ## 📁 Documentación
 
@@ -23,6 +23,7 @@ Se analizaron **17 repositorios de GitHub** como referencia técnica y se evalu�
 | [05 - Costos e Infraestructura](Documents/05-Costos-Infraestructura.md) | Estimación de costos |
 | [06 - Riesgos Legales](Documents/06-Riesgos-Legales.md) | Marco legal y compliance |
 | [07 - Recomendación Final](Documents/07-Recomendacion-Final.md) | Veredicto y próximos pasos |
+| [08 - Análisis Bulk Senders](Documents/08-Analisis-Bulk-Senders.md) | 37 repos de envío masivo analizados |
 
 ## 🎯 Conclusión Rápida
 
@@ -41,3 +42,4 @@ WhatsApp **no permite** envíos masivos no solicitados. Este proyecto es para **
 ---
 
 *Análisis generado el 25 de abril de 2026*
+*54 repositorios analizados (17 originales + 37 bulk senders)*
