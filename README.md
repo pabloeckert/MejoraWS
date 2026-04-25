@@ -5,6 +5,7 @@
 ## 🎯 Qué es
 
 Un CRM WhatsApp **100% autónomo** con:
+- 📥 **Importación inteligente** CSV/Excel/VCF/JSON/Google Contacts (MejoraContactos)
 - 🤖 **Bot IA** que responde como un humano (Groq AI gratis)
 - 📣 **Marketing automático** con campañas creadas por IA
 - 📊 **Pipeline CRM** que se gestiona solo

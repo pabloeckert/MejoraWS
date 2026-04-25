@@ -1,7 +1,7 @@
 # 🚀 PROPUESTA: MejoraWS — CRM WhatsApp Autónomo con IA
 
 > **Fecha:** 26 abril 2026
-> **Repos analizados:** 88+
+> **Repos analizados:** 89+ (incluye MejoraContactos)
 > **Costo:** $0 (100% gratis)
 > **Filosofía:** El admin configura parámetros → la IA hace todo → devuelve logs, KPIs y gráficas
 
@@ -31,11 +31,12 @@ La IA se encarga del resto:
 ┌─────────────────────────────────────────────────────────────────┐
 │                    PANEL DEL ADMIN (Next.js)                     │
 │                                                                  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │
-│  │ Dashboard │ │  CRM     │ │Marketing │ │ Configuración IA  │  │
-│  │ KPIs     │ │Contactos │ │Campañas  │ │ Parámetros/Reglas │  │
-│  │ Gráficas │ │Pipeline  │ │Templates │ │ Knowledge Base    │  │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬──────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │
+│  │ Dashboard │ │📥Importar│ │  CRM     │ │Marketing │ │ Configuración IA  │  │
+│  │ KPIs     │ │Contactos │ │Contactos │ │Campañas  │ │ Parámetros/Reglas │  │
+│  │ Gráficas │ │Mejora    │ │Pipeline  │ │Templates │ │ Knowledge Base    │  │
+│  │          │ │Contactos │ │          │ │          │ │                   │  │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬──────────┘  │
 │       │             │            │                 │             │
 │  ┌────▼─────────────▼────────────▼─────────────────▼──────────┐ │
 │  │                    MOTOR CENTRAL (Node.js)                  │ │
@@ -82,7 +83,130 @@ La IA se encarga del resto:
 
 ---
 
-## LOS 5 MÓDULOS AUTÓNOMOS
+## LOS 6 MÓDULOS AUTÓNOMOS
+
+### Módulo 0: 📥 Importador de Contactos (MejoraContactos)
+
+**Qué hace:** Importa, limpia, deduplica y valida contactos desde cualquier fuente antes de que la IA los use.
+
+**Integración con [MejoraContactos](https://github.com/pabloeckert/MejoraContactos):**
+
+MejoraContactos es un proyecto existente del mismo equipo (ya en producción en util.mejoraok.com). Se integra como **pipeline de importación** de MejoraWS.
+
+**Fuentes soportadas:**
+```
+CSV          → Auto-detección de columnas (ES/EN)
+Excel (.xlsx)→ Múltiples hojas, headers variables
+VCF (vCard)  → Contactos de celular/Google
+JSON         → Estructura flexible
+Google Contacts → OAuth multi-cuenta
+```
+
+**Pipeline de limpieza (de MejoraContactos):**
+```
+1. Auto-detección de columnas
+   → "nombre"/"name"/"Nombre completo" → campo: name
+   → "teléfono"/"phone"/"celular" → campo: phone
+   → "email"/"correo" → campo: email
+
+2. Limpieza determinística (80%+)
+   → Trim whitespace, normalizar mayúsculas
+   → Remover caracteres especiales
+   → Formatear teléfonos a E.164
+
+3. Validación con IA (20% restante)
+   → Scoring semántico 0-100 por campo
+   → Correcciones automáticas
+   → Detección de datos inválidos
+
+4. Deduplicación
+   → Email/teléfono exacto O(1)
+   → Nombre con Jaro-Winkler acotado
+   → Merge inteligente de duplicados
+
+5. Detección WhatsApp
+   → Verifica si el número tiene WhatsApp
+   → Formatos AR/MX/ES automáticamente
+   → Marca: tiene_whatsapp: true/false
+
+6. Exportación a MejoraWS
+   → Contactos limpios → tabla contacts
+   → Tags automáticos por fuente
+   → consent_marketing: false (por defecto)
+```
+
+**El admin configura:**
+```json
+{
+  "fuentes": ["csv", "google_contacts"],
+  "limpieza": {
+    "auto_detectar_columnas": true,
+    "normalizar_telefonos": "E.164",
+    "deduplicar": true,
+    "validar_whatsapp": true
+  },
+  "tags_auto": {
+    "por_fuente": true,
+    "por_pais": true,
+    "por_calidad_score": true
+  }
+}
+```
+
+**La IA hace:**
+1. Auto-detecta formato y columnas del archivo
+2. Limpia y normaliza todos los datos
+3. Deduplica (encuentra repetidos)
+4. Valida teléfonos → E.164
+5. Verifica presencia en WhatsApp
+6. Scoring de calidad (0-100) por contacto
+7. Asigna tags automáticos
+8. Importa a la base de datos de MejoraWS
+9. Reporta: "500 contactos importados, 23 duplicados eliminados, 412 con WhatsApp"
+
+**Referencia técnica:**
+- **MejoraContactos** (pabloeckert) → pipeline completo de importación/limpieza
+- React 18 + Vite + TypeScript + shadcn/ui
+- 12 proveedores IA con rotación automática
+- 174 tests, CI/CD, producción
+
+**Integración técnica:**
+```javascript
+// Opción A: Importar como módulo npm (recomendado)
+import { ContactPipeline } from '@mejora/contactos';
+
+// Opción B: API REST (si se miente separado)
+const cleanContacts = await fetch('https://util.mejoraok.com/mejoracontactos/api/clean', {
+  method: 'POST',
+  body: formData
+});
+
+// Opción C: Reusar lógica core directamente
+// Copiar src/lib/ de MejoraContactos a MejoraWS/src/importer/
+```
+
+**Flujo completo de importación:**
+```
+Admin sube archivo (CSV/Excel/VCF/JSON)
+        ↓
+Auto-detección de columnas
+        ↓
+Limpieza determinística (80%)
+        ↓
+Validación IA (scoring 0-100)
+        ↓
+Deduplicación (exacto + fuzzy)
+        ↓
+Detección WhatsApp
+        ↓
+Tags automáticos
+        ↓
+Import a tabla contacts de MejoraWS
+        ↓
+Listo para campañas y bot IA
+```
+
+---
 
 ### Módulo 1: 🤖 Auto-Reply Engine (Chat Bot IA)
 
@@ -434,6 +558,15 @@ mejoraws/
 │   │   ├── index.ts                 # Config loader
 │   │   └── default-params.json      # Parámetros default
 │   │
+│   ├── importer/
+│   │   ├── pipeline.ts              # MejoraContactos pipeline core
+│   │   ├── parsers.ts               # CSV/Excel/VCF/JSON parsers
+│   │   ├── cleaner.ts               # Limpieza determinística
+│   │   ├── validator.ts             # Validación IA + scoring
+│   │   ├── deduplicator.ts          # Dedup exacto + fuzzy
+│   │   ├── whatsapp-detector.ts     # Detección WhatsApp E.164
+│   │   └── google-contacts.ts       # Google Contacts OAuth
+│   │
 │   ├── whatsapp/
 │   │   ├── client.ts                # Baileys + baileys-antiban
 │   │   ├── sender.ts                # Envío con anti-ban
@@ -480,6 +613,7 @@ mejoraws/
 ├── frontend/                        # Next.js dashboard
 │   ├── pages/
 │   │   ├── index.tsx                # Dashboard principal
+│   │   ├── import.tsx               # Importar contactos (MejoraContactos)
 │   │   ├── contacts.tsx             # CRM contactos
 │   │   ├── pipeline.tsx             # Kanban pipeline
 │   │   ├── campaigns.tsx            # Marketing
@@ -529,8 +663,13 @@ mejoraws/
 [ ] Delay humano + typing indicator
 ```
 
-### Sprint 3 (Semana 3): CRM
+### Sprint 3 (Semana 3): CRM + Importación
 ```
+[ ] Integrar MejoraContactos como módulo de importación
+[ ] Import CSV/Excel/VCF/JSON con auto-detección
+[ ] Google Contacts OAuth (opcional)
+[ ] Pipeline de limpieza + deduplicación
+[ ] Detección WhatsApp automática
 [ ] Schema completo (contacts, deals, activities)
 [ ] CRUD contactos + tags
 [ ] Pipeline Kanban
@@ -571,13 +710,15 @@ mejoraws/
 
 ### Día 1: Setup (10 minutos)
 ```
-1. Abrir dashboard → Settings
-2. Completar: "Mi negocio vende cursos online"
-3. Subir CSV de 50 contactos
-4. Copiar FAQ en knowledge base
-5. Activar bot con nombre "María"
-6. Activar anti-ban modo conservador
-7. ¡Listo! El sistema arranca solo
+1. Abrir dashboard → 📥 Importar Contactos
+2. Subir CSV/Excel/VCF (o conectar Google Contacts)
+3. El sistema auto-detecta columnas, limpia y deduplica
+4. Verificar: "500 contactos importados, 23 duplicados eliminados, 412 con WhatsApp"
+5. Ir a Settings → completar info del negocio
+6. Copiar FAQ en knowledge base
+7. Activar bot con nombre "María"
+8. Activar anti-ban modo conservador
+9. ¡Listo! El sistema arranca solo
 ```
 
 ### Día 2-14: Warm-up automático
@@ -602,6 +743,7 @@ Los KPIs se actualizan en tiempo real
 
 | Componente | Repos de referencia | Qué tomamos |
 |-----------|-------------------|-------------|
+| **Importación** | **MejoraContactos (pabloeckert)** | Pipeline CSV/Excel/VCF/JSON, limpieza IA, dedup, E.164 |
 | WhatsApp | whatsapp-web.js, Baileys | Conexión multi-device |
 | Anti-ban | baileys-antiban, WhatsApp-Campaign-Bot | 6 capas, Gaussian jitter |
 | Bot IA | whatsapp-mcp, wa-sender-pro | Memoria, Groq AI |
