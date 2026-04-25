@@ -1,46 +1,98 @@
 # MejoraWS — WhatsApp Marketing + CRM + AI Bot
 
-> Análisis de viabilidad para un MVP personal de marketing por WhatsApp con CRM integrado y bot con IA que aprende.
+> Análisis de viabilidad para un MVP personal de marketing por WhatsApp con CRM integrado, bot con IA que aprende, y protección anti-ban.
 
 ## 📋 Resumen Ejecutivo
 
-Este proyecto evalúa la viabilidad de construir una aplicación de uso personal que combine:
+**64 repositorios de GitHub** analizados. Evaluación desde **36 perspectivas profesionales**.
 
-1. **Envíos masivos de marketing** por WhatsApp
-2. **CRM ligero** para gestión de contactos y pipeline de ventas
-3. **Bot con IA** que aprende de las conversaciones
-
-Se analizaron **64 repositorios de GitHub** como referencia técnica y se evaluó la viabilidad desde **36 perspectivas profesionales** (técnica, producto, comercial, legal y operaciones).
+| Aspecto | Resultado |
+|---------|-----------|
+| **Veredicto** | ✅ MVP VIABLE |
+| **Costo** | $0 (tu PC + Ollama) |
+| **Timeline** | 6 semanas |
+| **Anti-ban** | 6 capas implementadas |
+| **Bot IA** | Ollama + Llama 3.1 (local, gratis) |
 
 ## 📁 Documentación
 
-| Documento | Descripción |
-|-----------|-------------|
-| [01 - Análisis de Repos](Documents/01-Analisis-Repos.md) | Análisis detallado de los 17 repositorios |
-| [02 - Arquitectura MVP](Documents/02-Arquitectura-MVP.md) | Diseño técnico del MVP |
-| [03 - Viabilidad MVP](Documents/03-Viabilidad-MVP.md) | Evaluación desde 36 roles profesionales |
-| [04 - Roadmap Técnico](Documents/04-Roadmap-Tecnico.md) | Plan de desarrollo por fases |
-| [05 - Costos e Infraestructura](Documents/05-Costos-Infraestructura.md) | Estimación de costos |
-| [06 - Riesgos Legales](Documents/06-Riesgos-Legales.md) | Marco legal y compliance |
-| [07 - Recomendación Final](Documents/07-Recomendacion-Final.md) | Veredicto y próximos pasos |
-| [08 - Análisis Bulk Senders](Documents/08-Analisis-Bulk-Senders.md) | 37 repos de envío masivo analizados |
-| [09 - Anti-Ban, Campañas y Gateways](Documents/09-Antiban-Campaigns-Gateways.md) | 10 repos de anti-ban y gateways |
+Toda la documentación vive en **un solo archivo maestro**:
 
-## 🎯 Conclusión Rápida
+### [📄 Documents/00-PLAN-MAESTRO.md](Documents/00-PLAN-MAESTRO.md)
 
-**El MVP es VIABLE** como proyecto personal con las siguientes condiciones:
+Contiene:
+1. **Análisis de 64 repos** (Tier 1/2/3 + peligrosos)
+2. **Patrones anti-ban** consolidados (6 capas)
+3. **Viabilidad** desde 36 roles profesionales
+4. **Marco legal** y compliance
+5. **Arquitectura** del sistema (costo $0)
+6. **Modelo de datos** completo (SQLite)
+7. **Plan por etapas** (6 semanas, 5 etapas)
+8. **Diagrama de flujo** del bot IA
+9. **Checklist anti-ban**
+10. **Registro de avances** (se actualiza con "documentar")
 
-- Usar **whatsapp-web.js** o **Baileys** como base (no la API oficial de Meta)
-- Aceptar el riesgo de ToS de WhatsApp (uso personal, no comercial masivo)
-- Desarrollo estimado: **4-6 semanas** para MVP funcional
-- Costo infraestructura: **~$5-15/mes** (VPS + DB)
-- Riesgo legal mitigable si es uso personal y no spam masivo
+## 🔑 Las 3 Prioridades
 
-## ⚠️ Advertencia Importante
+### 1. Anti-Ban (6 capas)
+```
+Template Rotation → Volume Control (warm-up) → Gaussian Jitter
+→ Typing Simulation → Failure Detection → Contact Reputation
+```
+Usa `baileys-antiban` como middleware obligatorio.
 
-WhatsApp **no permite** envíos masivos no solicitados. Este proyecto es para **uso personal** con contactos que han dado consentimiento. El incumplimiento puede resultar en el baneo de tu número.
+### 2. Autorespuesta IA Humana
+```
+Ollama + Llama 3.1 8B (local, $0)
+→ Memoria con embeddings
+→ Delay humano antes de responder
+→ Typing indicator
+→ Escalamiento a humano
+→ Tono natural, nunca "bot-like"
+```
+
+### 3. Costo $0
+```
+Todo corre en tu PC:
+  WhatsApp:  Baileys + baileys-antiban (npm, gratis)
+  LLM:       Ollama + Llama 3.1 8B (local, gratis)
+  Database:  SQLite + Prisma (local, gratis)
+  Frontend:  Next.js (localhost:3000, gratis)
+  Total:     $0/año
+```
+
+## 🚀 Para Empezar
+
+```bash
+# 1. Instalar Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.1:8b
+ollama pull nomic-embed-text
+
+# 2. Clonar y configurar
+git clone https://github.com/pabloeckert/MejoraWS.git
+cd MejoraWS
+npm init -y
+npm install baileys baileys-antiban better-sqlite3 prisma next react react-dom express
+
+# 3. Leer el plan
+cat Documents/00-PLAN-MAESTRO.md
+```
+
+## 📊 Fuentes Analizadas
+
+| Categoría | Repos | Top Picks |
+|-----------|-------|-----------|
+| Core libraries | 5 | whatsapp-web.js, Baileys |
+| Anti-ban | 3 | **baileys-antiban** ⭐, WhatsApp-Campaign-Bot |
+| Bulk senders | 37 | dk1307, vSender, ossiqn |
+| Campaign bots | 3 | WhatsApp-Campaign-Bot, WhatsApp-RPA |
+| Gateways | 2 | wagate, whatsapp_api |
+| CRM | 2 | workshop-crm, MedicareAI |
+| Bot IA | 2 | whatsapp-mcp, WhatsApp-RPA |
+| Otros | 10 | misc |
 
 ---
 
-*Análisis generado el 25 de abril de 2026*
-*64 repositorios analizados*
+*Documento consolidado el 26 de abril de 2026*
+*64 repositorios analizados · 36 roles evaluados · MVP VIABLE a $0*
