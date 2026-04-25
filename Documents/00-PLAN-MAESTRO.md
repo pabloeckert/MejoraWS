@@ -1,7 +1,7 @@
 # 📋 MejoraWS — Documentación Maestra
 
-> **Última actualización:** 26 abril 2026
-> **Repos analizados:** 64
+> **Última actualización:** 26 abril 2026 · 00:08 GMT+8
+> **Repos analizados:** 78 (64 + 14 nuevos)
 > **Veredicto:** MVP VIABLE — Uso personal, costo mínimo $0
 
 ---
@@ -40,6 +40,14 @@ Cuando digas **"documentar"**, este archivo se actualiza automáticamente con lo
 | [ossiqn/whatsapp-bulk-sender-pro](https://github.com/ossiqn/whatsapp-bulk-sender-pro) | Spintax anidado, REST API, simula typing |
 | [whatsapp-bulk-sender-dashboard](https://github.com/kunaldevelopers/whatsapp-bulk-sender-dashboard) | React+Node, dashboard completo, import XLSX |
 | [MedicareAI](https://github.com/mugwe88-ops/MedicareAI) | Bot IA médico + citas + WhatsApp |
+| [wpchatbot](https://github.com/orhanbektas/wpchatbot) | Panel turco, warm-up 14 días, suffix único por msg, SQLite |
+| [wa-sender-pro](https://github.com/VinchitaGamer/wa-sender-pro) | **Groq AI (gratis) para humanizar msgs**, auto-reply IA, UI inyectada |
+| [automacao-n8n](https://github.com/Alexsandrapdsilva/automacao-disparo-whatsapp-n8n-sem-banimento) | **n8n + Evolution API** workflow no-code, Google Sheets como DB |
+| [whatsapp-ai-framework](https://github.com/cloud8877-source/whatsapp-ai-framework) | Framework production-ready, n8n + **RAG support**, Baileys |
+| [WAMaX-Lite](https://github.com/msamods/WAMaX-Lite) | Hybrid engine (Baileys+Itsuki), auto-welcome, CLI, MySQL |
+| [QSender](https://github.com/Raz-Bouganim/QSender) | Queue + anti-ban delays + dashboard en tiempo real |
+| [whatsapp-bulk-sender-ytpr](https://github.com/classyid/whatsapp-bulk-sender-ytpr) | Flask+SQLite, emergency stop, Tailwind, multi-user |
+| [Neexll/Bot-WhatsApp](https://github.com/Neexll/Bot-WhatsApp) | Buenas prácticas anti-ban documentadas (45s-3min delays) |
 
 ### Tier 3 — Valor menor / scripts simples
 
@@ -114,6 +122,47 @@ Implementación:
 → "No sé" honesto > inventar
 ```
 
+### Hallazgo Clave: Opciones de LLM $0 (actualización)
+
+Tras analizar los 14 repos nuevos, se descubrieron **2 opciones de LLM gratis** además de Ollama:
+
+| Opción | Costo | Velocidad | Calidad | Uso |
+|--------|-------|-----------|---------|-----|
+| **Ollama + Llama 3.1 8B** | $0 | Media (local) | Buena | Default recomendado |
+| **Groq API (qwen-2.5-32b)** | $0 (free tier) | Muy rápida (cloud) | Muy buena | Alternativa cloud |
+| **n8n + Evolution API** | $0 (self-hosted) | N/A | N/A | No-code workflow |
+
+**Groq AI** (usado en wa-sender-pro):
+- Free tier generoso: ~30 requests/minuto
+- Latencia baja (~500ms)
+- Modelo qwen-2.5-32b excelente para español
+- Ideal para humanizar mensajes y auto-reply
+
+**n8n** (usado en automacao-n8n y whatsapp-ai-framework):
+- Workflows visuales sin código
+- Integración directa con Evolution API
+- Google Sheets como base de datos
+- Ideal para automatizaciones sin programar
+
+**Recomendación actualizada para $0:**
+```
+Primario:   Ollama + Llama 3.1 8B (local, sin internet)
+Alternativa: Groq API free tier (más rápido, necesita internet)
+No-code:    n8n + Evolution API (si no quieres programar)
+```
+
+### Hallazgo: Warm-up de 14 días (wpchatbot)
+
+El repo wpchatbot usa un warm-up extendido de **14 días** (vs los 7 días estándar):
+```
+Día 1-3:   10 msg/día
+Día 4-7:   25 msg/día
+Día 8-10:  50 msg/día
+Día 11-14: 100 msg/día
+Día 15+:   200 msg/día
+```
+**Más conservador y seguro.** Adoptamos este modelo.
+
 ---
 
 ## 3. Viabilidad — Veredicto por Área
@@ -170,11 +219,12 @@ Para uso personal, **todo corre en tu propia máquina**. Sin VPS, sin servicios 
 Runtime:     Node.js 20+ (gratis)
 WhatsApp:    Baileys + baileys-antiban (gratis, npm)
 Database:    SQLite + Prisma (gratis, local)
-LLM:         Ollama + Llama 3.1 8B (gratis, local, ~5GB disco)
+LLM:         Ollama + Llama 3.1 8B (gratis, local) O Groq API free tier (gratis, cloud)
 Embeddings:  Ollama + nomic-embed-text (gratis, local)
 Vector:      sqlite-vss o almacenamiento JSON (gratis)
 Frontend:    Next.js (gratis, localhost:3000)
 Cola:        Bull con better-sqlite3 (gratis)
+No-code alt: n8n + Evolution API (gratis, self-hosted)
 ```
 
 ### Requisitos de tu máquina
@@ -688,7 +738,8 @@ npm install express socket.io
 
 | Fecha | Etapa | Avance | Notas |
 |-------|-------|--------|-------|
-| 26/04/2026 | Setup | Documentación completa, 64 repos analizados, repo GitHub creado | — |
+| 26/04/2026 00:03 | Setup | Documentación consolidada en 1 archivo maestro | 64 repos |
+| 26/04/2026 00:08 | Análisis | +14 repos analizados (78 total). Hallazgo: Groq AI gratis, n8n no-code, warm-up 14d | Actualizado |
 
 ---
 

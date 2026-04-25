@@ -4,7 +4,7 @@
 
 ## 📋 Resumen Ejecutivo
 
-**64 repositorios de GitHub** analizados. Evaluación desde **36 perspectivas profesionales**.
+**78 repositorios de GitHub** analizados. Evaluación desde **36 perspectivas profesionales**.
 
 | Aspecto | Resultado |
 |---------|-----------|
@@ -84,10 +84,11 @@ cat Documents/00-PLAN-MAESTRO.md
 | Categoría | Repos | Top Picks |
 |-----------|-------|-----------|
 | Core libraries | 5 | whatsapp-web.js, Baileys |
-| Anti-ban | 3 | **baileys-antiban** ⭐, WhatsApp-Campaign-Bot |
-| Bulk senders | 37 | dk1307, vSender, ossiqn |
-| Campaign bots | 3 | WhatsApp-Campaign-Bot, WhatsApp-RPA |
-| Gateways | 2 | wagate, whatsapp_api |
+| Anti-ban | 4 | **baileys-antiban** ⭐, WhatsApp-Campaign-Bot |
+| Bulk senders | 44 | dk1307, vSender, wpchatbot, wa-sender-pro |
+| Campaign bots | 4 | WhatsApp-Campaign-Bot, WhatsApp-RPA, n8n workflow |
+| AI frameworks | 3 | **whatsapp-ai-framework**, wa-sender-pro (Groq), WAMaX-Lite |
+| Gateways | 3 | wagate, whatsapp_api, Evolution API |
 | CRM | 2 | workshop-crm, MedicareAI |
 | Bot IA | 2 | whatsapp-mcp, WhatsApp-RPA |
 | Otros | 10 | misc |
@@ -95,4 +96,4 @@ cat Documents/00-PLAN-MAESTRO.md
 ---
 
 *Documento consolidado el 26 de abril de 2026*
-*64 repositorios analizados · 36 roles evaluados · MVP VIABLE a $0*
+*78 repositorios analizados · 36 roles evaluados · MVP VIABLE a $0*
