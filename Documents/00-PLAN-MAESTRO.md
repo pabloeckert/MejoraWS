@@ -1,747 +1,638 @@
-# 📋 MejoraWS — Documentación Maestra
+# 🚀 PROPUESTA: MejoraWS — CRM WhatsApp Autónomo con IA
 
-> **Última actualización:** 26 abril 2026 · 00:08 GMT+8
-> **Repos analizados:** 78 (64 + 14 nuevos)
-> **Veredicto:** MVP VIABLE — Uso personal, costo mínimo $0
-
----
-
-## Cómo usar este documento
-
-Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los avances realizados. Es la fuente única de verdad del proyecto.
+> **Fecha:** 26 abril 2026
+> **Repos analizados:** 88+
+> **Costo:** $0 (100% gratis)
+> **Filosofía:** El admin configura parámetros → la IA hace todo → devuelve logs, KPIs y gráficas
 
 ---
 
-# PARTE I — ANÁLISIS
+## VISIÓN
 
-## 1. Repositorios Analizados (64 total)
+Una aplicación **100% autónoma** donde el administrador solo define:
+1. **Quiénes son sus contactos** (CSV/import)
+2. **Qué vende o ofrece** (knowledge base)
+3. **Reglas de negocio** (parámetros)
+4. **Objetivos** (métricas esperadas)
 
-### Tier 1 — Core (imprescindibles para el MVP)
-
-| Repo | Qué aporta | Reutilización |
-|------|-----------|---------------|
-| [whatsapp-web.js](https://github.com/wwebjs/whatsapp-web.js) | Lib Node.js para WhatsApp Web (15k+ stars) | **Core del bot** — conexión WhatsApp |
-| [Baileys](https://github.com/WhiskeySockets/Baileys) | WebSocket nativo, sin Chrome | Alternativa más ligera |
-| [baileys-antiban](https://github.com/kobie3717/baileys-antiban) | Middleware anti-ban npm (Gaussian jitter, warmup 7d, session health) | **OBLIGATORIO** — capa anti-ban |
-| [workshop-crm](https://github.com/byebye19996/workshop-crm) | CRM multi-tenant, Kanban, WhatsApp integration | Modelo de datos CRM |
-| [whatsapp-mcp](https://github.com/lharries/whatsapp-mcp) | MCP server + bridge Go, memoria local SQLite | Arquitectura bot con IA |
-
-### Tier 2 — Referencia de alto valor
-
-| Repo | Qué aporta |
-|------|-----------|
-| [WhatsApp-Campaign-Bot](https://github.com/AbdelrahmanBedo/WhatsApp-Campaign-Bot) | 6 capas anti-ban completas (Python+Selenium) |
-| [WhatsApp-RPA-Chrome-Extension](https://github.com/bhumika-04/WhatsApp-RPA-Chrome-Extension) | Multi-usuario + AI auto-reply + scheduling |
-| [dk1307/whatsapp-bulk-sender](https://github.com/dk1307/whatsapp-bulk-sender) | Web UI, WebSocket, anti-ban, PDF personalizado |
-| [vSender](https://github.com/vyakritisoft/vSender) | Chrome Extension, queue FIFO, rate limiting con jitter |
-| [wagate](https://github.com/PT-Perkasa-Pilar-Utama/wagate) | Gateway REST dual-client anti-ban |
-| [whatsapp_api](https://github.com/SantiagoCTB/whatsapp_api) | Flask + API oficial de Meta |
-| [SendStack](https://github.com/mohamed-arabi16/SendStack) | Multi-canal Email+WhatsApp, {{variables}}, spin syntax |
-| [ossiqn/whatsapp-bulk-sender-pro](https://github.com/ossiqn/whatsapp-bulk-sender-pro) | Spintax anidado, REST API, simula typing |
-| [whatsapp-bulk-sender-dashboard](https://github.com/kunaldevelopers/whatsapp-bulk-sender-dashboard) | React+Node, dashboard completo, import XLSX |
-| [MedicareAI](https://github.com/mugwe88-ops/MedicareAI) | Bot IA médico + citas + WhatsApp |
-| [wpchatbot](https://github.com/orhanbektas/wpchatbot) | Panel turco, warm-up 14 días, suffix único por msg, SQLite |
-| [wa-sender-pro](https://github.com/VinchitaGamer/wa-sender-pro) | **Groq AI (gratis) para humanizar msgs**, auto-reply IA, UI inyectada |
-| [automacao-n8n](https://github.com/Alexsandrapdsilva/automacao-disparo-whatsapp-n8n-sem-banimento) | **n8n + Evolution API** workflow no-code, Google Sheets como DB |
-| [whatsapp-ai-framework](https://github.com/cloud8877-source/whatsapp-ai-framework) | Framework production-ready, n8n + **RAG support**, Baileys |
-| [WAMaX-Lite](https://github.com/msamods/WAMaX-Lite) | Hybrid engine (Baileys+Itsuki), auto-welcome, CLI, MySQL |
-| [QSender](https://github.com/Raz-Bouganim/QSender) | Queue + anti-ban delays + dashboard en tiempo real |
-| [whatsapp-bulk-sender-ytpr](https://github.com/classyid/whatsapp-bulk-sender-ytpr) | Flask+SQLite, emergency stop, Tailwind, multi-user |
-| [Neexll/Bot-WhatsApp](https://github.com/Neexll/Bot-WhatsApp) | Buenas prácticas anti-ban documentadas (45s-3min delays) |
-
-### Tier 3 — Valor menor / scripts simples
-
-35 repos de bulk senders simples (scripts sin UI, forks, repos mínimos). Todos siguen el patrón: CSV → QR → delay → send.
-
-### ⚠️ Repos peligrosos (evitar)
-
-| Repo | Riesgo |
-|------|--------|
-| zwerkenm/Muck-MASS-SMS-Sender-Whatsapp-Boomber | **MALWARE** — SMS bomber + SmartScreen bypass |
-| januzzstores/JaNuzz-Store | Venta de "anti-ban panels", no es código real |
+La IA se encarga del resto:
+- Responde automáticamente como un humano
+- Crea y envía campañas de marketing
+- Gestiona el pipeline de ventas
+- Genera contenido variado (anti-ban)
+- Programa seguimientos
+- Reporta KPIs y gráficas
 
 ---
 
-## 2. Patrones Consolidados
-
-### Anti-Ban (6 capas — estándar del ecosistema)
+## ARQUITECTURA: Cómo se conecta todo
 
 ```
-Capa 1 — Template Rotation
-  → 3-5 variaciones de mensaje, una aleatoria por contacto
-  → Spintax: {Hola|Hola!|Hey|Buenas}
-  → Sinónimos: ~15% de palabras reemplazadas
-
-Capa 2 — Volume Control (Warm-up)
-  → Día 1: 10 mensajes
-  → Día 3: 30 mensajes
-  → Día 7: 50 mensajes
-  → Día 14+: 100-200 mensajes (máximo personal)
-
-Capa 3 — Timing Humanization (Gaussian Jitter)
-  → Delay base: 8-15 segundos
-  → Jitter: ±5s con distribución Gaussiana
-  → Pausa cada 10 mensajes: 2-5 minutos
-  → Nunca delay fijo predecible
-
-Capa 4 — Behavior Simulation
-  → Simular "typing..." antes de enviar (1-3 seg)
-  → Abrir conversación antes de escribir
-  → Scroll aleatorio en chats
-  → Leer mensajes pendientes ocasionalmente
-
-Capa 5 — Failure Detection
-  → Auto-stop: 5 fallos consecutivos
-  → Auto-stop: >30% failure rate en últimos 20
-  → Pausa 30 minutos ante primer warning
-  → Alertar al usuario
-
-Capa 6 — Contact Reputation
-  → Skip números que bloquearon antes
-  → No re-enviar al mismo contacto en <7 días
-  → Marcar "inválidos" para no repetir
-```
-
-### Autorespuesta IA Humana
-
-```
-Principios:
-1. Nunca suene a bot — usar lenguaje natural, coloquial
-2. Contexto de conversaciones previas (memoria)
-3. Delay humano antes de responder (3-15 seg, variable)
-4. Typing indicator mientras "piensa"
-5. Escalamiento inteligente a humano
-6. Tono adaptable al contacto (formal/informal)
-
-Implementación:
-→ RAG con knowledge base propia
-→ pgvector para memoria semántica
-→ System prompt con personalidad definida
-→ Histórico de conversación por contacto
-→ Detección de intención → routing
-→ "No sé" honesto > inventar
-```
-
-### Hallazgo Clave: Opciones de LLM $0 (actualización)
-
-Tras analizar los 14 repos nuevos, se descubrieron **2 opciones de LLM gratis** además de Ollama:
-
-| Opción | Costo | Velocidad | Calidad | Uso |
-|--------|-------|-----------|---------|-----|
-| **Ollama + Llama 3.1 8B** | $0 | Media (local) | Buena | Default recomendado |
-| **Groq API (qwen-2.5-32b)** | $0 (free tier) | Muy rápida (cloud) | Muy buena | Alternativa cloud |
-| **n8n + Evolution API** | $0 (self-hosted) | N/A | N/A | No-code workflow |
-
-**Groq AI** (usado en wa-sender-pro):
-- Free tier generoso: ~30 requests/minuto
-- Latencia baja (~500ms)
-- Modelo qwen-2.5-32b excelente para español
-- Ideal para humanizar mensajes y auto-reply
-
-**n8n** (usado en automacao-n8n y whatsapp-ai-framework):
-- Workflows visuales sin código
-- Integración directa con Evolution API
-- Google Sheets como base de datos
-- Ideal para automatizaciones sin programar
-
-**Recomendación actualizada para $0:**
-```
-Primario:   Ollama + Llama 3.1 8B (local, sin internet)
-Alternativa: Groq API free tier (más rápido, necesita internet)
-No-code:    n8n + Evolution API (si no quieres programar)
-```
-
-### Hallazgo: Warm-up de 14 días (wpchatbot)
-
-El repo wpchatbot usa un warm-up extendido de **14 días** (vs los 7 días estándar):
-```
-Día 1-3:   10 msg/día
-Día 4-7:   25 msg/día
-Día 8-10:  50 msg/día
-Día 11-14: 100 msg/día
-Día 15+:   200 msg/día
-```
-**Más conservador y seguro.** Adoptamos este modelo.
-
----
-
-## 3. Viabilidad — Veredicto por Área
-
-| Área | Viable ✅ | Con Riesgos ⚠️ | No Viable ❌ |
-|------|-----------|----------------|--------------|
-| Técnica | 10 | 2 | 0 |
-| Producto | 9 | 2 | 0 |
-| Comercial | 3 | 3 | 0 |
-| Legal/Operaciones | 7 | 3 | 0 |
-| **TOTAL** | **29** | **10** | **0** |
-
-**Conclusión: VIABLE desde las 36 perspectivas evaluadas.**
-
----
-
-## 4. Marco Legal
-
-### Lo esencial para uso personal
-
-- ✅ Solo contactos con **consentimiento explícito**
-- ✅ Opción **"envía STOP"** en cada campaña
-- ✅ Volumen bajo: **< 50 mensajes/día**
-- ✅ Horarios humanos: **8am-10pm**
-- ✅ **No scraping** de números
-- ✅ Registro de consentimiento por contacto
-- ⚠️ WhatsApp ToS prohíbe automatización — mitigable con bajo volumen
-- ⚠️ Leyes anti-spam varían por país — siempre incluir opt-out
-
----
-
-# PARTE II — ARQUITECTURA (Costo $0)
-
-## 5. Stack de Costo Cero
-
-Para uso personal, **todo corre en tu propia máquina**. Sin VPS, sin servicios de pago.
-
-| Componente | Solución $0 | Alternativa pagada |
-|------------|-------------|-------------------|
-| **Servidor** | Tu PC/laptop (Linux/Mac/Windows) | VPS $5-12/mes |
-| **Base de datos** | **SQLite** (con Prisma) | PostgreSQL $0 (también local) |
-| **Cache** | **better-sqlite3** en memoria | Redis $0 (local) |
-| **LLM** | **Ollama + Llama 3.1 8B** (local, gratis) | OpenAI $2-10/mes |
-| **Embeddings** | **Ollama + nomic-embed-text** (local) | OpenAI $0.50-2/mes |
-| **Vector DB** | **sqlite-vss** extensión SQLite | pgvector $0 |
-| **Dominio** | No necesario (acceso local) | Dominio $10/año |
-| **SSL** | No necesario (localhost) | Let's Encrypt $0 |
-| **Email** | No necesario para MVP | — |
-| **Total** | **$0** | $7-25/mes |
-
-### Stack final $0
-
-```
-Runtime:     Node.js 20+ (gratis)
-WhatsApp:    Baileys + baileys-antiban (gratis, npm)
-Database:    SQLite + Prisma (gratis, local)
-LLM:         Ollama + Llama 3.1 8B (gratis, local) O Groq API free tier (gratis, cloud)
-Embeddings:  Ollama + nomic-embed-text (gratis, local)
-Vector:      sqlite-vss o almacenamiento JSON (gratis)
-Frontend:    Next.js (gratis, localhost:3000)
-Cola:        Bull con better-sqlite3 (gratis)
-No-code alt: n8n + Evolution API (gratis, self-hosted)
-```
-
-### Requisitos de tu máquina
-
-```
-Mínimo:
-  CPU: 4 cores (para Ollama)
-  RAM: 8GB (4GB para Ollama, 4GB para el resto)
-  Disco: 10GB libres
-
-Recomendado:
-  CPU: 8 cores
-  RAM: 16GB
-  GPU: cualquier NVIDIA con 4GB+ VRAM (acelera Ollama x10)
-  Disco: 20GB libres
+┌─────────────────────────────────────────────────────────────────┐
+│                    PANEL DEL ADMIN (Next.js)                     │
+│                                                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │
+│  │ Dashboard │ │  CRM     │ │Marketing │ │ Configuración IA  │  │
+│  │ KPIs     │ │Contactos │ │Campañas  │ │ Parámetros/Reglas │  │
+│  │ Gráficas │ │Pipeline  │ │Templates │ │ Knowledge Base    │  │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬──────────┘  │
+│       │             │            │                 │             │
+│  ┌────▼─────────────▼────────────▼─────────────────▼──────────┐ │
+│  │                    MOTOR CENTRAL (Node.js)                  │ │
+│  │                                                             │ │
+│  │  ┌─────────────────────────────────────────────────────┐   │ │
+│  │  │            🧠 CEREBRO IA (Autonomous Engine)         │   │ │
+│  │  │                                                      │   │ │
+│  │  │  ┌────────────┐  ┌────────────┐  ┌──────────────┐  │   │ │
+│  │  │  │ Auto-Reply │  │ Campaign   │  │  Sales        │  │   │ │
+│  │  │  │ Engine     │  │ Generator  │  │  Pipeline AI  │  │   │ │
+│  │  │  │            │  │            │  │               │  │   │ │
+│  │  │  │ - Intención│  │ - Crear msg│  │ - Mover leads │  │   │ │
+│  │  │  │ - Contexto │  │ - Spintax  │  │ - Follow-ups  │  │   │ │
+│  │  │  │ - Tono     │  │ - Schedule │  │ - Priorizar   │  │   │ │
+│  │  │  │ - Escalar  │  │ - Segmentar│  │ - Cerrar      │  │   │ │
+│  │  │  └─────┬──────┘  └─────┬──────┘  └──────┬───────┘  │   │ │
+│  │  │        │               │                 │          │   │ │
+│  │  │  ┌─────▼───────────────▼─────────────────▼───────┐  │   │ │
+│  │  │  │         Anti-Ban Engine (6 capas)              │  │   │ │
+│  │  │  │  Template Rotation │ Warm-up 14d │ Gaussian    │  │   │ │
+│  │  │  │  Typing Sim        │ Fail Detect │ Reputation  │  │   │ │
+│  │  │  └───────────────────────┬────────────────────────┘  │   │ │
+│  │  └──────────────────────────┼────────────────────────────┘   │ │
+│  │                              │                                │ │
+│  │  ┌───────────────────────────▼────────────────────────────┐  │ │
+│  │  │          WhatsApp Connection Layer                      │  │ │
+│  │  │  Baileys + baileys-antiban (multi-device)              │  │ │
+│  │  └───────────────────────────┬────────────────────────────┘  │ │
+│  └──────────────────────────────┼────────────────────────────────┘ │
+│                                  │                                  │
+│  ┌───────────────────────────────▼──────────────────────────────┐  │
+│  │                     Data Layer (SQLite $0)                    │  │
+│  │  contacts │ deals │ campaigns │ activities │ bot_memory       │  │
+│  │  templates │ reputation │ analytics │ knowledge_base         │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  LLM Layer ($0)                                │  │
+│  │  Ollama (local) + Groq API free tier (cloud fallback)        │  │
+│  │  Llama 3.1 8B + nomic-embed-text                             │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 6. Arquitectura del Sistema
+## LOS 5 MÓDULOS AUTÓNOMOS
+
+### Módulo 1: 🤖 Auto-Reply Engine (Chat Bot IA)
+
+**Qué hace:** Responde automáticamente TODOS los mensajes entrantes como un humano.
+
+**El admin configura:**
+```json
+{
+  "nombre_bot": "María",
+  "tono": "profesional-cercano",
+  "idioma": "español",
+  "horario": "8:00-20:00",
+  "escalamiento": {
+    "palabras_clave": ["hablar con alguien", "agente", "urgente"],
+    "max_intercambios": 3,
+    "sentimiento_negativo": true
+  },
+  "personalidad": "Soy María, asesora de ventas. Respondo de forma clara y amable."
+}
+```
+
+**La IA hace:**
+1. Detecta intención (pregunta/queja/compra/saludo/soporte)
+2. Recupera contexto del contacto (historial + knowledge base)
+3. Genera respuesta humana con tono adecuado
+4. Aplica delay humano (3-15s Gaussiano) + typing indicator
+5. Registra en CRM automáticamente
+6. Escala a humano si es necesario
+7. Aprende de cada interacción (memoria semántica)
+
+**Referencia técnica:**
+- whatsapp-mcp → arquitectura de memoria
+- wa-sender-pro → Groq AI para respuestas
+- whatsapp-ai-platform → multi-tenant agents
+- Car-and-Gen → RAG con vector store
+- StayIQ → asistente WhatsApp con tareas
+
+---
+
+### Módulo 2: 📣 Campaign Generator (Marketing autónomo)
+
+**Qué hace:** Crea, programa y envía campañas de marketing sin intervención manual.
+
+**El admin configura:**
+```json
+{
+  "objetivo": "promocionar_producto",
+  "producto": "Curso de Marketing Digital",
+  "audiencia": {
+    "tags": ["lead", "interesado-marketing"],
+    "excluir_tags": ["cliente", "no-interesado"],
+    "max_contactos": 100
+  },
+  "frecuencia": "2 por semana",
+  "horario_envio": "10:00-12:00",
+  "tono": "informal-entusiasta",
+  "incluir_media": true,
+  "cta": "Respondé INFO para más detalles"
+}
+```
+
+**La IA hace:**
+1. Genera 5-10 variaciones del mensaje (spintax + sinónimos)
+2. Personaliza con {{nombre}}, {{empresa}}, etc.
+3. Selecciona el mejor horario según engagement previo
+4. Aplica anti-ban (6 capas) automáticamente
+5. Envía en lotes con warm-up progresivo
+6. Trackea: enviado → entregado → leído → respondió
+7. Ajusta estrategia según resultados
+8. Reporta métricas en dashboard
+
+**Referencia técnica:**
+- dk1307/whatsapp-bulk-sender → Web UI + WebSocket
+- vSender → queue FIFO + rate limiting
+- WhatsApp-Campaign-Bot → 6 capas anti-ban
+- wpchatbot → warm-up 14 días
+- SendStack → {{variables}} + spintax
+
+---
+
+### Módulo 3: 📊 CRM Pipeline AI (Gestión autónoma)
+
+**Qué hace:** Gestiona contactos, deals y pipeline automáticamente.
+
+**El admin configura:**
+```json
+{
+  "etapas_pipeline": ["nuevo", "contactado", "interesado", "propuesta", "negociacion", "cerrado-ganado", "cerrado-perdido"],
+  "auto_mover": true,
+  "reglas": {
+    "nuevo_a_contactado": "cuando bot envíe primer mensaje",
+    "contactado_a_interesado": "cuando contacto responda positivamente",
+    "interesado_a_propuesta": "cuando IA detecte intención de compra",
+    "propuesta_a_negociacion": "cuando contacto pregunte precio/condiciones",
+    "negociacion_a_cerrado": "cuando contacto confirme compra"
+  },
+  "seguimiento_auto": {
+    "si_no_responde_en": "48h",
+    "accion": "mensaje de follow-up amigable"
+  }
+}
+```
+
+**La IA hace:**
+1. Registra cada interacción automáticamente
+2. Mueve deals en el pipeline según reglas
+3. Detecta sentimiento del contacto
+4. Agenda follow-ups automáticos
+5. Prioriza contactos por probabilidad de conversión
+6. Sugiere siguiente acción al admin
+7. Genera reportes de pipeline
+
+**Referencia técnica:**
+- workshop-crm → modelo Kanban + deals
+- MedicareAI → bot + citas automáticas
+
+---
+
+### Módulo 4: 🛡️ Anti-Ban Guardian (Protección continua)
+
+**Qué hace:** Protege el número de WhatsApp 24/7 sin intervención.
+
+**El admin configura:**
+```json
+{
+  "modo": "conservador",
+  "warmup_dias": 14,
+  "limite_diario": 100,
+  "horario": "8:00-20:00",
+  "auto_stop": {
+    "fallos_consecutivos": 5,
+    "tasa_fallo_porcentaje": 30
+  }
+}
+```
+
+**La IA hace:**
+1. Controla volumen con warm-up gradual (10→200 en 14 días)
+2. Aplica Gaussian jitter a TODOS los delays
+3. Simula typing antes de cada envío
+4. Pausa cada 10 mensajes (2-5 min)
+5. Detecta fallos y auto-detiene
+6. Trackea reputación por contacto
+7. Salva sesión automáticamente
+8. Reconecta con backoff exponencial
+9. Monitorea session health
+10. Alerta al admin solo si es crítico
+
+**Referencia técnica:**
+- baileys-antiban → middleware npm (Gaussian jitter, warmup, session health)
+- WhatsApp-Campaign-Bot → 6 capas documentadas
+- Neexll/Bot-WhatsApp → mejores prácticas
+- wpchatbot → warm-up 14 días
+
+---
+
+### Módulo 5: 📈 Analytics & Reporting (KPIs autónomos)
+
+**Qué hace:** Genera reportes, KPIs y gráficas automáticamente.
+
+**El admin ve:**
+
+**KPIs en tiempo real:**
+```
+┌─────────────────────────────────────────────────────────┐
+│  📊 DASHBOARD — Resumen del Día                         │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Mensajes enviados:     47 / 100 (47%)                  │
+│  Mensajes entregados:   45 (95.7%)                      │
+│  Mensajes leídos:       38 (80.9%)                      │
+│  Respuestas recibidas:  12 (25.5%)                      │
+│  Conversaciones bot:    8                               │
+│  Escaladas a humano:    2                               │
+│                                                          │
+│  Contactos nuevos:      5                               │
+│  Deals creados:         3                               │
+│  Deals movidos:         7                               │
+│  Ventas cerradas:       1 ($500)                        │
+│                                                          │
+│  Tasa de apertura:      80.9%  (↑ 3% vs ayer)          │
+│  Tasa de respuesta:     25.5%  (↓ 2% vs ayer)          │
+│  Conversión:            2.1%   (→ estable)              │
+│                                                          │
+│  Estado WhatsApp:       🟢 Conectado                    │
+│  Salud sesión:          🟢 98%                          │
+│  Anti-ban status:       🟡 Modo conservador (día 5/14)  │
+│  LLM status:            🟢 Ollama activo                │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Gráficas automáticas:**
+- Mensajes enviados/recibidos por día (línea)
+- Tasa de apertura por campaña (barra)
+- Pipeline funnel (embudo)
+- Mejores horarios de envío (heatmap)
+- Sentimiento de conversaciones (pie)
+- Crecimiento de contactos (área)
+- ROI por campaña (barra)
+
+**Referencia técnica:**
+- whatsapp-chat-analyser → análisis de exportaciones
+- dk1307 → logging extensivo
+- ossiqn → reporting JSON
+
+---
+
+## FLUJO AUTÓNOMO COMPLETO
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                  TU PC / LAPTOP ($0)                       │
-│                                                            │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │              Frontend (Next.js)                       │  │
-│  │         Dashboard CRM + Marketing + Bot               │  │
-│  │              localhost:3000                            │  │
-│  └──────────────────────┬──────────────────────────────┘  │
-│                         │ HTTP/WS                          │
-│  ┌──────────────────────▼──────────────────────────────┐  │
-│  │              Backend (Node.js + Express)              │  │
-│  │                                                      │  │
-│  │  ┌────────┐ ┌─────┐ ┌──────────┐ ┌──────────────┐  │  │
-│  │  │Marketing│ │ CRM │ │  Bot IA  │ │  Analytics   │  │  │
-│  │  │Module  │ │     │ │          │ │              │  │  │
-│  │  └───┬────┘ └──┬──┘ └────┬─────┘ └──────┬───────┘  │  │
-│  │      │         │         │               │          │  │
-│  │  ┌───▼─────────▼─────────▼───────────────▼────────┐ │  │
-│  │  │         WhatsApp Service Layer                  │ │  │
-│  │  │  Baileys + baileys-antiban (6 capas)           │ │  │
-│  │  └───────────────────┬────────────────────────────┘ │  │
-│  └──────────────────────┼──────────────────────────────┘  │
-│                         │                                  │
-│  ┌──────────────────────▼──────────────────────────────┐  │
-│  │                   Data Layer                         │  │
-│  │  SQLite (datos) + sqlite-vss (vectores) + JSON (cola)│  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                            │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │                Ollama (local, $0)                     │  │
-│  │  Llama 3.1 8B (chat) + nomic-embed-text (embeddings)│  │
-│  │              localhost:11434                          │  │
-│  └─────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────┘
+DÍA NORMAL DEL ADMIN (solo mira):
+
+08:00  ┌─ El sistema se conecta automáticamente a WhatsApp
+       │  Anti-ban: warm-up activo (día 5/14, límite 25 msg)
+       │
+08:15  ├─ Llega mensaje de "Pedro" preguntando por un producto
+       │  → Bot IA detecta intención: CONSULTA
+       │  → Recupera info del producto de la knowledge base
+       │  → Genera respuesta humana con delay de 7s
+       │  → Registra actividad en CRM
+       │  → Mueve deal de Pedro: "nuevo" → "contactado"
+       │
+09:00  ├─ IA genera campaña semanal automáticamente
+       │  → 5 variaciones del mensaje de marketing
+       │  → Selecciona 20 contactos (tag: "lead-activo")
+       │  → Programa envío: 10:00-11:00 (mejor horario)
+       │
+10:00  ├─ Campaña se envía con anti-ban activo
+       │  → 20 mensajes, delay 12-18s entre cada uno
+       │  → Typing simulation activa
+       │  → Tracking: 18 entregados, 2 fallidos
+       │
+10:30  ├─ "Laura" responde "Me interesa"
+       │  → Bot detecta intención: INTERÉS
+       │  → Responde con detalles + precio
+       │  → Mueve deal: "contactado" → "interesado"
+       │  → Agenda follow-up en 24h si no responde
+       │
+14:00  ├─ Bot responde a 5 consultas más
+       │  → 3 sobre productos, 1 horarios, 1 queja
+       │  → Queja escalada a humano automáticamente
+       │
+18:00  ├─ Admin abre dashboard
+       │  → Ve: 47 enviados, 12 respuestas, 1 venta
+       │  → Ve gráficas del día
+       │  → Aprueba siguiente paso para "Laura"
+       │
+20:00  ┌─ Sistema pausa envíos (horario laboral terminado)
+       │  → Backup automático de datos
+       │  → Log del día guardado
 ```
 
 ---
 
-## 7. Modelo de Datos (SQLite)
+## STACK TÉCNICO FINAL ($0)
 
-```sql
--- Contactos
-CREATE TABLE contacts (
-    id TEXT PRIMARY KEY,
-    phone TEXT UNIQUE NOT NULL,
-    name TEXT,
-    email TEXT,
-    stage TEXT DEFAULT 'lead',       -- lead|prospect|customer|churned
-    consent_marketing INTEGER DEFAULT 0,
-    consent_date TEXT,
-    notes TEXT,
-    metadata TEXT DEFAULT '{}',      -- JSON
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-);
+```
+Backend:      Node.js 20 + Express + TypeScript
+WhatsApp:     Baileys + baileys-antiban (npm, $0)
+Database:     SQLite + Prisma ($0, local)
+LLM primario: Groq API free tier (qwen-2.5-32b, $0, cloud)
+LLM backup:   Ollama + Llama 3.1 8B ($0, local)
+Embeddings:   Ollama + nomic-embed-text ($0, local)
+Vector:       sqlite-vss ($0)
+Frontend:     Next.js 14 + TailwindCSS + shadcn/ui ($0)
+Charts:       Recharts ($0, npm)
+Cola:         Bull + better-sqlite3 ($0)
+Deploy:       Tu PC (desarrollo) / Hetzner $4.50/mes (producción)
 
--- Tags
-CREATE TABLE tags (
-    id TEXT PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
-    color TEXT DEFAULT '#3B82F6'
-);
-
-CREATE TABLE contact_tags (
-    contact_id TEXT REFERENCES contacts(id) ON DELETE CASCADE,
-    tag_id TEXT REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (contact_id, tag_id)
-);
-
--- Pipeline de ventas
-CREATE TABLE deals (
-    id TEXT PRIMARY KEY,
-    contact_id TEXT REFERENCES contacts(id),
-    title TEXT NOT NULL,
-    stage TEXT DEFAULT 'nuevo',      -- nuevo|contactado|propuesta|negociacion|cerrado-ganado|cerrado-perdido
-    value REAL,
-    probability INTEGER DEFAULT 10,
-    notes TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-);
-
--- Actividades (log de interacciones)
-CREATE TABLE activities (
-    id TEXT PRIMARY KEY,
-    contact_id TEXT REFERENCES contacts(id),
-    deal_id TEXT REFERENCES deals(id),
-    type TEXT NOT NULL,              -- message_sent|message_received|call|note|bot_interaction
-    direction TEXT,                  -- inbound|outbound
-    content TEXT,
-    metadata TEXT DEFAULT '{}',
-    created_at TEXT DEFAULT (datetime('now'))
-);
-
--- Campañas de marketing
-CREATE TABLE campaigns (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    message_template TEXT NOT NULL,
-    media_url TEXT,
-    status TEXT DEFAULT 'draft',     -- draft|scheduled|running|completed|paused
-    scheduled_at TEXT,
-    total_contacts INTEGER DEFAULT 0,
-    sent_count INTEGER DEFAULT 0,
-    delivered_count INTEGER DEFAULT 0,
-    read_count INTEGER DEFAULT 0,
-    failed_count INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE campaign_contacts (
-    campaign_id TEXT REFERENCES campaigns(id) ON DELETE CASCADE,
-    contact_id TEXT REFERENCES contacts(id) ON DELETE CASCADE,
-    status TEXT DEFAULT 'pending',
-    sent_at TEXT,
-    error TEXT,
-    PRIMARY KEY (campaign_id, contact_id)
-);
-
--- Memoria del bot (conversaciones)
-CREATE TABLE bot_memory (
-    id TEXT PRIMARY KEY,
-    contact_id TEXT REFERENCES contacts(id),
-    role TEXT NOT NULL,              -- user|assistant|system
-    content TEXT NOT NULL,
-    embedding TEXT,                  -- JSON array de floats
-    metadata TEXT DEFAULT '{}',
-    created_at TEXT DEFAULT (datetime('now'))
-);
-
--- Knowledge base del bot
-CREATE TABLE bot_knowledge (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    embedding TEXT,
-    category TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-);
-
--- Configuración del bot
-CREATE TABLE bot_config (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,             -- JSON
-    updated_at TEXT DEFAULT (datetime('now'))
-);
-
--- Contact reputation (anti-ban)
-CREATE TABLE contact_reputation (
-    phone TEXT PRIMARY KEY,
-    status TEXT DEFAULT 'active',    -- active|blocked|invalid|cooldown
-    last_messaged TEXT,
-    fail_count INTEGER DEFAULT 0,
-    block_count INTEGER DEFAULT 0,
-    cooldown_until TEXT,
-    updated_at TEXT DEFAULT (datetime('now'))
-);
+TOTAL: $0 (desarrollo) / $54/año (si necesitas 24/7)
 ```
 
 ---
 
-# PARTE III — PLAN POR ETAPAS
+## PARÁMETROS QUE EL ADMIN CONFIGURA (todo desde el dashboard)
 
-## 8. Roadmap Optimizado (Costo $0)
-
-### Etapa 0 — Setup del Entorno (1 día)
-
-```bash
-# Instalar dependencias base (todo gratis)
-# 1. Node.js 20+
-# 2. Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1:8b
-ollama pull nomic-embed-text
-
-# 3. Clonar repo
-git clone https://github.com/pabloeckert/MejoraWS.git
-cd MejoraWS
-
-# 4. Inicializar proyecto
-npm init -y
-npm install baileys baileys-antiban @prisma/prisma better-sqlite3
-npm install next react react-dom
-npm install bull ioredis
-npm install ollama
+### 1. Configuración General
+```json
+{
+  "negocio": "Mi Tienda Online",
+  "descripcion": "Venta de productos digitales",
+  "horario_atencion": "8:00-20:00",
+  "zona_horaria": "America/Buenos_Aires",
+  "moneda": "ARS"
+}
 ```
 
-**Entorno listo: $0**
-
----
-
-### Etapa 1 — Conexión WhatsApp + Anti-Ban (Semana 1)
-
-**Objetivo:** WhatsApp conectado con protección anti-ban activa.
-
-```
-Día 1-2: Conexión básica
-  [ ] Integrar Baileys
-  [ ] Integrar baileys-antiban (middleware obligatorio)
-  [ ] Flujo QR de autenticación
-  [ ] Guardar/restaurar sesión
-  [ ] Health check de conexión
-  [ ] Reconexión automática con backoff
-
-Día 3-4: Capa anti-ban
-  [ ] Gaussian jitter delays (no fijos)
-  [ ] Warm-up schedule: 10→30→50→100 msg/día
-  [ ] Typing simulation antes de cada envío
-  [ ] Failure detection: auto-stop en cascada
-  [ ] Contact reputation tracking
-  [ ] Límite diario configurable
-
-Día 5: Testing
-  [ ] Test con número de prueba
-  [ ] Verificar reconexión
-  [ ] Verificar warm-up
-  [ ] Documentar API interna
+### 2. Knowledge Base (lo que la IA "sabe")
+```json
+{
+  "productos": [
+    {"nombre": "Curso Marketing", "precio": "$5000", "duracion": "8 semanas"},
+    {"nombre": "Mentoría 1:1", "precio": "$15000/mes", "sesiones": 4}
+  ],
+  "faq": [
+    {"q": "¿Cómo pago?", "a": "Transferencia, Mercado Pago o efectivo"},
+    {"q": "¿Hay garantía?", "a": "Sí, 30 días de garantía de devolución"}
+  ],
+  "politicas": {
+    "devolucion": "30 días sin preguntas",
+    "envio": "Digital, acceso inmediato"
+  }
+}
 ```
 
-**Entregable:** Servicio que mantiene WhatsApp conectado con anti-ban activo.
-
----
-
-### Etapa 2 — Bot IA con Autorespuesta Humana (Semana 2-3)
-
-**Objetivo:** Bot que responde automáticamente como un humano.
-
-```
-Semana 2: LLM + Memoria
-  [ ] Instalar y configurar Ollama (llama3.1:8b)
-  [ ] Conectar Node.js → Ollama API (localhost:11434)
-  [ ] Sistema de prompts con personalidad
-  [ ] Generar embeddings con nomic-embed-text
-  [ ] Almacenar conversaciones en bot_memory
-  [ ] Retrieval de contexto relevante (RAG básico)
-
-Semana 3: Comportamiento humano
-  [ ] Delay antes de responder (3-15 seg, Gaussiano)
-  [ ] Typing indicator mientras "piensa"
-  [ ] Tono adaptable (formal/informal según contacto)
-  [ ] Respuestas cortas y naturales (no walls de texto)
-  [ ] "No sé" honesto cuando no tiene info
-  [ ] Detección de intención (pregunta/queja/compra/saludo)
-  [ ] Escalamiento a humano:
-      - Palabra clave: "hablar con alguien", "agente", "persona"
-      - Timeout: si no resuelve en 3 intercambios
-      - Sentimiento negativo detectado
-  [ ] Knowledge base: subir FAQ/productos/servicios
-  [ ] Test de naturalidad (¿suena a bot o humano?)
+### 3. Reglas del Bot
+```json
+{
+  "nombre_bot": "María",
+  "personalidad": "Profesional, cercana, entusiasta",
+  "reglas_especiales": {
+    "si_preguntan_precio": "Responder con precio + valor agregado",
+    "si_dicen_caro": "Ofrecer descuento o plan de pago",
+    "si_no_responde_48h": "Enviar follow-up amigable",
+    "si_queja": "Escalar a humano inmediatamente"
+  }
+}
 ```
 
-**Entregable:** Bot que responde como un humano, con memoria y escalamiento.
-
-**Prompt base del bot:**
+### 4. Reglas de Marketing
+```json
+{
+  "frecuencia_campañas": "2 por semana",
+  "max_mensajes_dia": 50,
+  "segmentacion_auto": true,
+  "warmup_dias": 14,
+  "anti_ban_modo": "conservador"
+}
 ```
-Eres [nombre], asistente de [negocio]. Responde de forma natural, 
-como lo haría una persona real por WhatsApp. Sé breve, usa lenguaje 
-coloquial cuando sea apropiado. Si no sabes algo, di "déjame consultar 
-y te confirmo". Si el cliente necesita hablar con una persona, di 
-"te paso con [nombre humano] que te puede ayudar mejor".
 
-Contexto del contacto: {{contact_info}}
-Historial reciente: {{recent_messages}}
-Knowledge base relevante: {{rag_context}}
+### 5. Reglas del Pipeline
+```json
+{
+  "auto_mover_deals": true,
+  "followup_auto": true,
+  "priorizar_por": "probabilidad_conversion"
+}
 ```
 
 ---
 
-### Etapa 3 — CRM Básico (Semana 3-4)
-
-**Objetivo:** Ver contactos, pipeline y actividades.
+## ESTRUCTURA DE ARCHIVOS
 
 ```
-Semana 3 (paralelo con Bot):
-  [ ] Schema Prisma + SQLite
-  [ ] CRUD contactos
-  [ ] Sistema de tags
-  [ ] Registro automático de actividades
-  [ ] Búsqueda y filtrado
-
-Semana 4:
-  [ ] Pipeline Kanban (deals)
-  [ ] Movimiento entre etapas
-  [ ] Frontend Next.js:
-      - Lista de contactos con filtros
-      - Kanban board del pipeline
-      - Detalle de contacto + historial
-      - Dashboard con métricas
-```
-
-**Entregable:** Dashboard web con CRM funcional.
-
----
-
-### Etapa 4 — Marketing Module (Semana 4-5)
-
-**Objetivo:** Campañas de envío masivo con anti-ban integrado.
-
-```
-Semana 4 (paralelo con CRM):
-  [ ] Modelo campaigns + campaign_contacts
-  [ ] Crear campaña con template
-  [ ] CSV parser + validación de teléfonos
-  [ ] Template engine: {{nombre}}, {{empresa}}, etc.
-  [ ] Spintax: {Hola|Hola!|Hey}
-
-Semana 5:
-  [ ] Cola de envío (Bull/BullMQ)
-  [ ] Rate limiting integrado con anti-ban (6 capas)
-  [ ] Tracking: enviado → entregado → leído
-  [ ] Frontend:
-      - Crear/editar campañas
-      - Importar CSV
-      - Preview antes de enviar
-      - Estadísticas de campaña
-      - Historial de envíos
-```
-
-**Entregable:** Sistema de campañas con anti-ban completo.
-
----
-
-### Etapa 5 — Integración y Polish (Semana 5-6)
-
-**Objetivo:** Todo funciona junto, estable, usable.
-
-```
-  [ ] Flujo completo: mensaje → bot responde → CRM registra
-  [ ] Campañas: envío → tracking → métricas
-  [ ] Notificaciones de desconexión de WhatsApp
-  [ ] Backup automático de SQLite
-  [ ] Manejo robusto de errores
-  [ ] Responsive design del dashboard
-  [ ] Documentación de uso personal
-  [ ] Test de 24h de estabilidad
-```
-
-**Entregable:** MVP completo y funcional.
-
----
-
-## 9. Diagrama de Flujo del Bot IA
-
-```
-Mensaje entrante de WhatsApp
-         │
-         ▼
-┌─────────────────────┐
-│  ¿Es comando manual? │──── Sí ──── Ejecutar comando
-│  (!help, !stop, etc) │
-└─────────┬───────────┘
-          │ No
-          ▼
-┌─────────────────────┐
-│  Recuperar contexto  │
-│  - Info del contacto │
-│  - Historial reciente│
-│  - RAG knowledge base│
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  Generar respuesta   │
-│  con Ollama (local)  │
-│  - Personalidad      │
-│  - Contexto          │
-│  - Tono adecuado     │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  ¿Requiere humano?   │──── Sí ──── Escalar con contexto
-│  - Palabra clave     │
-│  - 3 intercambios    │
-│  - Sentimiento neg.  │
-└─────────┬───────────┘
-          │ No
-          ▼
-┌─────────────────────┐
-│  Delay humano (Gauss)│
-│  3-15 segundos       │
-│  + typing indicator  │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  Enviar respuesta    │
-│  Guardar en memoria  │
-│  Registrar actividad │
-└─────────────────────┘
+mejoraws/
+├── src/
+│   ├── server.ts                    # Entry point
+│   ├── config/
+│   │   ├── index.ts                 # Config loader
+│   │   └── default-params.json      # Parámetros default
+│   │
+│   ├── whatsapp/
+│   │   ├── client.ts                # Baileys + baileys-antiban
+│   │   ├── sender.ts                # Envío con anti-ban
+│   │   └── receiver.ts              # Recepción de mensajes
+│   │
+│   ├── brain/
+│   │   ├── auto-reply.ts            # Motor de auto-respuesta
+│   │   ├── campaign-generator.ts    # Generador de campañas
+│   │   ├── pipeline-manager.ts      # Gestor de pipeline
+│   │   ├── content-creator.ts       # Creación de contenido
+│   │   └── orchestrator.ts          # Coordinador central
+│   │
+│   ├── antiban/
+│   │   ├── rate-limiter.ts          # Gaussian jitter
+│   │   ├── warmup.ts                # Warm-up 14 días
+│   │   ├── typing-sim.ts            # Simulación de typing
+│   │   ├── failure-detector.ts      # Detección de fallos
+│   │   └── reputation.ts            # Reputación de contactos
+│   │
+│   ├── crm/
+│   │   ├── contacts.ts              # Gestión de contactos
+│   │   ├── deals.ts                 # Pipeline de deals
+│   │   ├── activities.ts            # Log de actividades
+│   │   └── analytics.ts             # Cálculo de métricas
+│   │
+│   ├── llm/
+│   │   ├── groq.ts                  # Groq API (gratis)
+│   │   ├── ollama.ts                # Ollama local (backup)
+│   │   ├── embeddings.ts            # Generación de embeddings
+│   │   └── rag.ts                   # Retrieval augmented generation
+│   │
+│   ├── db/
+│   │   ├── schema.prisma            # Modelo de datos
+│   │   └── queries.ts               # Queries optimizadas
+│   │
+│   └── api/
+│       ├── contacts.routes.ts
+│       ├── campaigns.routes.ts
+│       ├── deals.routes.ts
+│       ├── bot.routes.ts
+│       ├── analytics.routes.ts
+│       └── config.routes.ts
+│
+├── frontend/                        # Next.js dashboard
+│   ├── pages/
+│   │   ├── index.tsx                # Dashboard principal
+│   │   ├── contacts.tsx             # CRM contactos
+│   │   ├── pipeline.tsx             # Kanban pipeline
+│   │   ├── campaigns.tsx            # Marketing
+│   │   ├── conversations.tsx        # Chat / conversaciones
+│   │   ├── analytics.tsx            # KPIs y gráficas
+│   │   └── settings.tsx             # Configuración / parámetros
+│   └── components/
+│       ├── Dashboard/
+│       ├── CRM/
+│       ├── Marketing/
+│       ├── Chat/
+│       └── Charts/
+│
+├── data/
+│   ├── mejoraws.db                  # SQLite database
+│   ├── whatsapp-session/            # Sesión WhatsApp
+│   └── knowledge-base/              # Documentos de la IA
+│
+├── prisma/
+│   └── schema.prisma
+│
+├── package.json
+├── tsconfig.json
+├── docker-compose.yml               # Para deploy 24/7
+└── README.md
 ```
 
 ---
 
-## 10. Comandos del Bot
+## PLAN DE DESARROLLO POR SPRINTS
 
-| Comando | Acción |
-|---------|--------|
-| `!ayuda` | Lista de comandos |
-| !`stop` | Pausar bot para este contacto |
-| `!humano` | Escalar a persona real |
-| `!info` | Info del contacto registrada |
-| `!estado` | Estado del bot (activo/pausado) |
-| `!campaña` | Última campaña enviada |
-
-**Todo mensaje que NO empiece con !** → Lo procesa el bot IA.
-
----
-
-## 11. Checklist Anti-Ban (implementar en Etapa 1)
-
+### Sprint 1 (Semana 1): Foundation
 ```
-CONEXIÓN:
-  [ ] baileys-antiban como middleware obligatorio
-  [ ] Session health monitoring activo
-  [ ] Disconnect classification habilitada
-  [ ] Reconexión con backoff exponencial
-
-ENVÍO:
-  [ ] Gaussian jitter en TODOS los delays
-  [ ] Warm-up: empezar en 10, subir gradualmente
-  [ ] Typing simulation (1-3 seg antes de enviar)
-  [ ] Pausa cada 10 mensajes (2-5 min)
-  [ ] Horarios: solo 8am-10pm
-  [ ] Límite diario: 50-200 (configurable)
-
-MENSAJES:
-  [ ] Spintax o templates rotativos
-  [ ] Nunca mensaje idéntico a 2 contactos
-  [ ] Personalización con nombre
-  [ ] Sin links en primer mensaje
-
-PROTECCIÓN:
-  [ ] Auto-stop: 5 fallos consecutivos
-  [ ] Auto-stop: >30% failure rate
-  [ ] Contact reputation tracking
-  [ ] Skip números bloqueados/inválidos
-  [ ] No re-enviar a mismo contacto en <7 días
-  [ ] Modo dry-run para testing
+[ ] Setup proyecto (Node.js + TypeScript + Prisma + SQLite)
+[ ] Conectar WhatsApp (Baileys + baileys-antiban)
+[ ] Anti-ban básico (Gaussian jitter + warmup)
+[ ] Recibir y loggear mensajes entrantes
+[ ] Enviar mensajes de prueba
 ```
 
----
+### Sprint 2 (Semana 2): Brain
+```
+[ ] Integrar Groq API (gratis)
+[ ] Motor de auto-respuesta básico
+[ ] Sistema de prompts con personalidad
+[ ] Detección de intención
+[ ] Delay humano + typing indicator
+```
 
-## 12. Costos Anuales
+### Sprint 3 (Semana 3): CRM
+```
+[ ] Schema completo (contacts, deals, activities)
+[ ] CRUD contactos + tags
+[ ] Pipeline Kanban
+[ ] Auto-registro de actividades
+[ ] Follow-up automático
+```
 
-| Escenario | Costo/año |
-|-----------|-----------|
-| **$0 Total** (tu PC + Ollama) | **$0** |
-| VPS barato (si necesitas 24/7) | $54/año (Hetzner $4.50/mes) |
-| Con OpenAI en vez de Ollama | $24-120/año |
+### Sprint 4 (Semana 4): Marketing
+```
+[ ] Motor de campañas
+[ ] Template engine ({{var}} + spintax)
+[ ] Cola de envío con anti-ban
+[ ] Tracking de estados
+[ ] Segmentación automática
+```
 
-**Recomendación:** Empezar con $0 (tu PC). Si necesitas 24/7, Hetzner a $4.50/mes.
+### Sprint 5 (Semana 5): Dashboard
+```
+[ ] Next.js dashboard
+[ ] KPIs en tiempo real
+[ ] Gráficas (Recharts)
+[ ] Configuración de parámetros
+[ ] Knowledge base upload
+```
 
----
-
-## 13. Próximos Pasos Inmediatos
-
-```bash
-# 1. Instalar Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# 2. Descargar modelos (~5GB total)
-ollama pull llama3.1:8b
-ollama pull nomic-embed-text
-
-# 3. Verificar que funciona
-ollama run llama3.1:8b "Hola, ¿cómo estás?"
-
-# 4. Clonar el proyecto
-git clone https://github.com/pabloeckert/MejoraWS.git
-cd MejoraWS
-
-# 5. Instalar dependencias Node.js
-npm init -y
-npm install baileys baileys-antiban @whiskeysockets/baileys
-npm install better-sqlite3 prisma
-npm install next react react-dom
-npm install express socket.io
-
-# 6. Empezar Etapa 1
-# (crear carpeta src/ y comenzar)
+### Sprint 6 (Semana 6): Autonomous
+```
+[ ] Orchestrator (coordinador central)
+[ ] Campaign generator autónomo
+[ ] Pipeline AI auto-mover deals
+[ ] Analytics automáticos
+[ ] Testing + polish
 ```
 
 ---
 
-## 14. Registro de Avances
+## CÓMO SE USA (EJEMPLO REAL)
 
-> Este sección se actualiza cuando digas **"documentar"**
+### Día 1: Setup (10 minutos)
+```
+1. Abrir dashboard → Settings
+2. Completar: "Mi negocio vende cursos online"
+3. Subir CSV de 50 contactos
+4. Copiar FAQ en knowledge base
+5. Activar bot con nombre "María"
+6. Activar anti-ban modo conservador
+7. ¡Listo! El sistema arranca solo
+```
 
-| Fecha | Etapa | Avance | Notas |
-|-------|-------|--------|-------|
-| 26/04/2026 00:03 | Setup | Documentación consolidada en 1 archivo maestro | 64 repos |
-| 26/04/2026 00:08 | Análisis | +14 repos analizados (78 total). Hallazgo: Groq AI gratis, n8n no-code, warm-up 14d | Actualizado |
+### Día 2-14: Warm-up automático
+```
+El sistema envía 10→20→30→...→200 msg/día
+El bot responde a consultas automáticamente
+El admin solo mira el dashboard por 5 min/día
+```
+
+### Día 15+: Operación autónoma
+```
+La IA crea campañas solas
+La IA mueve deals en el pipeline
+La IA responde como María
+El admin recibe alertas solo para decisiones importantes
+Los KPIs se actualizan en tiempo real
+```
 
 ---
 
-*Documento maestro — se actualiza con cada "documentar"*
-*Repo: https://github.com/pabloeckert/MejoraWS*
+## REFERENCIAS TÉCNICAS (88+ repos)
+
+| Componente | Repos de referencia | Qué tomamos |
+|-----------|-------------------|-------------|
+| WhatsApp | whatsapp-web.js, Baileys | Conexión multi-device |
+| Anti-ban | baileys-antiban, WhatsApp-Campaign-Bot | 6 capas, Gaussian jitter |
+| Bot IA | whatsapp-mcp, wa-sender-pro | Memoria, Groq AI |
+| CRM | workshop-crm, whatsapp-sales-backend | Pipeline, deals |
+| Marketing | dk1307, vSender, wpchatbot | Queue, warm-up 14d |
+| Dashboard | whatsapp-bulk-sender-dashboard | React + WebSocket |
+| Gateway | wagate, Evolution API | REST API pattern |
+| SaaS ref | wamelly-ai, whatsapp-ai-platform | Multi-tenant architecture |
+| No-code | automacao-n8n | n8n workflow pattern |
+| RAG | Car-and-Gen, whatsapp-ai-framework | Vector store + RAG |
+
+---
+
+## VEREDICTO FINAL
+
+| Aspecto | Resultado |
+|---------|-----------|
+| **Viabilidad** | ✅ 100% viable |
+| **Costo** | $0 (desarrollo) / $54/año (producción 24/7) |
+| **Autonomía** | Admin configura → IA hace todo |
+| **Anti-ban** | 6 capas + warm-up 14 días |
+| **Bot IA** | Groq (gratis) + Ollama (backup) |
+| **Timeline** | 6 sprints / 6 semanas |
+| **Complejidad** | Media — stack probado |
+
+**¿Se puede hacer? SÍ.**
+**¿Cuesta algo? NO.**
+**¿Es seguro? SÍ (con las 6 capas anti-ban).**
+**¿Es autónomo? SÍ (el admin solo configura).**
+
+---
+
+*Propuesta generada el 26 de abril de 2026*
+*Basada en 88+ repositorios analizados de GitHub*
