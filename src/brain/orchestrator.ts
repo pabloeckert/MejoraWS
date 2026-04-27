@@ -14,6 +14,8 @@ import { ContactManager } from '../crm/contacts'
 import { DealManager } from '../crm/deals'
 import { CampaignEngine } from '../campaigns/engine'
 import { CampaignScheduler } from '../campaigns/scheduler'
+import { AuditLogger } from '../security/audit'
+import { DataRetention } from '../security/retention'
 import { c, status, box } from '../cli/theme'
 import Database from 'better-sqlite3'
 
@@ -37,6 +39,10 @@ export class Orchestrator {
   public campaigns: CampaignEngine
   public campaignScheduler: CampaignScheduler
 
+  // Security
+  public audit: AuditLogger
+  public retention: DataRetention
+
   constructor() {
     this.config = loadConfig()
     this.db = initDatabase(this.config.dbPath)
@@ -59,6 +65,10 @@ export class Orchestrator {
       this.warmup,
     )
     this.campaignScheduler = new CampaignScheduler(this.campaigns, this.contacts)
+
+    // Security
+    this.audit = new AuditLogger(this.db)
+    this.retention = new DataRetention(this.db)
   }
 
   /**
