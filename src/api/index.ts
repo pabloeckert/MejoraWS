@@ -12,6 +12,7 @@ import { contactsRouter } from './routes/contacts'
 import { dealsRouter } from './routes/deals'
 import { messagesRouter } from './routes/messages'
 import { statusRouter } from './routes/status'
+import { authRouter } from './routes/auth'
 import { childLogger } from '../utils/logger'
 
 const log = childLogger('api')
@@ -41,6 +42,7 @@ export function createApi(orchestrator: Orchestrator): express.Application {
     () => orchestrator.getStatus().then(s => s.llm),
   ))
 
+  app.use('/api/v1/auth', authRouter())
   app.use('/api/v1/contacts', contactsRouter(orchestrator.contacts, orchestrator.importer))
   app.use('/api/v1/deals', dealsRouter(orchestrator.deals))
   app.use('/api/v1/messages', messagesRouter(
