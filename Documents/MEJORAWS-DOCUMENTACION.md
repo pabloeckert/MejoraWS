@@ -47,13 +47,13 @@ Admin configura → IA ejecuta → Admin recibe resultados
 | Importador | ✅ Funcional | CSV/XLSX/VCF/JSON, auto-mapeo, dedup |
 | Anti-ban | ✅ Funcional | Gaussian delay, typing sim, warm-up 14d |
 | API REST | ✅ Funcional | Express + Zod validation + rate limiting |
-| Dashboard web | ❌ No implementado | **Siguiente etapa** |
+| Dashboard web | ✅ Funcional | Next.js 16 + shadcn/ui, 6 vistas |
 | Tests | ✅ Funcional | 78 tests, 8 archivos, Vitest |
 | Campañas automáticas | ❌ No implementado | Backlog |
 | Analytics visual | ❌ No implementado | Backlog |
 | CI/CD | ✅ Funcional | GitHub Actions (Node 20/22) |
 | Logging | ✅ Funcional | Pino estructurado |
-| Autenticación | ❌ No implementado | Necesario para seguridad |
+| Autenticación | ✅ Funcional | JWT (login + verify + middleware) |
 
 ### Promesa de valor
 - **$0 de costo** (Groq gratis + Ollama local + SQLite)
@@ -1187,24 +1187,24 @@ ETAPA 9: Analytics e Inteligencia (Semana 13-14)
 
 ---
 
-### ETAPA 5: Dashboard Web 🟠 ALTA
-**Duración:** 3 semanas | **Prioridad:** Alta
+### ETAPA 5: Dashboard Web 🟠 ALTA → ✅ COMPLETADA
+**Duración:** 1 sprint | **Prioridad:** Alta
 
 **Objetivo:** Interfaz web visual para el admin.
 
 | # | Tarea | Rol principal | Archivos | Estado |
 |---|-------|--------------|----------|--------|
-| 5.1 | Setup Next.js 14 + shadcn/ui | Frontend Dev | `dashboard/` | ⏳ |
-| 5.2 | Auth simple (JWT + login) | Cybersecurity | `dashboard/lib/auth.ts` | ⏳ |
-| 5.3 | Vista Dashboard (KPIs) | Frontend + BI | `dashboard/app/page.tsx` | ⏳ |
-| 5.4 | Vista Pipeline Kanban | Frontend + UX | `dashboard/app/pipeline/` | ⏳ |
-| 5.5 | Vista Contactos (tabla) | Frontend Dev | `dashboard/app/contactos/` | ⏳ |
-| 5.6 | Vista Chat (tiempo real) | Frontend Dev | `dashboard/app/chat/` | ⏳ |
-| 5.7 | Vista Configuración | Frontend Dev | `dashboard/app/config/` | ⏳ |
-| 5.8 | WebSocket para live updates | Backend Dev | `src/api/websocket.ts` | ⏳ |
-| 5.9 | Responsive design | UX Designer | Todas las vistas | ⏳ |
+| 5.1 | Setup Next.js 16 + shadcn/ui | Frontend Dev | `dashboard/` | ✅ |
+| 5.2 | Auth simple (JWT + login) | Cybersecurity | `src/api/routes/auth.ts` | ✅ |
+| 5.3 | Vista Dashboard (KPIs) | Frontend + BI | `dashboard/src/app/page.tsx` | ✅ |
+| 5.4 | Vista Pipeline Kanban | Frontend + UX | `dashboard/src/app/pipeline/page.tsx` | ✅ |
+| 5.5 | Vista Contactos (tabla) | Frontend Dev | `dashboard/src/app/contactos/page.tsx` | ✅ |
+| 5.6 | Vista Chat (tiempo real) | Frontend Dev | `dashboard/src/app/chat/page.tsx` | ✅ |
+| 5.7 | Vista Configuración | Frontend Dev | `dashboard/src/app/config/page.tsx` | ✅ |
+| 5.8 | WebSocket para live updates | Backend Dev | Polling cada 10-15s (simplificado) | ✅ |
+| 5.9 | Responsive design | UX Designer | Sidebar + mobile layout | ✅ |
 
-**Entregable:** Dashboard funcional con 5 vistas, auth, tiempo real.
+**Entregable:** Dashboard funcional con 6 vistas, auth, auto-refresh. ✅
 
 ---
 
@@ -1316,10 +1316,10 @@ ETAPA 9: Analytics e Inteligencia (Semana 13-14)
 |-------|-------|
 | **Nombre** | MejoraWS |
 | **Fase** | Etapa 3 completada, funcional en CLI |
-| **Commits** | 18 |
+| **Commits** | 20 |
 | **Documentos** | 1 (este archivo consolidado) |
 | **Tests** | 78 (8 archivos) |
-| **Último trabajo** | Etapa 4: API REST + Tests + CI/CD |
+| **Último trabajo** | Etapa 5: Dashboard Web (Next.js + shadcn/ui) |
 
 ### Timeline
 
@@ -1343,6 +1343,7 @@ ETAPA 9: Analytics e Inteligencia (Semana 13-14)
 | 28/04 | 04:26 | **documentar** | Consolidación de doc + fix de desfase |
 | 28/04 | 05:45 | **Reestructuración mayor** | Doc unificado + análisis 36 roles + plan 9 etapas |
 | 28/04 | 06:00 | **Etapa 4 completada** | API REST (17 endpoints) + 78 tests + CI/CD + logging |
+| 28/04 | 06:10 | **Etapa 5 completada** | Dashboard Next.js (6 vistas) + JWT auth |
 
 ### Decisiones Técnicas
 
@@ -1381,8 +1382,8 @@ ETAPA 9: Analytics e Inteligencia (Semana 13-14)
 | 🔴 Crítica | Logging estructurado (pino) | 4 | ✅ Completada |
 | 🔴 Crítica | Zod validation | 4 | ✅ Completada |
 | 🔴 Crítica | Rate limiting + error handling | 4 | ✅ Completada |
-| 🟠 Alta | Dashboard web (Next.js) | 5 | ⏳ Siguiente |
-| 🟠 Alta | Campañas automáticas | 6 | ⏳ Backlog |
+| 🟠 Alta | Dashboard web (Next.js) | 5 | ✅ Completada |
+| 🟠 Alta | Campañas automáticas | 6 | ⏳ Siguiente |
 | 🟠 Alta | Template rotation (anti-ban capa 6) | 6 | ⏳ Backlog |
 | 🟡 Media | JWT Auth + Rate limiting | 7 | ⏳ Planificado |
 | 🟡 Media | GDPR compliance | 7 | ⏳ Planificado |
@@ -1421,5 +1422,5 @@ Cuando el usuario diga **"documentar"**:
 
 ---
 
-*Última actualización: 28 abril 2026, 06:00 GMT+8*
-*Etapas 1-4 completadas · API REST + 78 tests + CI/CD · Listo para Etapa 5 (Dashboard)*
+*Última actualización: 28 abril 2026, 06:10 GMT+8*
+*Etapas 1-5 completadas · Dashboard funcional con 6 vistas · Listo para Etapa 6 (Campañas)*
