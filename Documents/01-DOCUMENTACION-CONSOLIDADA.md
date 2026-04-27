@@ -1,8 +1,7 @@
 # 📚 DOCUMENTACIÓN CONSOLIDADA — MejoraWS
 
 > **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza con los trabajos realizados.
-> **Ubicación:** Todos los documentos en `Documents/`
-> **Última actualización:** 27 abril 2026
+> **Última actualización:** 28 abril 2026
 
 ---
 
@@ -15,11 +14,13 @@
 5. [Modelo de Datos](#5-modelo-de-datos)
 6. [Parámetros del Admin](#6-parámetros-del-admin)
 7. [Anti-Ban System](#7-anti-ban-system)
-8. [Flujo Autónomo](#8-flujo-autónomo)
-9. [Seguridad y Cumplimiento](#9-seguridad-y-cumplimiento)
-10. [Evaluación por Áreas (36 Roles)](#10-evaluación-por-áreas)
-11. [Plan de Desarrollo](#11-plan-de-desarrollo)
-12. [Registro de Avances](#12-registro-de-avances)
+8. [WhatsApp Business — Sin Meta API](#8-whatsapp-business--sin-meta-api)
+9. [Flujo Autónomo](#9-flujo-autónomo)
+10. [Seguridad y Cumplimiento](#10-seguridad-y-cumplimiento)
+11. [Evaluación por Áreas (36 Roles)](#11-evaluación-por-áreas)
+12. [Plan por Etapas (28 días)](#12-plan-por-etapas)
+13. [Proyecto Desktop (MCC)](#13-proyecto-desktop-mcc)
+14. [Registro de Avances](#14-registro-de-avances)
 
 ---
 
@@ -38,6 +39,7 @@ Admin configura → IA ejecuta → Admin recibe resultados
 - **0 horas/día** de operación manual
 - **6 capas anti-ban** para protección del número
 - **Autonomía total** con supervisión humana mínima
+- **Sin Meta API** — usa Baileys (WhatsApp Web directo)
 
 ### Repositorio
 | Repo | URL | Estado |
@@ -78,7 +80,7 @@ Admin configura → IA ejecuta → Admin recibe resultados
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
 │                    CAPA WHATSAPP                              │
-│              Baileys (multi-device)                           │
+│              Baileys (multi-device) — SIN Meta API           │
 │  Client │ Sender │ Receiver │ Session Manager               │
 └───────────────────────────┬─────────────────────────────────┘
                             │
@@ -97,7 +99,7 @@ Admin configura → IA ejecuta → Admin recibe resultados
 | **Motor Central** | Node.js + Express | Orquestación general |
 | **Cerebro IA** | Groq + Ollama | Generación de respuestas, campañas, decisiones |
 | **Anti-Ban** | baileys-antiban | Protección del número WhatsApp |
-| **WhatsApp** | Baileys | Conexión multi-device |
+| **WhatsApp** | Baileys | Conexión multi-device (SIN Meta API) |
 | **Datos** | SQLite + Prisma | Persistencia local |
 | **Frontend** | Next.js | Dashboard administrativo |
 | **Cola** | Bull + better-sqlite3 | Queue de envíos |
@@ -278,7 +280,7 @@ Día 15+:   200 msg/día (máximo)
 | Capa | Tecnología | Costo | Notas |
 |------|-----------|-------|-------|
 | **Backend** | Node.js 20 + Express + TypeScript | $0 | Runtime local |
-| **WhatsApp** | Baileys + baileys-antiban | $0 | npm, multi-device |
+| **WhatsApp** | Baileys + baileys-antiban | $0 | **SIN Meta API**, multi-device |
 | **LLM primario** | Groq API free tier | $0 | qwen-2.5-32b, ~30 req/min |
 | **LLM backup** | Ollama + Llama 3.1 8B | $0 | Local, sin internet |
 | **Embeddings** | Ollama + nomic-embed-text | $0 | Para RAG |
@@ -570,7 +572,66 @@ Día 15+:  200 msg (máximo)
 
 ---
 
-## 8. Flujo Autónomo
+## 8. WhatsApp Business — Sin Meta API
+
+### Decisión de diseño: Baileys, NO Meta Cloud API
+
+**MejoraWS NO usa la API oficial de Meta/WhatsApp Business.** Usa Baileys, que es una librería open-source que se conecta directamente a WhatsApp Web.
+
+### ¿Por qué NO la Meta Cloud API?
+
+| Aspecto | Meta Cloud API | Baileys (nuestra elección) |
+|---------|---------------|---------------------------|
+| **Costo** | ~$0.05-0.08/msg | $0 |
+| **Aprobación** | Requiere verificación Business | No requiere nada |
+| **Límites** | Templates pre-aprobados | Sin límites (con anti-ban) |
+| **Velocidad** | Dependiente de Meta | Directo, sin intermediarios |
+| **Bulk messaging** | Restricciones estrictas | Libre (con protección) |
+| **Flexibilidad** | Solo templates aprobados | Cualquier mensaje |
+| **Setup** | Complejo (Business Manager, verificación) | Simple (npm install) |
+
+### Cómo funciona Baileys
+
+```
+Tu servidor ──→ WhatsApp Web Protocol ──→ Servidores WhatsApp
+                    │
+                    └── Misma conexión que tu navegador
+                        cuando usas web.whatsapp.com
+```
+
+**Baileys** se conecta como un dispositivo multi-device más (igual que WhatsApp Web/Desktop). No necesita aprobación de Meta ni pago alguno.
+
+### Protección: baileys-antiban
+
+Para que Baileys no bloquee tu número, usamos **baileys-antiban** que aplica:
+- Gaussian jitter en delays
+- Warm-up gradual (14 días)
+- Typing simulation
+- Template rotation
+- Volume control
+- Reputation tracking
+
+### Limitaciones conocidas
+
+| Limitación | Mitigación |
+|-----------|------------|
+| Sin API oficial = riesgo de ban | 6 capas anti-ban + warm-up 14 días |
+| Requiere sesión activa | Auto-reconnect + session backup |
+| Sin webhooks oficiales | Polling + event listeners nativos |
+| Un número por instancia | Multi-session futuro |
+
+### Alternativas descartadas
+
+| Alternativa | Por qué no |
+|------------|------------|
+| **Meta Cloud API** | Costo por mensaje, verificación compleja, templates restrictivos |
+| **Twilio WhatsApp** | $0.005/msg + markup, dependiente de Meta |
+| **360dialog** | Requiere Business verification, planes de pago |
+| **wppconnect** | Menos maduro que Baileys |
+
+---
+
+## 9. Flujo Autónomo
 
 ### Día Normal del Admin (solo mira)
 
@@ -614,7 +675,7 @@ Día 15+:  200 msg (máximo)
 
 ---
 
-## 9. Seguridad y Cumplimiento
+## 10. Seguridad y Cumplimiento
 
 ### Protección de Datos
 - Todos los datos se almacenan localmente (SQLite)
@@ -636,63 +697,45 @@ Día 15+:  200 msg (máximo)
 
 ---
 
-## 10. Evaluación por Áreas (36 Roles)
+## 11. Evaluación por Áreas (36 Roles)
 
 ### Área Técnica
 
 | Rol | Evaluación | Prioridad | Notas |
 |-----|-----------|-----------|-------|
-| **Software Architect** | ⭐⭐⭐⭐⭐ | Crítica | Arquitectura modular limpia, 6 capas desacopladas, patrón plugin. Facilita testing y mantenimiento. |
-| **Cloud Architect** | ⭐⭐⭐⭐ | Alta | Local-first es correcto para MVP. Futuro: Docker + Hetzner VPS ($4.50/mes). Evitar vendor lock-in. |
-| **Backend Developer** | ⭐⭐⭐⭐⭐ | Crítica | Node.js + TypeScript + Express + Prisma = stack probado. APIs REST claras. |
-| **Frontend Developer** | ⭐⭐⭐⭐ | Alta | Next.js + shadcn/ui permite desarrollo rápido. WebSocket para real-time. |
-| **iOS Developer** | ⭐⭐ | Baja | No aplica para MVP. Futuro: PWA o React Native wrapper. |
-| **Android Developer** | ⭐⭐ | Baja | No aplica para MVP. PWA como opción multi-plataforma. |
-| **DevOps Engineer** | ⭐⭐⭐ | Media | Docker Compose para prod. CI/CD con GitHub Actions. Monitoreo básico. |
-| **SRE** | ⭐⭐⭐ | Media | Health checks, auto-reconnect, session recovery. Alertas WhatsApp status. |
-| **Cybersecurity Architect** | ⭐⭐⭐⭐ | Alta | Anti-ban es security-critical. Sesión WhatsApp encriptada. Sin datos en tránsito (local). |
-| **Data Engineer** | ⭐⭐⭐ | Media | SQLite suficiente para MVP. Pipeline ETL para analytics. Futuro: PostgreSQL si escala. |
-| **ML Engineer** | ⭐⭐⭐⭐ | Alta | RAG con embeddings, intención detection, sentimiento. Groq + Ollama cubren necesidades. |
-| **QA Automation** | ⭐⭐⭐⭐ | Alta | Tests unitarios + integración. Mock Baileys para CI. 174 tests en MejoraContactos como referencia. |
-| **DBA** | ⭐⭐⭐ | Media | SQLite + Prisma es simple. Índices en phone, email. Futuro: migrar a PostgreSQL si >100k contactos. |
+| **Software Architect** | ⭐⭐⭐⭐⭐ | Crítica | Arquitectura modular limpia, 6 capas desacopladas |
+| **Cloud Architect** | ⭐⭐⭐⭐ | Alta | Local-first correcto para MVP |
+| **Backend Developer** | ⭐⭐⭐⭐⭐ | Crítica | Node.js + TypeScript + Express + Prisma |
+| **Frontend Developer** | ⭐⭐⭐⭐ | Alta | Next.js + shadcn/ui permite desarrollo rápido |
+| **DevOps Engineer** | ⭐⭐⭐ | Media | Docker Compose para prod |
+| **Cybersecurity Architect** | ⭐⭐⭐⭐ | Alta | Anti-ban es security-critical |
+| **ML Engineer** | ⭐⭐⭐⭐ | Alta | RAG con embeddings, intención detection |
+| **QA Automation** | ⭐⭐⭐⭐ | Alta | Tests unitarios + integración |
 
 ### Área de Producto y Gestión
 
 | Rol | Evaluación | Prioridad | Notas |
 |-----|-----------|-----------|-------|
-| **Product Manager** | ⭐⭐⭐⭐⭐ | Crítica | MVP claro, features priorizadas, roadmap de 6 sprints. ROI inmediato. |
-| **Product Owner** | ⭐⭐⭐⭐ | Alta | Backlog definido, criterios de aceptación claros por sprint. |
-| **Scrum Master** | ⭐⭐⭐⭐ | Alta | Sprints de 1 semana, daily opcional (proyecto personal). Retrospectivas útiles. |
-| **UX Researcher** | ⭐⭐⭐ | Media | El usuario es el admin. Testing con uno mismo. Futuro: onboarding flow. |
-| **UX Designer** | ⭐⭐⭐⭐ | Alta | Dashboard intuitivo es clave. Flujo: importar → configurar → operar. |
-| **UI Designer** | ⭐⭐⭐⭐ | Alta | shadcn/ui da base sólida. KPIs visuales, pipeline Kanban. |
-| **UX Writer** | ⭐⭐⭐ | Media | Copy del bot es crítico. Tono humano, no robótico. Templates variados. |
-| **Localization Manager** | ⭐⭐⭐ | Media | ES como base. Multi-idioma futuro con i18n. Spintax en español. |
-| **Delivery Manager** | ⭐⭐⭐⭐ | Alta | Timeline realista (6 semanas). Riesgos identificados. |
+| **Product Manager** | ⭐⭐⭐⭐⭐ | Crítica | MVP claro, features priorizadas |
+| **UX Designer** | ⭐⭐⭐⭐ | Alta | Dashboard intuitivo es clave |
+| **UI Designer** | ⭐⭐⭐⭐ | Alta | shadcn/ui da base sólida |
+| **Delivery Manager** | ⭐⭐⭐⭐ | Alta | Timeline realista |
 
 ### Área Comercial y de Crecimiento
 
 | Rol | Evaluación | Prioridad | Notas |
 |-----|-----------|-----------|-------|
-| **Growth Manager** | ⭐⭐⭐⭐ | Alta | El producto ES growth: campañas automáticas, pipeline auto, KPIs. |
-| **ASO Specialist** | ⭐ | No aplica | No es app móvil. PWA futuro. |
-| **Performance Marketing** | ⭐⭐⭐⭐ | Alta | Campañas con A/B testing implícito (variaciones). ROI tracking. |
-| **SEO Specialist** | ⭐ | No aplica | Producto interno, no público. |
-| **Business Development** | ⭐⭐⭐ | Media | Potencial de venta a terceros después de MVP. |
-| **Account Manager** | ⭐⭐⭐ | Media | CRM pipeline = account management automatizado. |
-| **Content Manager** | ⭐⭐⭐⭐ | Alta | Knowledge base = content. Templates = contenido marketing. |
-| **Community Manager** | ⭐⭐⭐ | Media | Bot responde en WhatsApp = community management automático. |
+| **Growth Manager** | ⭐⭐⭐⭐ | Alta | El producto ES growth |
+| **Performance Marketing** | ⭐⭐⭐⭐ | Alta | Campañas con A/B testing implícito |
+| **Content Manager** | ⭐⭐⭐⭐ | Alta | Knowledge base = content |
 
 ### Área de Operaciones, Legal y Análisis
 
 | Rol | Evaluación | Prioridad | Notas |
 |-----|-----------|-----------|-------|
-| **BI Analyst** | ⭐⭐⭐⭐ | Alta | Dashboard con KPIs, gráficas, reportes automáticos. |
-| **Data Scientist** | ⭐⭐⭐ | Media | Análisis de sentimiento, predicción de conversión. Futuro: ML pipeline. |
-| **Legal & Compliance** | ⭐⭐⭐⭐ | Alta | GDPR: consent_marketing, eliminación, exportación. Anti-spam compliance. |
-| **DPO** | ⭐⭐⭐⭐ | Alta | Datos locales = bajo riesgo. Groq API: revisar DPA. Consentimiento explícito. |
-| **Customer Success** | ⭐⭐⭐ | Media | Follow-ups automáticos = customer success proactivo. |
-| **Support T1/T2/T3** | ⭐⭐⭐⭐ | Alta | Bot = T1 automático. Escalamiento a humano = T2. Admin = T3. |
+| **BI Analyst** | ⭐⭐⭐⭐ | Alta | Dashboard con KPIs |
+| **Legal & Compliance** | ⭐⭐⭐⭐ | Alta | GDPR compliance |
+| **DPO** | ⭐⭐⭐⭐ | Alta | Datos locales = bajo riesgo |
 
 ### Resumen de Evaluación
 
@@ -705,73 +748,197 @@ Día 15+:  200 msg (máximo)
 
 ---
 
-## 11. Plan de Desarrollo
+## 12. Plan por Etapas
 
-### Sprint 1 (Semana 1): Foundation
-```
-[ ] Setup proyecto (Node.js + TypeScript + Prisma + SQLite)
-[ ] Conectar WhatsApp (Baileys + baileys-antiban)
-[ ] Anti-ban básico (Gaussian jitter + warmup)
-[ ] Recibir y loggear mensajes entrantes
-[ ] Enviar mensajes de prueba
-```
-**Entregable:** App que se conecta a WhatsApp, recibe/envía mensajes con protección básica.
+### Visión General
 
-### Sprint 2 (Semana 2): Brain
 ```
-[ ] Integrar Groq API (gratis)
-[ ] Motor de auto-respuesta básico
-[ ] Sistema de prompts con personalidad
-[ ] Detección de intención
-[ ] Delay humano + typing indicator
+ETAPA 1 (Días 1-3)    → WhatsApp conectado + mensajes manuales
+ETAPA 2 (Días 4-7)    → Bot IA que responde solo
+ETAPA 3 (Días 8-12)   → CRM con contactos importados
+ETAPA 4 (Días 13-17)  → Campañas automáticas
+ETAPA 5 (Días 18-22)  → Dashboard visual con KPIs
+ETAPA 6 (Días 23-28)  → Sistema 100% autónomo
 ```
-**Entregable:** Bot que responde automáticamente como un humano.
 
-### Sprint 3 (Semana 3): CRM + Importación
-```
-[ ] Integrar MejoraContactos como módulo de importación
-[ ] Import CSV/Excel/VCF/JSON con auto-detección
-[ ] Schema completo (contacts, deals, activities)
-[ ] CRUD contactos + tags
-[ ] Pipeline Kanban
-[ ] Auto-registro de actividades
-[ ] Follow-up automático
-```
-**Entregable:** CRM funcional con importación masiva de contactos.
-
-### Sprint 4 (Semana 4): Marketing
-```
-[ ] Motor de campañas
-[ ] Template engine ({{var}} + spintax)
-[ ] Cola de envío con anti-ban
-[ ] Tracking de estados
-[ ] Segmentación automática
-```
-**Entregable:** Sistema de campañas automáticas con protección anti-ban.
-
-### Sprint 5 (Semana 5): Dashboard
-```
-[ ] Next.js dashboard
-[ ] KPIs en tiempo real
-[ ] Gráficas (Recharts)
-[ ] Configuración de parámetros
-[ ] Knowledge base upload
-```
-**Entregable:** Dashboard visual con KPIs y configuración completa.
-
-### Sprint 6 (Semana 6): Autonomous
-```
-[ ] Orchestrator (coordinador central)
-[ ] Campaign generator autónomo
-[ ] Pipeline AI auto-mover deals
-[ ] Analytics automáticos
-[ ] Testing + polish
-```
-**Entregable:** Sistema 100% autónomo, listo para operación diaria.
+**Total: 28 días (4 semanas)**
 
 ---
 
-## 12. Registro de Avances
+### ETAPA 1: CONEXIÓN (Días 1-3)
+
+**Objetivo:** Que la app se conecte a WhatsApp y puedas enviar/recibir mensajes desde terminal.
+
+**Día 1: Setup del Proyecto**
+```bash
+mkdir mejoraws && cd mejoraws
+npm init -y
+npm install typescript ts-node @types/node --save-dev
+npx tsc --init
+npm install express @types/express
+npm install @prisma/client prisma
+npm install @whiskeysockets/baileys
+npm install baileys-antiban
+npm install better-sqlite3 @types/better-sqlite3
+npx prisma init --datasource-provider sqlite
+```
+
+**Día 2: Conexión WhatsApp**
+```typescript
+import makeWASocket, { useMultiFileAuthState } from '@whiskeysockets/baileys'
+
+export async function connectWhatsApp() {
+  const { state, saveCreds } = await useMultiFileAuthState('./data/session')
+  const sock = makeWASocket({ auth: state, printQRInTerminal: true })
+  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on('connection.update', (update) => {
+    if (update.connection === 'open') console.log('✅ WhatsApp conectado!')
+  })
+  return sock
+}
+```
+
+**Día 3: Envío/Recepción + Anti-ban básico**
+```typescript
+export function gaussianDelay(mean = 10000, stdDev = 3000): number {
+  const u1 = Math.random(), u2 = Math.random()
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+  return Math.max(5000, Math.round(mean + z * stdDev))
+}
+```
+
+**Entregable:** App que se conecta a WhatsApp, envía/recibe con protección básica.
+
+---
+
+### ETAPA 2: BOT IA (Días 4-7)
+
+**Objetivo:** El bot responde automáticamente como un humano.
+
+**Día 4:** Integración Groq API
+**Día 5:** Motor de auto-respuesta
+**Día 6:** Detección de intención + escalamiento
+**Día 7:** Personalidad + knowledge base
+
+**Entregable:** Bot que responde automáticamente a TODOS los mensajes.
+
+---
+
+### ETAPA 3: CRM (Días 8-12)
+
+**Objetivo:** Contactos importados, pipeline Kanban, seguimiento automático.
+
+**Día 8:** Schema Prisma completo
+**Día 9:** Importador CSV/Excel
+**Día 10:** CRUD contactos + tags
+**Día 11:** Pipeline Kanban
+**Día 12:** Follow-up automático
+
+**Entregable:** CRM funcional con importación masiva.
+
+---
+
+### ETAPA 4: MARKETING (Días 13-17)
+
+**Objetivo:** Campañas automáticas con protección anti-ban.
+
+**Día 13:** Template engine ({{var}} + spintax)
+**Día 14:** Cola de envío + anti-ban completo
+**Día 15:** Campaign generator
+**Día 16:** Segmentación automática
+**Día 17:** Tracking de estados
+
+**Entregable:** Sistema de campañas automáticas protegido.
+
+---
+
+### ETAPA 5: DASHBOARD (Días 18-22)
+
+**Objetivo:** Dashboard visual con KPIs, gráficas y configuración.
+
+**Día 18:** Setup Next.js
+**Día 19:** Páginas principales (7 vistas)
+**Día 20:** KPIs en tiempo real
+**Día 21:** Gráficas (Recharts)
+**Día 22:** Configuración + knowledge base upload
+
+**Entregable:** Panel visual para monitorear todo.
+
+---
+
+### ETAPA 6: AUTONOMÍA (Días 23-28)
+
+**Objetivo:** Sistema 100% autónomo.
+
+**Día 23-24:** Orchestrator central
+**Día 25:** Campaign generator autónomo
+**Día 26:** Pipeline AI auto-movimiento
+**Día 27:** Analytics automáticos
+**Día 28:** Testing + polish
+
+**Entregable:** Sistema 100% autónomo, solo mirás el dashboard.
+
+---
+
+### Resumen de Entregables
+
+| Etapa | Días | Entregable | Se puede usar para... |
+|-------|------|-----------|----------------------|
+| 1 | 1-3 | WhatsApp + envío/recepción | Enviar mensajes programados |
+| 2 | 4-7 | Bot IA auto-reply | Tu WhatsApp responde solo |
+| 3 | 8-12 | CRM + importador | Gestionar contactos y deals |
+| 4 | 13-17 | Campañas automáticas | Enviar marketing masivo |
+| 5 | 18-22 | Dashboard visual | Monitorear todo en tiempo real |
+| 6 | 23-28 | Sistema autónomo | Cero intervención manual |
+
+### Prioridades Críticas
+
+| Prioridad | Módulo | Razón |
+|-----------|--------|-------|
+| 🔴 1 | Anti-ban | Sin esto, te bloquean en días |
+| 🔴 2 | WhatsApp connection | Sin esto, nada funciona |
+| 🔴 3 | Auto-reply | El valor principal del producto |
+| 🟠 4 | CRM básico | Necesitás saber quién es quién |
+| 🟠 5 | Importador | Sin contactos, no hay negocio |
+| 🟡 6 | Campañas | Marketing es secundario al bot |
+| 🟡 7 | Dashboard | Podés usar terminal al principio |
+| 🟢 8 | Autonomía total | El lujo de no hacer nada |
+
+### Riesgos y Mitigaciones
+
+| Riesgo | Probabilidad | Impacto | Mitigación |
+|--------|-------------|---------|------------|
+| Bloqueo de WhatsApp | Media | Crítico | 6 capas anti-ban + warm-up 14d |
+| Groq rate limit | Baja | Alto | Ollama como backup local |
+| Baileys breaking changes | Media | Medio | Fijar versión, tests |
+| SQLite performance | Baja | Bajo | Suficiente para <100k contactos |
+| Pérdida de sesión | Media | Alto | Auto-backup de sesión |
+
+---
+
+## 13. Proyecto Desktop (MCC)
+
+### MejoraWS Command Center
+
+App desktop personal (Electron + React + TypeScript) que complementa MejoraWS.
+
+**Funcionalidades:**
+1. **MejoraWS Manager** — start/stop/monitor sin terminal
+2. **AI Chat** — chat directo con Groq/Ollama desde desktop
+3. **Notificaciones nativas** — alertas del sistema
+4. **Pomodoro Timer** — productividad integrada
+5. **Tasks & Notes** — gestión de tareas
+6. **System tray** — siempre accesible
+
+**Stack:** Electron 28 + React 18 + TypeScript + TailwindCSS + Framer Motion + Zustand
+
+**Plan de desarrollo:** 17 días en 5 fases
+
+**Costo:** $0 (todo open source)
+
+---
+
+## 14. Registro de Avances
 
 > **Sección actualizada con cada "documentar"**
 
@@ -780,31 +947,32 @@ Día 15+:  200 msg (máximo)
 | Campo | Valor |
 |-------|-------|
 | **Nombre** | MejoraWS |
-| **Fase** | Documentación / Pre-desarrollo |
+| **Fase** | Documentación consolidada / Pre-desarrollo |
 | **Sprint** | No iniciado |
 | **Commits** | 9 |
-| **Documentos** | 4 (este + PLAN + PROMPT + README) |
+| **Documentos** | 1 (este documento maestro) |
 
-### Timeline de Documentación
+### Timeline
 
 | Fecha | Hora | Acción | Detalle |
 |-------|------|--------|---------|
 | 26/04 | 23:46 | Análisis inicial | 17 repos originales |
 | 26/04 | 23:55 | +37 bulk senders | 54 repos total |
-| 27/04 | 00:01 | +10 anti-ban/gateways | 64 repos, subido a GitHub |
-| 27/04 | 00:03 | Consolidación | 9 docs → 1 plan maestro, costo $0 |
-| 27/04 | 00:08 | +14 repos nuevos | 78 repos, Groq AI, n8n, warm-up 14d |
-| 27/04 | 00:16 | +10 repos + propuesta | 89 repos, 5 módulos autónomos |
-| 27/04 | 00:22 | +MejoraContactos | Módulo 0 importación, 6 módulos total |
-| 27/04 | 00:25 | **documentar** | Registro de avances actualizado |
-| 27/04 | 00:29 | PROMPT.md | Prompt de continuidad de sesión creado |
-| 27/04 | 21:36 | Análisis completo | 36 roles evaluados, doc consolidada, plan etapas |
+| 27/04 | 00:01 | +10 anti-ban/gateways | 64 repos |
+| 27/04 | 00:03 | Consolidación | 9 docs → 1 plan maestro |
+| 27/04 | 00:08 | +14 repos nuevos | 78 repos |
+| 27/04 | 00:16 | +10 repos + propuesta | 89 repos, 5 módulos |
+| 27/04 | 00:22 | +MejoraContactos | 6 módulos total |
+| 27/04 | 00:25 | **documentar** | Registro actualizado |
+| 27/04 | 00:29 | PROMPT.md | Prompt de continuidad |
+| 27/04 | 21:36 | Análisis completo | 36 roles evaluados |
+| 28/04 | 03:41 | **Consolidación final** | 5 docs → 1 documento maestro optimizado |
 
 ### Decisiones Técnicas
 
 | Decisión | Valor | Justificación |
 |----------|-------|---------------|
-| WhatsApp | Baileys + baileys-antiban | Más ligero que whatsapp-web.js |
+| WhatsApp | Baileys + baileys-antiban | **SIN Meta API**, $0, sin verificación |
 | LLM primario | Groq API free tier | Gratis, rápido, qwen-2.5-32b |
 | LLM backup | Ollama + Llama 3.1 8B | Local, sin internet, $0 |
 | Database | SQLite + Prisma | $0, sin servidor |
@@ -826,5 +994,5 @@ Día 15+:  200 msg (máximo)
 
 ---
 
-*Última actualización: 27 abril 2026 21:36 GMT+8*
-*89+ repos analizados · 36 roles evaluados · 6 módulos · Costo $0 · Listo para Sprint 1*
+*89+ repos analizados · 36 roles evaluados · 6 módulos · Costo $0 · Sin Meta API · Listo para Sprint 1*
+*Última actualización: 28 abril 2026 03:41 GMT+8*
