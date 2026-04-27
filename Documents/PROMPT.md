@@ -69,8 +69,21 @@ El admin configura desde el dashboard:
 
 ## ARCHIVOS IMPORTANTES
 
-- Documents/00-PLAN-MAESTRO.md → Documentación completa (886 líneas)
+- Documents/01-DOCUMENTACION-CONSOLIDADA.md → **DOCUMENTO MAESTRO** (toda la doc + evaluación 36 roles)
+- Documents/02-PLAN-ETAPAS.md → Plan por 6 etapas (28 días, resultados utilizables en cada una)
+- Documents/03-PROYECTO-DESKTOP.md → MCC (MejoraWS Command Center, app desktop personal)
+- Documents/00-PLAN-MAESTRO.md → Plan original (89+ repos)
+- Documents/README.md → Índice de documentos
 - README.md → Resumen ejecutivo
+
+## TRIGGER: "documentar"
+
+Cuando el usuario diga "documentar":
+1. Leer Documents/01-DOCUMENTACION-CONSOLIDADA.md sección "Registro de Avances"
+2. Actualizar con los trabajos realizados desde la última actualización
+3. Agregar entrada al timeline
+4. Actualizar estado general, decisiones, pendientes
+5. Commit y push al repo
 
 ## QUÉ HACER AHORA
 

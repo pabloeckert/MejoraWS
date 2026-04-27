@@ -15,9 +15,15 @@ Un CRM WhatsApp **100% autónomo** con:
 
 ## 📄 Documentación
 
-### [Documents/00-PLAN-MAESTRO.md](Documents/00-PLAN-MAESTRO.md)
+| Documento | Descripción |
+|-----------|-------------|
+| [Documents/01-DOCUMENTACION-CONSOLIDADA.md](Documents/01-DOCUMENTACION-CONSOLIDADA.md) | **📚 Documento maestro** — Toda la documentación en uno, evaluación 36 roles |
+| [Documents/02-PLAN-ETAPAS.md](Documents/02-PLAN-ETAPAS.md) | **🗺️ Plan por etapas** — 28 días, resultados utilizables en cada etapa |
+| [Documents/03-PROYECTO-DESKTOP.md](Documents/03-PROYECTO-DESKTOP.md) | **🖥️ MCC** — MejoraWS Command Center, app desktop personal (Electron) |
+| [Documents/00-PLAN-MAESTRO.md](Documents/00-PLAN-MAESTRO.md) | Plan original del proyecto (89+ repos, arquitectura, módulos) |
+| [Documents/PROMPT.md](Documents/PROMPT.md) | Prompt de continuidad de sesión |
 
-Contiene: Arquitectura, 5 módulos autónomos, flujo completo, stack técnico, estructura de archivos, plan por sprints, y referencias de 88+ repos.
+> **Trigger:** Cuando digas **"documentar"**, se actualizan los avances en `01-DOCUMENTACION-CONSOLIDADA.md`.
 
 ## 🚀 Para empezar
 
