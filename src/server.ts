@@ -1,82 +1,46 @@
 // src/server.ts
 // Entry point de MejoraWS — CRM WhatsApp Autónomo con IA
 
-import { WhatsAppClient } from './whatsapp/client'
-import { MessageSender } from './whatsapp/sender'
-import { MessageReceiver, IncomingMessage } from './whatsapp/receiver'
-import { WarmupManager } from './antiban/warmup'
-import { initDatabase } from './db/database'
-import { loadConfig } from './config'
+import { Orchestrator } from './brain/orchestrator'
 import * as readline from 'readline'
 
 async function main() {
-  console.log('')
-  console.log('╔══════════════════════════════════════════════════╗')
-  console.log('║        🚀 MejoraWS — CRM WhatsApp Autónomo      ║')
-  console.log('║           con IA · Anti-ban · $0                 ║')
-  console.log('╚══════════════════════════════════════════════════╝')
-  console.log('')
+  const orchestrator = new Orchestrator()
 
-  // 1. Cargar configuración
-  const config = loadConfig()
-  console.log('⚙️  Configuración cargada')
-
-  // 2. Inicializar base de datos
-  const db = initDatabase(config.dbPath)
-  console.log('💾 Base de datos lista')
-
-  // 3. Inicializar anti-ban
-  const warmup = new WarmupManager()
-  console.log(`🛡️  Anti-ban: ${warmup.getStatus()}`)
-
-  // 4. Conectar WhatsApp
-  const client = new WhatsAppClient(config.sessionPath)
-  
-  // Estado de conexión
-  client.onConnection((state) => {
-    if (state === 'connected') {
-      console.log('')
-      console.log('╔══════════════════════════════════════════════════╗')
-      console.log('║  ✅ WhatsApp conectado — Listo para operar       ║')
-      console.log('║                                                  ║')
-      console.log('║  Comandos:                                       ║')
-      console.log('║    /enviar <número> <mensaje>  — Enviar mensaje  ║')
-      console.log('║    /estado                     — Ver estado      ║')
-      console.log('║    /historial <número>         — Ver historial   ║')
-      console.log('║    /ayuda                      — Ver comandos    ║')
-      console.log('║    /salir                      — Desconectar     ║')
-      console.log('╚══════════════════════════════════════════════════╝')
-      console.log('')
-    }
+  // Manejar cierre graceful
+  process.on('SIGINT', async () => {
+    console.log('\n🛑 Cerrando...')
+    await orchestrator.stop()
+    process.exit(0)
   })
 
-  // 5. Inicializar sender y receiver
-  const sender = new MessageSender(client, warmup, db)
-  const receiver = new MessageReceiver(client, db)
-
-  // 6. Registrar handler de mensajes entrantes
-  receiver.onMessage(async (msg: IncomingMessage) => {
-    console.log('')
-    console.log(`📩 Mensaje de ${msg.name || msg.from}:`)
-    console.log(`   "${msg.text}"`)
-    console.log(`   Hora: ${new Date(msg.timestamp).toLocaleTimeString()}`)
-    console.log('')
-    
-    // Por ahora solo logueamos. En Etapa 2: auto-reply
+  process.on('SIGTERM', async () => {
+    await orchestrator.stop()
+    process.exit(0)
   })
 
-  // 7. Iniciar escucha de mensajes
-  receiver.start()
+  // Iniciar sistema
+  await orchestrator.start()
 
-  // 8. Conectar
-  await client.connect()
-
-  // 9. CLI interactivo
+  // CLI interactivo
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: '🚀 mejoraws> ',
   })
+
+  console.log('╔══════════════════════════════════════════════════╗')
+  console.log('║  Comandos:                                       ║')
+  console.log('║    /enviar <número> <mensaje>  — Enviar mensaje  ║')
+  console.log('║    /estado                     — Ver estado      ║')
+  console.log('║    /historial <número>         — Ver historial   ║')
+  console.log('║    /contactos                  — Listar contactos║')
+  console.log('║    /kb <texto>                 — Knowledge base  ║')
+  console.log('║    /config                     — Ver config bot  ║')
+  console.log('║    /ayuda                      — Ver comandos    ║')
+  console.log('║    /salir                      — Desconectar     ║')
+  console.log('╚══════════════════════════════════════════════════╝')
+  console.log('')
 
   rl.prompt()
 
@@ -92,19 +56,23 @@ async function main() {
         console.log('❌ Uso: /enviar <número> <mensaje>')
         console.log('   Ejemplo: /enviar 5491112345678 Hola, ¿cómo estás?')
       } else {
-        await sender.send(to, text)
+        const success = await orchestrator.sendMessage(to, text)
+        console.log(success ? '✅ Enviado' : '❌ Error al enviar')
       }
     } else if (input === '/estado') {
+      const status = orchestrator.getStatus()
+      const stats = orchestrator.getSendStats()
       console.log('')
       console.log('📊 Estado de MejoraWS:')
-      console.log(`   WhatsApp: ${client.isConnected() ? '🟢 Conectado' : '🔴 Desconectado'}`)
-      console.log(`   Anti-ban: ${warmup.getStatus()}`)
-      console.log(`   Día warm-up: ${warmup.getCurrentDay()}/14`)
-      console.log(`   Progreso: ${warmup.getWarmupProgress()}%`)
+      console.log(`   WhatsApp: ${status.whatsapp ? '🟢 Conectado' : '🔴 Desconectado'}`)
+      console.log(`   Bot: ${status.botActive ? '🟢 Activo' : '🔴 Inactivo'}`)
+      console.log(`   Anti-ban: ${status.warmup}`)
+      console.log(`   Enviados hoy: ${stats.sentToday}/${stats.dailyLimit}`)
+      console.log(`   Warm-up: día ${stats.warmupDay}/14 (${stats.warmupProgress}%)`)
       console.log('')
     } else if (input.startsWith('/historial ')) {
       const phone = input.slice(11).trim()
-      const history = receiver.getHistory(phone, 10)
+      const history = orchestrator.getReceiver().getHistory(phone, 10)
       console.log('')
       console.log(`📜 Historial de ${phone}:`)
       if (history.length === 0) {
@@ -112,9 +80,37 @@ async function main() {
       } else {
         for (const msg of history) {
           const dir = msg.direction === 'inbound' ? '📩' : '📤'
-          console.log(`   ${dir} [${msg.created_at}] ${msg.content}`)
+          console.log(`   ${dir} [${msg.created_at}] ${msg.content.substring(0, 80)}`)
         }
       }
+      console.log('')
+    } else if (input === '/contactos') {
+      const contacts = orchestrator.getDB().prepare(`
+        SELECT phone, name, whatsapp, score FROM contacts ORDER BY created_at DESC LIMIT 20
+      `).all() as any[]
+      console.log('')
+      console.log(`📇 Contactos (${contacts.length}):`)
+      if (contacts.length === 0) {
+        console.log('   Sin contactos aún')
+      } else {
+        for (const c of contacts) {
+          console.log(`   ${c.phone} | ${c.name || 'Sin nombre'} | WA: ${c.whatsapp ? '✅' : '❌'} | Score: ${c.score}`)
+        }
+      }
+      console.log('')
+    } else if (input.startsWith('/kb ')) {
+      const kb = input.slice(4).trim()
+      orchestrator.setKnowledgeBase(kb)
+      console.log('✅ Knowledge base actualizada')
+    } else if (input === '/config') {
+      const config = orchestrator.getAutoReply().getConfig()
+      console.log('')
+      console.log('⚙️  Configuración del bot:')
+      console.log(`   Nombre: ${config.name}`)
+      console.log(`   Personalidad: ${config.personality.substring(0, 60)}...`)
+      console.log(`   Tono: ${config.tone}`)
+      console.log(`   Horario: ${config.schedule.start}:00 - ${config.schedule.end}:00`)
+      console.log(`   Escalamiento keywords: ${config.escalation.keywords.join(', ')}`)
       console.log('')
     } else if (input === '/ayuda') {
       console.log('')
@@ -123,13 +119,14 @@ async function main() {
       console.log('   /estado                     — Ver estado del sistema')
       console.log('   /historial <número>         — Ver historial de un contacto')
       console.log('   /contactos                  — Listar contactos')
+      console.log('   /kb <texto>                 — Actualizar knowledge base')
+      console.log('   /config                     — Ver config del bot')
       console.log('   /ayuda                      — Ver esta ayuda')
       console.log('   /salir                      — Desconectar y salir')
       console.log('')
     } else if (input === '/salir') {
       console.log('👋 Desconectando...')
-      await client.disconnect()
-      db.close()
+      await orchestrator.stop()
       process.exit(0)
     } else if (input.startsWith('/')) {
       console.log(`❌ Comando desconocido: ${input}. Escribí /ayuda`)
@@ -139,8 +136,7 @@ async function main() {
     
     rl.prompt()
   }).on('close', async () => {
-    await client.disconnect()
-    db.close()
+    await orchestrator.stop()
     process.exit(0)
   })
 }
