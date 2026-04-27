@@ -12,6 +12,7 @@ import { loadConfig } from '../config'
 import { ContactImporter } from '../importer/pipeline'
 import { ContactManager } from '../crm/contacts'
 import { DealManager } from '../crm/deals'
+import { c, status, box } from '../cli/theme'
 import Database from 'better-sqlite3'
 
 export class Orchestrator {
@@ -51,17 +52,16 @@ export class Orchestrator {
    */
   async start(): Promise<void> {
     console.log('')
-    console.log('╔══════════════════════════════════════════════════╗')
-    console.log('║        🚀 MejoraWS — Sistema Autónomo           ║')
-    console.log('╚══════════════════════════════════════════════════╝')
-    console.log('')
+    console.log(box('🚀 MejoraWS — Sistema Autónomo', '', { color: 'brightCyan' }))
 
     // 1. Verificar LLM disponible
     const llmStatus = await this.llm.getStatus()
-    console.log(`🧠 LLM: ${llmStatus.active} (Groq: ${llmStatus.groq ? '✅' : '❌'} | Ollama: ${llmStatus.ollama ? '✅' : '❌'})`)
+    const groqIcon = llmStatus.groq ? c('green', '✓') : c('red', '✗')
+    const ollamaIcon = llmStatus.ollama ? c('green', '✓') : c('red', '✗')
+    console.log(`  ${c('bold', '🧠 LLM:')} ${c('cyan', llmStatus.active)} (Groq: ${groqIcon} | Ollama: ${ollamaIcon})`)
 
     // 2. Estado anti-ban
-    console.log(`🛡️  Anti-ban: ${this.warmup.getStatus()}`)
+    console.log(`  ${c('bold', '🛡️  Anti-ban:')} ${c('yellow', this.warmup.getStatus())}`)
 
     // 3. Registrar handlers de mensajes
     this.receiver.onMessage(async (msg: IncomingMessage) => {
@@ -76,7 +76,7 @@ export class Orchestrator {
 
     this.isRunning = true
     console.log('')
-    console.log('✅ Sistema iniciado. El bot responderá automáticamente.')
+    console.log(status.success('Sistema iniciado. El bot responderá automáticamente.'))
     console.log('')
   }
 
@@ -87,7 +87,7 @@ export class Orchestrator {
     // Ignorar mensajes de grupo por ahora
     if (msg.isGroup) return
 
-    console.log(`📩 ${msg.name || msg.from}: "${msg.text}"`)
+    console.log(`  ${c('brightCyan', '📩')} ${c('bold', msg.name || msg.from)}: ${c('white', `"${msg.text}"`)}`)
 
     // Generar respuesta con el bot
     const { response, escalated, intent } = await this.autoReply.handleMessage(
@@ -101,11 +101,11 @@ export class Orchestrator {
       await this.sender.send(msg.from, response)
       
       if (escalated) {
-        console.log(`🔺 Escalado a humano: ${msg.from}`)
-        // TODO: notificar al admin
+        console.log(`  ${c('brightYellow', '🔺')} Escalado a humano: ${c('yellow', msg.from)}`)
       }
 
-      console.log(`🤖 → ${msg.from}: "${response.substring(0, 60)}..." [${intent}]`)
+      const intentColor = intent === 'COMPRA' ? 'brightGreen' : intent === 'QUEJA' ? 'red' : 'dim'
+      console.log(`  ${c('brightMagenta', '🤖')} → ${c('dim', msg.from)}: ${c('dim', `"${response.substring(0, 50)}..."`)} ${c(intentColor, `[${intent}]`)}`)
     }
   }
 
@@ -116,7 +116,7 @@ export class Orchestrator {
     this.isRunning = false
     await this.client.disconnect()
     this.db.close()
-    console.log('👋 Sistema detenido')
+    console.log(status.warn('Sistema detenido'))
   }
 
   /**
@@ -129,16 +129,17 @@ export class Orchestrator {
   /**
    * Obtiene el estado del sistema
    */
-  getStatus(): {
+  async getStatus(): Promise<{
     whatsapp: boolean
     warmup: string
-    llm: string
+    llm: { groq: boolean; ollama: boolean; active: string }
     botActive: boolean
-  } {
+  }> {
+    const llmStatus = await this.llm.getStatus()
     return {
       whatsapp: this.client.isConnected(),
       warmup: this.warmup.getStatus(),
-      llm: 'checking...',
+      llm: llmStatus,
       botActive: this.isRunning,
     }
   }

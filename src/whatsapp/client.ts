@@ -10,6 +10,7 @@ import makeWASocket, {
 import * as path from 'path'
 import * as fs from 'fs'
 import { Boom } from '@hapi/boom'
+import { c, status } from '../cli/theme'
 
 export type MessageHandler = (msg: proto.IWebMessageInfo) => void | Promise<void>
 
@@ -68,7 +69,7 @@ export class WhatsAppClient {
       const { connection, lastDisconnect, qr } = update
 
       if (qr) {
-        console.log('📱 Escaneá el QR code con tu teléfono')
+        console.log(status.pending('Escaneá el QR code con tu teléfono'))
         this.connectionState = 'connecting'
         this.onConnectionChange?.('connecting')
       }
@@ -77,15 +78,15 @@ export class WhatsAppClient {
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut
         
-        console.log(`❌ Conexión cerrada. Status: ${statusCode}`)
+        console.log(status.err(`Conexión cerrada. Status: ${statusCode}`))
         this.connectionState = 'disconnected'
         this.onConnectionChange?.('disconnected')
         
         if (shouldReconnect) {
-          console.log('🔄 Reconectando...')
+          console.log(status.pending('Reconectando...'))
           setTimeout(() => this.connect(), 5000)
         } else {
-          console.log('⚠️ Sesión cerrada. Escaneá QR nuevamente.')
+          console.log(status.warn('Sesión cerrada. Escaneá QR nuevamente.'))
           // Limpiar sesión
           if (fs.existsSync(this.sessionPath)) {
             fs.rmSync(this.sessionPath, { recursive: true })
@@ -95,7 +96,7 @@ export class WhatsAppClient {
       }
 
       if (connection === 'open') {
-        console.log('✅ WhatsApp conectado!')
+        console.log(status.success('WhatsApp conectado!'))
         this.connectionState = 'connected'
         this.onConnectionChange?.('connected')
       }
@@ -114,13 +115,13 @@ export class WhatsAppClient {
           try {
             await handler(msg)
           } catch (error) {
-            console.error('❌ Error en message handler:', error)
+            console.error(status.err(`Error en message handler: ${error}`))
           }
         }
       }
     })
 
-    console.log('⏳ Conectando a WhatsApp...')
+    console.log(status.pending('Conectando a WhatsApp...'))
   }
 
   /**
@@ -198,7 +199,7 @@ export class WhatsAppClient {
       this.sock.end(undefined)
       this.sock = null
       this.connectionState = 'disconnected'
-      console.log('👋 WhatsApp desconectado')
+      console.log(status.warn('WhatsApp desconectado'))
     }
   }
 }

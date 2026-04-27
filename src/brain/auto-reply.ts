@@ -2,6 +2,7 @@
 // Motor de auto-respuesta IA
 
 import { LLMManager } from '../llm'
+import { c, status } from '../cli/theme'
 import Database, { Database as DatabaseType } from 'better-sqlite3'
 import { generateId } from '../db/database'
 

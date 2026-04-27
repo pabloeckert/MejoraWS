@@ -4,6 +4,7 @@
 import { WhatsAppClient } from './client'
 import { WarmupManager } from '../antiban/warmup'
 import { gaussianDelay, typingDelay, sleep, isWithinSchedule } from '../antiban/rate-limiter'
+import { c, status } from '../cli/theme'
 import Database, { Database as DatabaseType } from 'better-sqlite3'
 import { generateId } from '../db/database'
 
@@ -26,26 +27,26 @@ export class MessageSender {
     // 1. Verificar horario laboral
     const hour = new Date().getHours()
     if (!isWithinSchedule(hour)) {
-      console.log('⏰ Fuera de horario laboral. No se envía.')
+      console.log(status.warn('Fuera de horario laboral. No se envía.'))
       return false
     }
 
     // 2. Verificar warm-up
     if (!this.warmup.canSend()) {
-      console.log(`🛑 Límite diario alcanzado (${this.warmup.getDailyLimit()}). No se envía.`)
+      console.log(status.err(`Límite diario alcanzado (${this.warmup.getDailyLimit()}). No se envía.`))
       return false
     }
 
     // 3. Verificar conexión
     if (!this.client.isConnected()) {
-      console.log('❌ WhatsApp no conectado. No se envía.')
+      console.log(status.err('WhatsApp no conectado. No se envía.'))
       return false
     }
 
     try {
       // 4. Delay humano (Gaussian)
       const delay = gaussianDelay()
-      console.log(`⏳ Esperando ${(delay / 1000).toFixed(1)}s (anti-ban)...`)
+      console.log(c('dim', `⏳ Esperando ${(delay / 1000).toFixed(1)}s (anti-ban)...`))
       await sleep(delay)
 
       // 5. Typing indicator
@@ -70,18 +71,18 @@ export class MessageSender {
         VALUES (?, ?, 'outbound', ?, 'sent', ?)
       `).run(generateId(), to, text, campaignId || null)
 
-      console.log(`✅ Enviado a ${to} (${this.warmup.getSentToday()}/${this.warmup.getDailyLimit()} hoy)`)
+      console.log(status.ok(`Enviado a ${c('cyan', to)} (${this.warmup.getSentToday()}/${this.warmup.getDailyLimit()} hoy)`))
 
       // 10. Pausa cada N mensajes
       if (this.messageCount % 10 === 0) {
         const pauseMs = 120000 + Math.floor(Math.random() * 180000) // 2-5 min
-        console.log(`⏸️ Pausa de ${(pauseMs / 1000 / 60).toFixed(1)} min (cada 10 mensajes)...`)
+        console.log(status.pending(`Pausa de ${(pauseMs / 1000 / 60).toFixed(1)} min (cada 10 mensajes)...`))
         await sleep(pauseMs)
       }
 
       return true
     } catch (error) {
-      console.error(`❌ Error enviando a ${to}:`, error)
+      console.error(status.err(`Error enviando a ${to}: ${error}`))
       
       // Registrar fallo
       this.db.prepare(`
@@ -105,7 +106,7 @@ export class MessageSender {
 
     for (const msg of messages) {
       if (!this.warmup.canSend()) {
-        console.log(`🛑 Límite alcanzado. ${messages.length - sent - failed} mensajes pendientes.`)
+        console.log(status.warn(`Límite alcanzado. ${messages.length - sent - failed} mensajes pendientes.`))
         break
       }
 
@@ -117,7 +118,7 @@ export class MessageSender {
       }
     }
 
-    console.log(`📊 Lote completado: ${sent} enviados, ${failed} fallidos`)
+    console.log(status.ok(`Lote completado: ${c('brightGreen', String(sent))} enviados, ${c('red', String(failed))} fallidos`))
     return { sent, failed }
   }
 

@@ -3,6 +3,7 @@
 
 import { WhatsAppClient } from './client'
 import { proto } from '@whiskeysockets/baileys'
+import { c, status } from '../cli/theme'
 import Database, { Database as DatabaseType } from 'better-sqlite3'
 import { generateId } from '../db/database'
 
@@ -50,15 +51,15 @@ export class MessageReceiver {
           try {
             await processor(incoming)
           } catch (error) {
-            console.error('❌ Error en message processor:', error)
+            console.error(status.err(`Error en message processor: ${error}`))
           }
         }
       } catch (error) {
-        console.error('❌ Error procesando mensaje:', error)
+        console.error(status.err(`Error procesando mensaje: ${error}`))
       }
     })
 
-    console.log('👂 Escuchando mensajes entrantes...')
+    console.log(status.info('Escuchando mensajes entrantes...'))
   }
 
   /**

@@ -4,6 +4,7 @@
 import { parseFile, detectFormat } from './parsers'
 import { autoMapColumns, cleanContacts, CleanContact } from './cleaner'
 import { deduplicate } from './deduplicator'
+import { c, status } from '../cli/theme'
 import Database, { Database as DatabaseType } from 'better-sqlite3'
 import { generateId } from '../db/database'
 
@@ -39,12 +40,12 @@ export class ContactImporter {
     try {
       // 1. Detectar formato
       const format = detectFormat(filePath)
-      console.log(`📂 Formato detectado: ${format}`)
+      console.log(status.info(`Formato detectado: ${c('bold', format)}`))
 
       // 2. Parsear archivo
       const raw = parseFile(filePath)
       result.total = raw.length
-      console.log(`📄 ${raw.length} registros encontrados`)
+      console.log(c('dim', `📄 ${raw.length} registros encontrados`))
 
       if (raw.length === 0) {
         result.errors.push('El archivo está vacío o no tiene datos válidos')
@@ -53,19 +54,19 @@ export class ContactImporter {
 
       // 3. Auto-mapear columnas
       let mapped = autoMapColumns(raw)
-      console.log(`🔀 Columnas auto-detectadas`)
+      console.log(c('dim', '🔀 Columnas auto-detectadas'))
 
       // 4. Limpiar datos
       let cleaned = cleanContacts(mapped)
       const invalidCount = mapped.length - cleaned.length
       result.invalid = invalidCount
-      console.log(`🧹 Limpieza: ${cleaned.length} válidos, ${invalidCount} inválidos`)
+      console.log(c('dim', `🧹 Limpieza: ${cleaned.length} válidos, ${invalidCount} inválidos`))
 
       // 5. Deduplicar internamente
       const beforeDedup = cleaned.length
       cleaned = deduplicate(cleaned)
       const internalDups = beforeDedup - cleaned.length
-      console.log(`🔄 Dedup interna: ${internalDups} duplicados eliminados`)
+      console.log(c('dim', `🔄 Dedup interna: ${internalDups} duplicados eliminados`))
 
       // 6. Agregar tags de fuente
       const sourceTag = source || format
@@ -81,15 +82,15 @@ export class ContactImporter {
       result.duplicates = importResult.duplicates + internalDups
       result.withWhatsApp = importResult.withWhatsApp
 
-      console.log(`✅ Importación completada:`)
-      console.log(`   📥 Importados: ${result.imported}`)
-      console.log(`   🔄 Duplicados: ${result.duplicates}`)
-      console.log(`   ❌ Inválidos: ${result.invalid}`)
-      console.log(`   📱 Con WhatsApp: ${result.withWhatsApp}`)
+      console.log(status.ok('Importación completada:'))
+      console.log(c('brightGreen', `   📥 Importados: ${result.imported}`))
+      console.log(c('yellow', `   🔄 Duplicados: ${result.duplicates}`))
+      console.log(c('red', `   ❌ Inválidos: ${result.invalid}`))
+      console.log(c('cyan', `   📱 Con WhatsApp: ${result.withWhatsApp}`))
 
     } catch (error: any) {
       result.errors.push(`Error procesando archivo: ${error.message}`)
-      console.error('❌ Error:', error.message)
+      console.error(status.err(error.message))
     }
 
     return result
@@ -150,7 +151,7 @@ export class ContactImporter {
           if (error.message.includes('UNIQUE constraint')) {
             duplicates++
           } else {
-            console.error(`   ⚠️ Error importando ${contact.phone || contact.email}: ${error.message}`)
+            console.error(c('yellow', `   ⚠️ Error importando ${contact.phone || contact.email}: ${error.message}`))
           }
         }
       }

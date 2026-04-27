@@ -4,6 +4,7 @@
 import Database from 'better-sqlite3'
 import * as path from 'path'
 import * as fs from 'fs'
+import { status } from '../cli/theme'
 
 export function initDatabase(dbPath: string = './data/mejoraws.db'): Database.Database {
   // Asegurar que el directorio existe
@@ -106,7 +107,7 @@ export function initDatabase(dbPath: string = './data/mejoraws.db'): Database.Da
     CREATE INDEX IF NOT EXISTS idx_activities_created ON activities(created_at);
   `)
 
-  console.log('✅ Base de datos inicializada:', dbPath)
+  console.log(status.ok(`Base de datos inicializada: ${dbPath}`))
   return db
 }
 

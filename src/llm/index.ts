@@ -3,6 +3,7 @@
 
 import { GroqClient } from './groq'
 import { OllamaClient } from './ollama'
+import { c, status } from '../cli/theme'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -46,7 +47,7 @@ export class LLMManager {
         const response = await this.groq.chat(messages, options)
         return { content: response.content, model: response.model }
       } catch (error) {
-        console.log('⚠️ Groq falló, intentando Ollama...')
+        console.log(status.warn('Groq falló, intentando Ollama...'))
       }
     }
 

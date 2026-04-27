@@ -2,6 +2,7 @@
 // Deduplicación de contactos (exacto + fuzzy)
 
 import { CleanContact } from './cleaner'
+import { c } from '../cli/theme'
 
 /**
  * Deduplica contactos por teléfono (exacto)
@@ -113,7 +114,7 @@ export function deduplicate(contacts: CleanContact[]): CleanContact[] {
   
   const removed = before - result.length
   if (removed > 0) {
-    console.log(`🔄 Deduplicación: ${before} → ${result.length} (${removed} duplicados eliminados)`)
+    console.log(c('dim', `🔄 Deduplicación: ${before} → ${result.length} (${removed} duplicados eliminados)`))
   }
   
   return result
