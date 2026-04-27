@@ -25,6 +25,7 @@ export function initDatabase(dbPath: string = './data/mejoraws.db'): Database.Da
       name TEXT,
       phone TEXT UNIQUE NOT NULL,
       email TEXT,
+      company TEXT,
       whatsapp INTEGER DEFAULT 0,
       tags TEXT DEFAULT '[]',
       score INTEGER DEFAULT 0,

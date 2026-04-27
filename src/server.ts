@@ -2,8 +2,12 @@
 // Entry point de MejoraWS — CRM WhatsApp Autónomo con IA
 
 import { Orchestrator } from './brain/orchestrator'
+import { createApi } from './api'
 import { c, status, progressBar, table, box } from './cli/theme'
+import { logger } from './utils/logger'
 import * as readline from 'readline'
+
+const API_PORT = parseInt(process.env.PORT || '3000')
 
 async function main() {
   const orchestrator = new Orchestrator()
@@ -22,6 +26,15 @@ async function main() {
 
   // Iniciar sistema
   await orchestrator.start()
+
+  // Iniciar API REST
+  const api = createApi(orchestrator)
+  api.listen(API_PORT, () => {
+    logger.info({ port: API_PORT }, `API REST listening on http://localhost:${API_PORT}`)
+    console.log(status.ok(`API REST activa en ${c('cyan', `http://localhost:${API_PORT}`)}`))
+    console.log(c('dim', `   Health: http://localhost:${API_PORT}/health`))
+    console.log(c('dim', `   Docs:   http://localhost:${API_PORT}/api/v1/`))
+  })
 
   // CLI interactivo
   const rl = readline.createInterface({
