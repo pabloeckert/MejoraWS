@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Data (local, no subir a git)
+data/session/
+data/mejoraws.db
+data/mejoraws.db-wal
+data/mejoraws.db-shm
+data/warmup.json
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

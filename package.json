@@ -1,0 +1,34 @@
+{
+  "name": "mejoraws",
+  "version": "0.1.0",
+  "description": "CRM WhatsApp Autónomo con IA — Anti-ban · $0 · 100% local",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "clean": "rm -rf dist",
+    "reset:warmup": "rm -f data/warmup.json && echo 'Warm-up reseteado'",
+    "reset:session": "rm -rf data/session && echo 'Sesión WhatsApp eliminada'",
+    "reset:db": "rm -f data/mejoraws.db && echo 'Base de datos eliminada'"
+  },
+  "keywords": [
+    "whatsapp",
+    "crm",
+    "ai",
+    "bot",
+    "marketing",
+    "anti-ban",
+    "groq",
+    "ollama"
+  ],
+  "author": "pabloeckert",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pabloeckert/MejoraWS.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
