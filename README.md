@@ -61,8 +61,7 @@ Costo:     $0
 
 | Documento | Descripción |
 |-----------|-------------|
-| [Documents/01-DOCUMENTACION-CONSOLIDADA.md](Documents/01-DOCUMENTACION-CONSOLIDADA.md) | **📚 Documento maestro** — TODA la documentación |
-| [Documents/PROMPT.md](Documents/PROMPT.md) | Prompt de continuidad de sesión |
+| [Documents/MEJORAWS-DOCUMENTACION.md](Documents/MEJORAWS-DOCUMENTACION.md) | **📚 Documento maestro ÚNICO** — TODA la documentación + análisis 360° + plan por etapas |
 
 > **Trigger:** Cuando digas **"documentar"**, se actualizan los avances en el documento maestro.
 

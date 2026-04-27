@@ -20,7 +20,7 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 ## ESTADO ACTUAL
 
 - Fase: Etapa 3 completada, CLI funcional con colores
-- Documento maestro: Documents/01-DOCUMENTACION-CONSOLIDADA.md (actualizado, refleja código real)
+- Documento maestro: Documents/MEJORAWS-DOCUMENTACION.md (documento ÚNICO consolidado con análisis 360°)
 - Stack REAL: Baileys + Groq API (qwen-2.5-32b) + Ollama (llama3.1:8b) + SQLite (better-sqlite3) + Express + TypeScript
 - CLI: Interactivo con ANSI colors, tablas, progress bars (src/cli/theme.ts)
 - Costo: $0
@@ -52,7 +52,7 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 - src/antiban/rate-limiter.ts → Gaussian delay, typing sim
 - src/llm/index.ts → LLM Manager (Groq → Ollama)
 - src/db/database.ts → SQLite schema (7 tablas)
-- Documents/01-DOCUMENTACION-CONSOLIDADA.md → Documento maestro
+- Documents/MEJORAWS-DOCUMENTACION.md → Documento maestro ÚNICO
 - Documents/PROMPT.md → Este archivo
 
 ## LO QUE FALTA (Backlog)
@@ -70,7 +70,7 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 ## TRIGGER: "documentar"
 
 Cuando el usuario diga "documentar":
-1. Leer Documents/01-DOCUMENTACION-CONSOLIDADA.md sección "Registro de Avances"
+1. Leer Documents/MEJORAWS-DOCUMENTACION.md sección "Registro de Avances"
 2. Revisar git log desde la última entrada del timeline
 3. Actualizar: timeline, estado general, decisiones técnicas, pendientes
 4. Si hay nuevos módulos → actualizar sección "Módulos Implementados"
@@ -86,5 +86,6 @@ Cuando el usuario diga "documentar":
 - El bot nunca debe sonar a bot (tono humano, delays variables)
 - NO usar Meta API — todo por Baileys
 - Todos los archivos de doc en Documents/
+- DOCUMENTO ÚNICO: Documents/MEJORAWS-DOCUMENTACION.md (NO crear otros archivos de doc)
 - Cuando diga "documentar": actualizar sin preguntar
 ```
