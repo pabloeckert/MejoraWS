@@ -62,8 +62,10 @@ Costo:     $0
 | Documento | Descripción |
 |-----------|-------------|
 | [Documents/MEJORAWS-DOCUMENTACION.md](Documents/MEJORAWS-DOCUMENTACION.md) | **📚 Documento maestro ÚNICO** — TODA la documentación + análisis 360° + plan por etapas |
+| [Documents/CONTINUITY-PROMPT.md](Documents/CONTINUITY-PROMPT.md) | **🔄 Prompt de continuidad** — Pegar al inicio de nueva sesión |
 
 > **Trigger:** Cuando digas **"documentar"**, se actualizan los avances en el documento maestro.
+> **Trigger:** Cuando digas **"Mimo llame lee bien esto y seguimos"**, se lee el prompt de continuidad.
 
 ## Plan por Etapas
 
