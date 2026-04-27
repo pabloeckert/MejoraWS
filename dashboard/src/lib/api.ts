@@ -150,3 +150,36 @@ export async function sendMessage(to: string, text: string) {
 export async function getSendStats() {
   return apiFetch<{ data: any }>('/api/v1/messages/stats/sending')
 }
+
+// === Campaigns ===
+export async function getCampaigns() {
+  return apiFetch<{ data: any[] }>('/api/v1/campaigns')
+}
+
+export async function getCampaign(id: string) {
+  return apiFetch<{ data: any }>(`/api/v1/campaigns/${id}`)
+}
+
+export async function getCampaignStats(id: string) {
+  return apiFetch<{ data: any }>(`/api/v1/campaigns/${id}/stats`)
+}
+
+export async function createCampaign(data: any) {
+  return apiFetch<{ data: any }>('/api/v1/campaigns', { method: 'POST', body: data })
+}
+
+export async function updateCampaign(id: string, data: any) {
+  return apiFetch<{ data: any }>(`/api/v1/campaigns/${id}`, { method: 'PATCH', body: data })
+}
+
+export async function deleteCampaign(id: string) {
+  return apiFetch(`/api/v1/campaigns/${id}`, { method: 'DELETE' })
+}
+
+export async function executeCampaign(id: string, body?: any) {
+  return apiFetch<{ data: any }>(`/api/v1/campaigns/${id}/execute`, { method: 'POST', body: body || {} })
+}
+
+export async function pauseCampaign(id: string) {
+  return apiFetch<{ data: any }>(`/api/v1/campaigns/${id}/pause`, { method: 'POST' })
+}

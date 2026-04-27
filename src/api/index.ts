@@ -13,6 +13,7 @@ import { dealsRouter } from './routes/deals'
 import { messagesRouter } from './routes/messages'
 import { statusRouter } from './routes/status'
 import { authRouter } from './routes/auth'
+import { campaignsRouter } from './routes/campaigns'
 import { childLogger } from '../utils/logger'
 
 const log = childLogger('api')
@@ -50,6 +51,7 @@ export function createApi(orchestrator: Orchestrator): express.Application {
     { send: (to: string, text: string) => orchestrator.sendMessage(to, text), getStats: () => orchestrator.getSendStats() } as any,
   ))
   app.use('/api/v1/status', statusRouter(orchestrator))
+  app.use('/api/v1/campaigns', campaignsRouter(orchestrator.campaigns, orchestrator.campaignScheduler))
 
   // === ERROR HANDLING ===
   app.use(notFoundHandler)

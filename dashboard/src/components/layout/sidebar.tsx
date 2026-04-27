@@ -12,12 +12,14 @@ import {
   Settings,
   LogOut,
   Activity,
+  Send,
 } from 'lucide-react'
 
 const links = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
   { href: '/contactos', label: 'Contactos', icon: Users },
+  { href: '/campaigns', label: 'Campañas', icon: Send },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/config', label: 'Config', icon: Settings },
 ]

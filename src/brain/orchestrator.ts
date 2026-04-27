@@ -12,6 +12,8 @@ import { loadConfig } from '../config'
 import { ContactImporter } from '../importer/pipeline'
 import { ContactManager } from '../crm/contacts'
 import { DealManager } from '../crm/deals'
+import { CampaignEngine } from '../campaigns/engine'
+import { CampaignScheduler } from '../campaigns/scheduler'
 import { c, status, box } from '../cli/theme'
 import Database from 'better-sqlite3'
 
@@ -31,6 +33,10 @@ export class Orchestrator {
   public deals: DealManager
   public importer: ContactImporter
 
+  // Campaigns
+  public campaigns: CampaignEngine
+  public campaignScheduler: CampaignScheduler
+
   constructor() {
     this.config = loadConfig()
     this.db = initDatabase(this.config.dbPath)
@@ -45,6 +51,14 @@ export class Orchestrator {
     this.contacts = new ContactManager(this.db)
     this.deals = new DealManager(this.db)
     this.importer = new ContactImporter(this.db)
+
+    // Campaigns
+    this.campaigns = new CampaignEngine(
+      this.db,
+      (to: string, text: string, campaignId?: string) => this.sender.send(to, text, campaignId),
+      this.warmup,
+    )
+    this.campaignScheduler = new CampaignScheduler(this.campaigns, this.contacts)
   }
 
   /**
@@ -73,6 +87,9 @@ export class Orchestrator {
 
     // 5. Conectar WhatsApp
     await this.client.connect()
+
+    // 6. Iniciar campaign scheduler
+    this.campaignScheduler.start()
 
     this.isRunning = true
     console.log('')
@@ -114,6 +131,7 @@ export class Orchestrator {
    */
   async stop(): Promise<void> {
     this.isRunning = false
+    this.campaignScheduler.stop()
     await this.client.disconnect()
     this.db.close()
     console.log(status.warn('Sistema detenido'))
