@@ -17,7 +17,7 @@ Sos el asistente de desarrollo del proyecto MejoraWS.
 
 ## CONTEXTO
 
-MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configura parámetros y la IA hace todo: responde como humano, gestiona pipeline y reporta KPIs.
+MejoraWS es un CRM WhatsApp autónomo con IA para uso personal/empresarial. El admin configura parámetros y la IA hace todo: responde como humano, gestiona pipeline y reporta KPIs.
 
 ## REPOS
 
@@ -25,32 +25,34 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 - Branch: main
 - Último commit: (ver git log)
 
-## ESTADO ACTUAL — ETAPAS 1-11 COMPLETADAS
+## ESTADO ACTUAL — FASE 1 COMPLETA (Etapas 1-11)
 
-| Etapa | Estado | Qué incluye |
-|-------|--------|-------------|
-| 1-3 | ✅ | WhatsApp (Baileys) + Bot IA (Groq+Ollama) + CRM (contactos+deals+pipeline) + CLI con colores + Importador (CSV/XLSX/VCF/JSON) + Anti-ban (6 capas) |
-| 4 | ✅ | API REST (52+ endpoints) + Tests (140) + CI/CD (GitHub Actions) + Logging (pino) + Zod validation + Rate limiting + CORS + Helmet |
-| 5 | ✅ | Dashboard Web (Next.js 16 + shadcn/ui) — 8 vistas: Dashboard KPIs, Pipeline Kanban, Contactos, Campañas, Chat, Config, Login, Analytics |
-| 6 | ✅ | Campañas automáticas + Template Rotation (anti-ban capa 6/6 completa) + Campaign Scheduler + A/B testing de mensajes |
-| 7 | ✅ | Audit log + GDPR (export/erase/consent) + Data retention + Privacy Policy + Terms of Service |
-| 8 | ✅ | Docker + Producción: Dockerfile multi-stage, docker-compose (app+nginx+backup), deploy guide, Makefile, SSL setup |
-| 9 | ✅ | Analytics: API (6 endpoints) + Dashboard Recharts (5 gráficas) + CSV export (4 tipos) + 9 tests |
-| 10 | ✅ | Escala: DB adapter (SQLite/PG), Redis cache, Prometheus metrics, Grafana dashboard, PM2 cluster, k6 load tests |
-| 11 | ✅ | Hardening: Cifrado AES-256, breach notification GDPR, DPIA, E2E tests (Playwright), i18n ES/EN, dark mode, coverage CI, rate limit/usuario |
+| Fase | Estado | Qué incluye |
+|------|--------|-------------|
+| Fase 1 | ✅ COMPLETA | Sistema completo funcional: WhatsApp (Baileys) + Bot IA (Groq+Ollama) + CRM (contactos+deals+pipeline) + CLI + Importador + Anti-ban (6 capas) + API REST (52+ endpoints) + Dashboard (8 vistas) + Campañas + GDPR + Docker + Analytics + Escala + Hardening |
+| Fase 2 | ❌ PENDIENTE | Mejoras post-producción: UX/onboarding, real-time (WebSocket), inteligencia avanzada (RAG), seguridad avanzada (MFA), integraciones, i18n |
+| Fase 3 | ❌ PENDIENTE | Escala y monetización: multi-tenant real, Kubernetes, Stripe, growth, landing page, mobile |
 
-## SIGUIENTE: PRODUCCIÓN v1.0
+## MÉTRICAS
 
-El sistema está listo para producción. Próximos pasos opcionales:
-- Deploy en VPS con `docker compose --profile production up -d`
-- Configurar dominio + SSL
-- Monitorear métricas en Grafana
-- Ejecutar E2E tests contra instancia en vivo
+- Tests: 176 (18 archivos) — todos passing
+- Endpoints: 52+
+- LOC: ~10,600
+- Costo: $0
+
+## SIGUIENTE: FASE 2 — Mejoras Post-Producción
+
+Prioridades inmediatas:
+1. Etapa 12: UX y Onboarding (wizard, tooltips, WCAG)
+2. Etapa 13: Real-time (WebSocket, PWA)
+3. Etapa 14: Inteligencia Avanzada (RAG, predictive scoring)
 
 ## DOCUMENTACIÓN
 
-- Documents/MEJORAWS-DOCUMENTACION.md → DOCUMENTO MAESTRO ÚNICO (TODA la doc aquí)
+- Documents/MEJORAWS-DOCUMENTACION.md → DOCUMENTO MAESTRO ÚNICO (TODA la doc aquí, 18 secciones)
 - Documents/CONTINUITY-PROMPT.md → Este archivo
+- docs/deploy.md → Deploy guide (Docker, VPS, SSL)
+- docs/legal/DPIA.md → Data Protection Impact Assessment
 - docs/legal/PRIVACY-POLICY.md → GDPR compliant
 - docs/legal/TERMS-OF-SERVICE.md → Términos de uso
 
@@ -59,7 +61,7 @@ El sistema está listo para producción. Próximos pasos opcionales:
 Cuando el usuario diga "documentar":
 1. Leer Documents/MEJORAWS-DOCUMENTACION.md
 2. Revisar git log desde la última entrada del timeline
-3. Actualizar: timeline, estado general, decisiones técnicas, pendientes, módulos, schema, endpoints, tests
+3. Actualizar: resumen ejecutivo, timeline, estado general, decisiones técnicas, pendientes, módulos, schema, endpoints, tests, dashboard, fase actual
 4. Commit: `docs: documentar — [resumen]`
 5. Push al repo
 
@@ -68,8 +70,8 @@ Cuando el usuario diga "documentar":
 Cuando el usuario diga esto:
 1. Leer este archivo (Documents/CONTINUITY-PROMPT.md)
 2. Leer Documents/MEJORAWS-DOCUMENTACION.md
-3. Confirmar estado actual
-4. Preguntar qué hacemos (o continuar con etapa pendiente)
+3. Confirmar estado actual (Fase 1 completa, Fase 2 pendiente)
+4. Preguntar qué hacemos (o continuar con la etapa pendiente de Fase 2)
 
 ## REGLAS
 
