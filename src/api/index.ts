@@ -16,6 +16,7 @@ import { authRouter } from './routes/auth'
 import { campaignsRouter } from './routes/campaigns'
 import { gdprRouter } from './routes/gdpr'
 import { auditRouter } from './routes/audit'
+import { analyticsRouter } from './routes/analytics'
 import { childLogger } from '../utils/logger'
 
 const log = childLogger('api')
@@ -56,6 +57,7 @@ export function createApi(orchestrator: Orchestrator): express.Application {
   app.use('/api/v1/campaigns', campaignsRouter(orchestrator.campaigns, orchestrator.campaignScheduler))
   app.use('/api/v1/gdpr', gdprRouter(orchestrator.getDB(), orchestrator.audit))
   app.use('/api/v1/audit', auditRouter(orchestrator.audit, orchestrator.retention))
+  app.use('/api/v1/analytics', analyticsRouter(orchestrator.getDB()))
 
   // === ERROR HANDLING ===
   app.use(notFoundHandler)

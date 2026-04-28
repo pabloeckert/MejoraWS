@@ -13,6 +13,7 @@ import {
   LogOut,
   Activity,
   Send,
+  BarChart3,
 } from 'lucide-react'
 
 const links = [
@@ -20,6 +21,7 @@ const links = [
   { href: '/pipeline', label: 'Pipeline', icon: GitBranch },
   { href: '/contactos', label: 'Contactos', icon: Users },
   { href: '/campaigns', label: 'Campañas', icon: Send },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/config', label: 'Config', icon: Settings },
 ]

@@ -183,3 +183,40 @@ export async function executeCampaign(id: string, body?: any) {
 export async function pauseCampaign(id: string) {
   return apiFetch<{ data: any }>(`/api/v1/campaigns/${id}/pause`, { method: 'POST' })
 }
+
+// === Analytics ===
+export async function getAnalyticsOverview() {
+  return apiFetch<{ data: any }>('/api/v1/analytics/overview')
+}
+
+export async function getAnalyticsMessages() {
+  return apiFetch<{ data: any[] }>('/api/v1/analytics/messages')
+}
+
+export async function getAnalyticsFunnel() {
+  return apiFetch<{ data: any[] }>('/api/v1/analytics/funnel')
+}
+
+export async function getAnalyticsSentiment() {
+  return apiFetch<{ data: any[] }>('/api/v1/analytics/sentiment')
+}
+
+export async function getAnalyticsTiming() {
+  return apiFetch<{ data: any }>('/api/v1/analytics/timing')
+}
+
+export async function getAnalyticsQuality() {
+  return apiFetch<{ data: any }>('/api/v1/analytics/quality')
+}
+
+export async function exportAnalytics(type: string, days?: number) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : undefined
+  const qs = days ? `?type=${type}&days=${days}` : `?type=${type}`
+  const res = await fetch(`${API_BASE}/api/v1/analytics/export${qs}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  if (!res.ok) throw new Error('Export failed')
+  return res.blob()
+}
