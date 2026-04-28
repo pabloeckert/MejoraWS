@@ -36,15 +36,24 @@ async function main() {
     console.log(c('dim', `   Docs:   http://localhost:${API_PORT}/api/v1/`))
   })
 
-  // CLI interactivo
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: c('brightCyan', '🚀 mejoraws') + c('dim', '> '),
-  })
+  // CLI interactivo (solo en TTY)
+  const isInteractive = process.stdin.isTTY
+  let rl: readline.Interface | null = null
 
-  printHelp()
-  rl.prompt()
+  if (isInteractive) {
+    rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: c('brightCyan', '🚀 mejoraws') + c('dim', '> '),
+    })
+
+    printHelp()
+    rl.prompt()
+  } else {
+    logger.info('Running in non-interactive mode (background)')
+  }
+
+  if (!rl) return // Non-interactive mode, keep running
 
   rl.on('line', async (line) => {
     const input = line.trim()

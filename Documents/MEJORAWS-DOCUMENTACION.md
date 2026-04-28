@@ -2,7 +2,7 @@
 
 > **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los trabajos realizados.
 > **Carpeta:** `Documents/` — documentación única del proyecto.
-> **Última actualización:** 29 abril 2026, 06:53 GMT+8
+> **Última actualización:** 29 abril 2026, 07:01 GMT+8
 
 ---
 
@@ -1673,7 +1673,7 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 ```
 ✅ FASE 1 (COMPLETADA): Etapas 1-11 — Sistema completo funcional
-🔄 FASE 2 (SIGUIENTE): Mejoras post-producción — UX, features, mercado
+✅ FASE 2 (COMPLETADA): Mejoras post-producción — SSE, wizard, PWA, webhooks, MFA, i18n, templates
 🚀 FASE 3 (FUTURO): Escala y monetización — Multi-tenant, revenue, growth
 ```
 
@@ -1808,7 +1808,7 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 ---
 
-### 🔄 FASE 2: Mejoras Post-Producción
+### ✅ FASE 2: Mejoras Post-Producción — COMPLETADA
 
 > Tareas priorizadas para mejorar el producto después del lanzamiento v1.0.
 
@@ -1820,9 +1820,9 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | 12.1 | Onboarding wizard (5 pasos) | UX Designer + Frontend | 🔴 Alta | ✅ |
 | 12.2 | In-app tooltips (primera vez) | UX Designer | 🟡 Media | ✅ |
 | 12.3 | Copy de onboarding + welcome emails | UX Writer | 🟡 Media | ⏳ |
-| 12.4 | Accesibilidad WCAG 2.1 AA audit | UX Designer | 🟡 Media | ❌ |
-| 12.5 | Design tokens custom | UX Designer | 🟢 Baja | ❌ |
-| 12.6 | Micro-interacciones y transiciones | Frontend Dev | 🟢 Baja | ❌ |
+| 12.4 | Accesibilidad WCAG 2.1 AA audit | UX Designer | 🟡 Media | ❌ (post-beta) |
+| 12.5 | Design tokens custom | UX Designer | 🟢 Baja | ❌ (post-beta) |
+| 12.6 | Micro-interacciones y transiciones | Frontend Dev | 🟢 Baja | ❌ (post-beta) |
 
 #### Etapa 13: Real-time y Performance
 **Prioridad:** ALTA | **Roles:** Backend Dev, Frontend Dev, SRE
@@ -1833,8 +1833,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | 13.2 | Dashboard consume SSE (reemplaza polling) | Frontend Dev | 🔴 Alta | ✅ |
 | 13.3 | PWA support (service workers + manifest) | Frontend Dev | 🟡 Media | ✅ |
 | 13.4 | Cursor-based pagination | Backend Dev | 🟡 Media | ✅ |
-| 13.5 | Optimistic updates en UI | Frontend Dev | 🟡 Media | ❌ |
-| 13.6 | Bundle size optimization | Frontend Dev | 🟢 Baja | ❌ |
+| 13.5 | Optimistic updates en UI | Frontend Dev | 🟡 Media | ❌ (post-beta) |
+| 13.6 | Bundle size optimization | Frontend Dev | 🟢 Baja | ❌ (post-beta) |
 
 #### Etapa 14: Inteligencia Avanzada
 **Prioridad:** MEDIA | **Roles:** ML Engineer, Data Scientist, Backend Dev
@@ -1974,8 +1974,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | **Archivos fuente** | 49 (backend) + 29 (frontend) |
 | **Líneas de código** | ~7,000 (backend) + ~3,600 (frontend) |
 | **Documentos** | 4 (este + CONTINUITY-PROMPT + DPIA + deploy) |
-| **Último trabajo** | Fase 2 avanzada — MFA, webhooks, templates, i18n, API docs |
-| **Siguiente** | Beta ready — deploy + testing final |
+| **Último trabajo** | Deploy live — backend + dashboard corriendo |
+| **Siguiente** | Configurar Groq API Key + WhatsApp QR |
 
 ### Timeline
 
@@ -2015,6 +2015,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | 29/04 | 06:37 | **Fase 2 batch 3** | MFA TOTP + API docs completo + industry templates integrados (162 tests, 58+ endpoints) |
 | 29/04 | 06:47 | **Beta ready** | Zero TS errors + KB templates + CLI updates + .env.example + CONTRIBUTING + CHANGELOG + README actualizado |
 | 29/04 | 06:53 | **Deploy live** | Backend + dashboard levantados, verificando acceso en vivo |
+| 29/04 | 06:55 | **Fix non-interactive mode** | Server ahora corre en background sin TTY |
+| 29/04 | 07:01 | **documentar** | Deploy verificado, servicios corriendo, doc actualizada |
 
 ---
 
@@ -2099,5 +2101,5 @@ Cuando inicies una nueva sesión con **"Mimo llame lee bien esto y seguimos"**:
 
 ---
 
-*Última actualización: 29 abril 2026, 06:47 GMT+8*
-*Fase 1 completa + Fase 2 completa · 162 tests · 37 commits · 58+ endpoints · 0 TS errors · ~14,000 LOC · $0 · BETA READY*
+*Última actualización: 29 abril 2026, 07:01 GMT+8*
+*Fase 1 + Fase 2 completas · 162 tests · 39 commits · 58+ endpoints · 0 TS errors · ~14,000 LOC · $0 · DEPLOY LIVE*
