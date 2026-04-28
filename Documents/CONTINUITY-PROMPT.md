@@ -36,14 +36,9 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 | 7 | ✅ | Audit log + GDPR (export/erase/consent) + Data retention + Privacy Policy + Terms of Service |
 | 8 | ✅ | Docker + Producción: Dockerfile multi-stage, docker-compose, nginx, backup auto, deploy guide, Makefile, SSL setup |
 | 9 | ✅ | Analytics: API (6 endpoints) + Dashboard Recharts (5 gráficas) + CSV export (4 tipos) + 9 tests |
+| 10 | ✅ | Escala: DB adapter (SQLite/PG), Redis cache, Prometheus metrics, Grafana dashboard, PM2 cluster, k6 load tests |
 
-## LO QUE FALTA (Etapa 10)
-
-### Etapa 10: Multi-tenancy y Escala ⏳ SIGUIENTE
-- Migración SQLite → PostgreSQL
-- Redis cache/queues
-- Multi-tenant support
-- Prometheus + Grafana
+## TODAS LAS ETAPAS COMPLETADAS ✅
 
 ## DOCUMENTACIÓN
 
