@@ -1,0 +1,79 @@
+# ============================================
+# MejoraWS — docker-compose.yml
+# ============================================
+# Uso: docker-compose up -d
+# Logs: docker-compose logs -f app
+# Stop: docker-compose down
+# ============================================
+
+services:
+  # --- App principal ---
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mejoraws
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_PATH=/app/data/mejoraws.db
+      - SESSION_PATH=/app/data/session
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --- Nginx reverse proxy (producción) ---
+  nginx:
+    image: nginx:alpine
+    container_name: mejoraws-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    profiles:
+      - production
+
+  # --- Backup automático ---
+  backup:
+    image: alpine:latest
+    container_name: mejoraws-backup
+    restart: unless-stopped
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        apk add --no-cache sqlite
+        while true; do
+          echo "[$(date)] Running backup..."
+          sqlite3 /data/mejoraws.db ".backup /backups/mejoraws-$$(date +%Y%m%d-%H%M%S).db"
+          # Keep only last 7 backups
+          ls -t /backups/mejoraws-*.db 2>/dev/null | tail -n +8 | xargs -r rm
+          echo "[$(date)] Backup complete. Sleeping 6h..."
+          sleep 21600
+        done
+    profiles:
+      - production

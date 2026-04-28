@@ -27,3 +27,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Backups (runtime)
+backups/*.db
+!backups/.gitkeep
+
+# Nginx SSL certs (sensitive)
+nginx/ssl/*.pem
+nginx/ssl/*.key
+!nginx/ssl/.gitkeep
