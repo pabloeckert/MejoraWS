@@ -5,7 +5,7 @@
 
 ## Estado actual
 
-✅ **Etapas 1-7 completadas** — Sistema funcional
+✅ **Etapas 1-10 completadas** — Sistema funcional
 
 - WhatsApp connection (Baileys multi-device)
 - Auto-reply IA (Groq + Ollama fallback)
@@ -13,13 +13,14 @@
 - Importador CSV/XLSX/VCF/JSON
 - Anti-ban 6 capas (warm-up 14d, Gaussian delay, typing sim, template rotation)
 - CLI interactivo con colores ANSI
-- API REST (35+ endpoints, Zod validation, rate limiting)
-- Dashboard web (Next.js 16 + shadcn/ui, 7 vistas)
+- API REST (43+ endpoints, Zod validation, rate limiting)
+- Dashboard web (Next.js 16 + shadcn/ui, 8 vistas)
 - Campañas automáticas con A/B testing
 - JWT auth, audit log, GDPR compliance
-- Tests (101), CI/CD (GitHub Actions)
-
-✅ **Todas las etapas completadas (1-10)**
+- Tests (110), CI/CD (GitHub Actions)
+- Docker + producción (Dockerfile, docker-compose, nginx, backup)
+- Analytics (6 endpoints, Recharts, CSV export)
+- Escala (DB adapter SQLite/PG, Redis cache, Prometheus, Grafana, PM2, k6)
 
 ## Quick Start
 
@@ -63,7 +64,7 @@ Database:  SQLite + better-sqlite3
 API:       Express + Zod + Helmet + CORS
 CLI:       ANSI codes nativos
 Dashboard: Next.js 16 + shadcn/ui + Tailwind v4
-Testing:   Vitest + Supertest (101 tests)
+Testing:   Vitest + Supertest (110 tests)
 CI/CD:     GitHub Actions (Node 20/22)
 Docker:    Multi-stage + docker-compose + nginx + backup
 Costo:     $0
@@ -75,6 +76,7 @@ Costo:     $0
 |-----------|-------------|
 | [Documents/MEJORAWS-DOCUMENTACION.md](Documents/MEJORAWS-DOCUMENTACION.md) | **📚 Documento maestro ÚNICO** — TODA la documentación + análisis 360° + plan por etapas |
 | [Documents/CONTINUITY-PROMPT.md](Documents/CONTINUITY-PROMPT.md) | **🔄 Prompt de continuidad** — Pegar al inicio de nueva sesión |
+| [docs/deploy.md](docs/deploy.md) | **🚀 Deploy guide** — Docker, VPS, SSL |
 | [docs/legal/PRIVACY-POLICY.md](docs/legal/PRIVACY-POLICY.md) | Privacy Policy (GDPR compliant) |
 | [docs/legal/TERMS-OF-SERVICE.md](docs/legal/TERMS-OF-SERVICE.md) | Terms of Service |
 
@@ -85,16 +87,17 @@ Costo:     $0
 
 | Etapa | Entregable | Estado |
 |-------|-----------|--------|
-| 1 | WhatsApp + envío/recepción + anti-ban (5 capas) | ✅ |
+| 1 | WhatsApp + envío/recepción + anti-ban (6 capas) | ✅ |
 | 2 | Bot IA auto-reply + orchestrator | ✅ |
 | 3 | CRM + importador + pipeline | ✅ |
 | 4 | API REST + Tests + CI/CD + Logging | ✅ |
-| 5 | Dashboard web (Next.js, 7 vistas) | ✅ |
-| 6 | Campañas automáticas + template rotation (anti-ban 6/6) | ✅ |
+| 5 | Dashboard web (Next.js, 8 vistas) | ✅ |
+| 6 | Campañas automáticas + template rotation | ✅ |
 | 7 | Seguridad + GDPR + Legal | ✅ |
 | 8 | Docker + Producción | ✅ |
 | 9 | Analytics e Inteligencia | ✅ |
 | 10 | Multi-tenancy y Escala | ✅ |
+| 11 | Hardening Pre-Producción | ⏳ |
 
 ---
 *$0 · Sin Meta API · 10 módulos · Etapas 1-10 completadas · 110 tests · 43+ endpoints · Sistema completo*

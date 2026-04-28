@@ -25,28 +25,31 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 - Branch: main
 - Último commit: (ver git log)
 
-## ESTADO ACTUAL — COMPLETADO HASTA ETAPA 10
+## ESTADO ACTUAL — ETAPAS 1-10 COMPLETADAS
 
 | Etapa | Estado | Qué incluye |
 |-------|--------|-------------|
-| 1-3 | ✅ | WhatsApp (Baileys) + Bot IA (Groq+Ollama) + CRM (contactos+deals+pipeline) + CLI con colores + Importador (CSV/XLSX/VCF/JSON) + Anti-ban (5/6 capas) |
-| 4 | ✅ | API REST (35+ endpoints) + Tests (101) + CI/CD (GitHub Actions) + Logging (pino) + Zod validation + Rate limiting + CORS + Helmet |
-| 5 | ✅ | Dashboard Web (Next.js 16 + shadcn/ui) — 7 vistas: Dashboard KPIs, Pipeline Kanban, Contactos, Campañas, Chat, Config, Login |
+| 1-3 | ✅ | WhatsApp (Baileys) + Bot IA (Groq+Ollama) + CRM (contactos+deals+pipeline) + CLI con colores + Importador (CSV/XLSX/VCF/JSON) + Anti-ban (6 capas) |
+| 4 | ✅ | API REST (43+ endpoints) + Tests (110) + CI/CD (GitHub Actions) + Logging (pino) + Zod validation + Rate limiting + CORS + Helmet |
+| 5 | ✅ | Dashboard Web (Next.js 16 + shadcn/ui) — 8 vistas: Dashboard KPIs, Pipeline Kanban, Contactos, Campañas, Chat, Config, Login, Analytics |
 | 6 | ✅ | Campañas automáticas + Template Rotation (anti-ban capa 6/6 completa) + Campaign Scheduler + A/B testing de mensajes |
 | 7 | ✅ | Audit log + GDPR (export/erase/consent) + Data retention + Privacy Policy + Terms of Service |
-| 8 | ✅ | Docker + Producción: Dockerfile multi-stage, docker-compose, nginx, backup auto, deploy guide, Makefile, SSL setup |
+| 8 | ✅ | Docker + Producción: Dockerfile multi-stage, docker-compose (app+nginx+backup), deploy guide, Makefile, SSL setup |
 | 9 | ✅ | Analytics: API (6 endpoints) + Dashboard Recharts (5 gráficas) + CSV export (4 tipos) + 9 tests |
 | 10 | ✅ | Escala: DB adapter (SQLite/PG), Redis cache, Prometheus metrics, Grafana dashboard, PM2 cluster, k6 load tests |
 
-## PLAN POST-PRODUCCIÓN (Etapas 11-13)
+## SIGUIENTE: ETAPA 11 — Hardening Pre-Producción
 
-| Etapa | Estado | Qué incluye |
-|-------|--------|-------------|
-| 11 | ⏳ | Crecimiento: Landing page, SEO, Discord, YouTube, Sponsors, templates industria |
-| 12 | ⏳ | Operaciones: FAQ, breach notification, i18n EN, Sentry, uptime monitoring |
-| 13 | ⏳ | Monetización: Pricing tiers, Stripe, feature gating, ads, partnerships, API pública |
-
-## TÉCNICAMENTE COMPLETADO ✅ — EN FASE DE CRECIMIENTO
+| # | Tarea | Rol | Severidad |
+|---|-------|-----|-----------|
+| 11.1 | E2E tests (Playwright) | QA Automation | 🟡 Alta |
+| 11.2 | Breach notification procedure (GDPR) | DPO + Legal | 🟡 Alta |
+| 11.3 | DPIA | DPO | 🟡 Media |
+| 11.4 | Cifrado at-rest sesión WA | Cybersecurity | 🟡 Media |
+| 11.5 | Rate limit por usuario | Backend Dev | 🟢 Baja |
+| 11.6 | Error messages i18n | UX Writer | 🟢 Baja |
+| 11.7 | Coverage report en CI | QA Automation | 🟢 Baja |
+| 11.8 | Dark mode dashboard | UI Designer | 🟢 Info |
 
 ## DOCUMENTACIÓN
 
@@ -63,6 +66,14 @@ Cuando el usuario diga "documentar":
 3. Actualizar: timeline, estado general, decisiones técnicas, pendientes, módulos, schema, endpoints, tests
 4. Commit: `docs: documentar — [resumen]`
 5. Push al repo
+
+## TRIGGER: "Mimo llame lee bien esto y seguimos"
+
+Cuando el usuario diga esto:
+1. Leer este archivo (Documents/CONTINUITY-PROMPT.md)
+2. Leer Documents/MEJORAWS-DOCUMENTACION.md
+3. Confirmar estado actual
+4. Preguntar qué hacemos (o continuar con etapa pendiente)
 
 ## REGLAS
 
