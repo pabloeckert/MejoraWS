@@ -5,7 +5,7 @@
 
 ## Estado actual
 
-✅ **Etapas 1-10 completadas** — Sistema funcional
+✅ **Etapas 1-11 completadas** — Sistema listo para producción
 
 - WhatsApp connection (Baileys multi-device)
 - Auto-reply IA (Groq + Ollama fallback)
@@ -13,14 +13,16 @@
 - Importador CSV/XLSX/VCF/JSON
 - Anti-ban 6 capas (warm-up 14d, Gaussian delay, typing sim, template rotation)
 - CLI interactivo con colores ANSI
-- API REST (43+ endpoints, Zod validation, rate limiting)
-- Dashboard web (Next.js 16 + shadcn/ui, 8 vistas)
+- API REST (52+ endpoints, Zod validation, rate limiting)
+- Dashboard web (Next.js 16 + shadcn/ui, 8 vistas + dark mode)
 - Campañas automáticas con A/B testing
-- JWT auth, audit log, GDPR compliance
-- Tests (110), CI/CD (GitHub Actions)
+- JWT auth, audit log, GDPR compliance + breach notification
+- Tests (140), CI/CD (GitHub Actions + coverage)
 - Docker + producción (Dockerfile, docker-compose, nginx, backup)
 - Analytics (6 endpoints, Recharts, CSV export)
 - Escala (DB adapter SQLite/PG, Redis cache, Prometheus, Grafana, PM2, k6)
+- Cifrado at-rest AES-256-GCM para sesión WhatsApp
+- DPIA + i18n (ES/EN) + E2E tests (Playwright)
 
 ## Quick Start
 
@@ -97,7 +99,7 @@ Costo:     $0
 | 8 | Docker + Producción | ✅ |
 | 9 | Analytics e Inteligencia | ✅ |
 | 10 | Multi-tenancy y Escala | ✅ |
-| 11 | Hardening Pre-Producción | ⏳ |
+| 11 | Hardening Pre-Producción | ✅ |
 
 ---
-*$0 · Sin Meta API · 10 módulos · Etapas 1-10 completadas · 110 tests · 43+ endpoints · Sistema completo*
+*$0 · Sin Meta API · 11 módulos · Etapas 1-11 completadas · 140 tests · 52+ endpoints · Sistema listo para producción*

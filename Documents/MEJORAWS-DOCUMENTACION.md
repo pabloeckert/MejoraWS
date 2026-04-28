@@ -2,7 +2,7 @@
 
 > **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los trabajos realizados.
 > **Carpeta:** `Documents/` — documentación única del proyecto.
-> **Última actualización:** 29 abril 2026, 04:05 GMT+8
+> **Última actualización:** 29 abril 2026, 04:36 GMT+8
 
 ---
 
@@ -42,7 +42,7 @@ Admin configura → IA ejecuta → Admin recibe resultados
 - **Anti-ban** de 6 capas con warm-up 14 días
 - **Autonomía total** con supervisión humana mínima
 
-### Estado actual: **✅ PROYECTO COMPLETO (Etapas 1-10)**
+### Estado actual: **✅ PROYECTO COMPLETO (Etapas 1-11)**
 
 | Componente | Estado | Detalle |
 |-----------|--------|---------|
@@ -328,6 +328,40 @@ Formatos: CSV, Excel (.xlsx/.xls), VCF (vCard), JSON
 - TTL configurable
 - Para escala futura (multi-usuario)
 
+### 3.17 🔒 Cifrado At-Rest (AES-256-GCM)
+**Archivo:** `src/security/encryption.ts` (165 líneas)
+
+- Cifrado AES-256-GCM con key derivada via PBKDF2 (100k iteraciones)
+- Formato: [salt(32)][iv(16)][authTag(16)][ciphertext]
+- Marcador "ENC:" para identificar archivos cifrados
+- encryptDirectory/decryptDirectory para sesión WhatsApp
+- Integrado en WhatsApp client (cifra al desconectar, descifra al conectar)
+
+### 3.18 🚨 Breach Notification (GDPR Art. 33/34)
+**Archivos:** `src/security/breach.ts` (272 líneas) + `src/api/routes/breach.ts` (156 líneas)
+
+- BreachManager con tabla SQLite dedicada
+- 9 endpoints API: report, list, stats, overdue, get, update, contain, resolve, notify-authority, notify-subjects
+- Tracking de notificaciones (72h para autoridad, "sin dilación" para afectados)
+- Alerta automática para breaches pendientes >72h
+
+### 3.19 🌐 i18n Mensajes
+**Archivo:** `src/i18n/messages.ts` (228 líneas)
+
+- Soporte español (es) e inglés (en)
+- 6 categorías: validation, auth, resource, rateLimit, system, campaigns, success
+- Función `t()` con dot path y variables `{var}`
+- Detección automática de locale via Accept-Language header
+- Integrado en error middleware
+
+### 3.20 🌙 Dark Mode
+**Archivo:** `dashboard/src/components/ui/theme-toggle.tsx` (36 líneas)
+
+- Toggle Sun/Moon en sidebar
+- Persistencia en localStorage
+- Respeta preferencia del sistema (prefers-color-scheme)
+- CSS variables ya definidas en globals.css (.dark class)
+
 ---
 
 ## 4. Stack Técnico
@@ -557,6 +591,20 @@ CREATE INDEX idx_activities_created ON activities(created_at);
 | PUT | `/api/v1/status/config` | Actualizar config |
 | PUT | `/api/v1/status/kb` | Actualizar knowledge base |
 
+### Breach Notification (GDPR Art. 33/34)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/v1/breach/report` | Reportar nueva brecha |
+| GET | `/api/v1/breach` | Listar brechas (filtros: status, severity) |
+| GET | `/api/v1/breach/stats` | Estadísticas de brechas |
+| GET | `/api/v1/breach/overdue` | Brechas pendientes >72h |
+| GET | `/api/v1/breach/:id` | Obtener brecha por ID |
+| PATCH | `/api/v1/breach/:id` | Actualizar estado |
+| POST | `/api/v1/breach/:id/contain` | Marcar como contenida |
+| POST | `/api/v1/breach/:id/resolve` | Marcar como resuelta |
+| POST | `/api/v1/breach/:id/notify-authority` | Registrar notificación autoridad |
+| POST | `/api/v1/breach/:id/notify-subjects` | Registrar notificación afectados |
+
 ### Middleware
 - **Zod validation** — schemas para todos los endpoints
 - **Global error handler** — AppError + ZodError + 404
@@ -646,13 +694,14 @@ CREATE INDEX idx_activities_created ON activities(created_at);
 - ✅ **LLM backup local** — Ollama sin internet
 
 ### Pendiente (Brechas identificadas)
-| Brecha | Severidad | Descripción | Rol responsable |
-|--------|----------|-------------|-----------------|
-| Cifrado at-rest sesión WA | 🟡 Media | `data/session/` sin cifrado adicional | Cybersecurity |
-| HTTPS obligatorio | 🟡 Media | Requiere reverse proxy (nginx) en producción | DevOps |
-| Secrets management | 🟢 Baja | Variables de entorno sin vault | DevOps |
-| Breach notification | 🟡 Media | GDPR Art. 33/34 — procedimiento no implementado | DPO / Legal |
-| Rate limit por usuario | 🟢 Baja | Actualmente solo por IP | Backend |
+| Brecha | Severidad | Descripción | Rol responsable | Estado |
+|--------|----------|-------------|-----------------|--------|
+| Cifrado at-rest sesión WA | 🟡 Media | `data/session/` cifrado con AES-256-GCM | Cybersecurity | ✅ |
+| HTTPS obligatorio | 🟡 Media | Requiere reverse proxy (nginx) en producción | DevOps | ✅ (config existente) |
+| Secrets management | 🟢 Baja | Variables de entorno sin vault | DevOps | ⏳ |
+| Breach notification | 🟡 Media | GDPR Art. 33/34 — BreachManager implementado | DPO / Legal | ✅ |
+| Rate limit por usuario | 🟢 Baja | userRateLimit middleware (JWT-based) | Backend | ✅ |
+| DPIA | 🟡 Media | Data Protection Impact Assessment | DPO | ✅ |
 
 ---
 
@@ -683,7 +732,7 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 
 ## 11. Tests
 
-### Resumen: 110 tests, 12 archivos
+### Resumen: 140 tests, 15 archivos
 
 | Archivo | Tests | Tipo |
 |---------|-------|------|
@@ -695,11 +744,14 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 | `tests/unit/importer/deduplicator.test.ts` | 8 | Unit |
 | `tests/unit/campaigns/templates.test.ts` | 10 | Unit |
 | `tests/unit/security/audit.test.ts` | 6 | Unit |
+| `tests/unit/security/encryption.test.ts` | 11 | Unit |
+| `tests/unit/security/breach.test.ts` | 10 | Unit |
+| `tests/unit/i18n/messages.test.ts` | 9 | Unit |
 | `tests/integration/api/contacts.api.test.ts` | 11 | Integration |
 | `tests/integration/api/deals.api.test.ts` | 8 | Integration |
 | `tests/integration/api/gdpr.api.test.ts` | 7 | Integration |
 | `tests/integration/api/analytics.api.test.ts` | 9 | Integration |
-| **Total** | **110** | **✅ All passing** |
+| **Total** | **140** | **✅ All passing** |
 
 ### Stack
 - **Vitest** — test runner (rápido, ESM nativo)
@@ -975,7 +1027,7 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 ✅ ETAPA 8:   Docker + Producción                       (COMPLETADA)
 ✅ ETAPA 9:   Analytics e Inteligencia                   (COMPLETADA)
 ✅ ETAPA 10:  Multi-tenancy + Escala                     (COMPLETADA)
-⏳ ETAPA 11:  Hardening Pre-Producción                   (PENDIENTE)
+✅ ETAPA 11:  Hardening Pre-Producción                   (COMPLETADA)
 ```
 
 ### ✅ ETAPA 1-3: Foundation + WhatsApp + Bot + CRM + CLI
@@ -1105,21 +1157,23 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 
 ---
 
-### 🔜 ETAPA 11: Hardening Pre-Producción
-**Duración estimada:** 1-2 sesiones | **Prioridad:** ALTA | **Estado:** PENDIENTE
+### ✅ ETAPA 11: Hardening Pre-Producción
+**Duración:** 1 sesión | **Prioridad:** ALTA | **Estado:** COMPLETADA
 
 > Brechas reales identificadas por el análisis multidisciplinario.
 
-| # | Tarea | Rol | Severidad | Estado |
-|---|-------|-----|-----------|--------|
-| 11.1 | E2E tests (Playwright: login, pipeline, contactos, chat) | QA Automation | 🟡 Alta | ⏳ |
-| 11.2 | Breach notification procedure (GDPR Art. 33/34) | DPO + Legal | 🟡 Alta | ⏳ |
-| 11.3 | DPIA (Data Protection Impact Assessment) | DPO | 🟡 Media | ⏳ |
-| 11.4 | Cifrado at-rest sesión WhatsApp (AES-256) | Cybersecurity | 🟡 Media | ⏳ |
-| 11.5 | Rate limit por usuario (no solo IP) | Backend Dev | 🟢 Baja | ⏳ |
-| 11.6 | Error messages i18n (ES/EN) | UX Writer | 🟢 Baja | ⏳ |
-| 11.7 | Coverage report en CI (>80% target) | QA Automation | 🟢 Baja | ⏳ |
-| 11.8 | Dark mode dashboard | UI Designer | 🟢 Info | ⏳ |
+| # | Tarea | Rol | Severidad | Archivos | Estado |
+|---|-------|-----|-----------|----------|--------|
+| 11.1 | E2E tests (Playwright: auth, dashboard, API) | QA Automation | 🟡 Alta | `tests/e2e/` (5 archivos, 37 tests) | ✅ |
+| 11.2 | Breach notification (GDPR Art. 33/34) | DPO + Legal | 🟡 Alta | `src/security/breach.ts` + `src/api/routes/breach.ts` (9 endpoints) | ✅ |
+| 11.3 | DPIA (Data Protection Impact Assessment) | DPO | 🟡 Media | `docs/legal/DPIA.md` | ✅ |
+| 11.4 | Cifrado at-rest sesión WhatsApp (AES-256-GCM) | Cybersecurity | 🟡 Media | `src/security/encryption.ts` (165 líneas) | ✅ |
+| 11.5 | Rate limit por usuario (JWT-based) | Backend Dev | 🟢 Baja | `src/api/middleware/rate-limit.ts` (userRateLimit) | ✅ |
+| 11.6 | Error messages i18n (ES/EN) | UX Writer | 🟢 Baja | `src/i18n/messages.ts` (228 líneas) | ✅ |
+| 11.7 | Coverage report en CI (>80% target) | QA Automation | 🟢 Baja | `.github/workflows/ci.yml` + `vitest.config.ts` | ✅ |
+| 11.8 | Dark mode dashboard | UI Designer | 🟢 Info | `dashboard/src/components/ui/theme-toggle.tsx` | ✅ |
+
+**Entregable:** Sistema hardened con cifrado at-rest, breach notification GDPR, DPIA, E2E tests, i18n, dark mode, y coverage CI. ✅
 
 ---
 
@@ -1132,15 +1186,15 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 | Campo | Valor |
 |-------|-------|
 | **Nombre** | MejoraWS |
-| **Versión** | 0.8.0 (Etapas 1-10 completadas) |
-| **Commits** | 29 |
-| **Tests** | 110 (12 archivos) |
-| **Endpoints API** | 43+ |
+| **Versión** | 1.0.0 (Etapas 1-11 completadas) |
+| **Commits** | 30 |
+| **Tests** | 140 (15 archivos) |
+| **Endpoints API** | 52+ |
 | **Archivos fuente** | 45 (backend) + 28 (frontend) |
-| **Líneas de código** | ~6,000 (backend) + ~3,600 (frontend) |
-| **Documentos** | 2 (este + CONTINUITY-PROMPT) |
-| **Último trabajo** | Análisis 360° + consolidación documentación |
-| **Siguiente** | Etapa 11 — Hardening Pre-Producción |
+| **Líneas de código** | ~7,000 (backend) + ~3,600 (frontend) |
+| **Documentos** | 3 (este + CONTINUITY-PROMPT + DPIA) |
+| **Último trabajo** | Etapa 11 completada — Hardening Pre-Producción |
+| **Siguiente** | Producción ready v1.0 |
 
 ### Timeline
 
@@ -1173,6 +1227,7 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 | 29/04 | 00:38 | **Etapa 9 completada** | Analytics (API + Dashboard + CSV) |
 | 29/04 | 00:45 | **Etapa 10 completada** | Escala (DB adapter, Redis, Prometheus, Grafana, PM2, k6) |
 | 29/04 | 04:05 | **Análisis 360° + consolidación** | Doc maestro reescrito, análisis 36 roles real, Etapa 11 propuesta |
+| 29/04 | 04:36 | **Etapa 11 completada** | Hardening: cifrado AES-256, breach notification GDPR, DPIA, E2E tests (Playwright), i18n ES/EN, dark mode, coverage CI, rate limit/usuario |
 
 ### Decisiones Técnicas
 
@@ -1229,5 +1284,5 @@ Cuando el usuario diga **"documentar"**, ejecutar automáticamente:
 
 ---
 
-*Última actualización: 29 abril 2026, 04:05 GMT+8*
-*Etapas 1-10 completadas · 110 tests · 29 commits · 43+ endpoints · 45+28 archivos fuente · ~9,600 LOC · $0*
+*Última actualización: 29 abril 2026, 04:36 GMT+8*
+*Etapas 1-11 completadas · 140 tests · 30 commits · 52+ endpoints · 45+28 archivos fuente · ~10,600 LOC · $0*

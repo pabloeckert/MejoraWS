@@ -25,31 +25,27 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 - Branch: main
 - Último commit: (ver git log)
 
-## ESTADO ACTUAL — ETAPAS 1-10 COMPLETADAS
+## ESTADO ACTUAL — ETAPAS 1-11 COMPLETADAS
 
 | Etapa | Estado | Qué incluye |
 |-------|--------|-------------|
 | 1-3 | ✅ | WhatsApp (Baileys) + Bot IA (Groq+Ollama) + CRM (contactos+deals+pipeline) + CLI con colores + Importador (CSV/XLSX/VCF/JSON) + Anti-ban (6 capas) |
-| 4 | ✅ | API REST (43+ endpoints) + Tests (110) + CI/CD (GitHub Actions) + Logging (pino) + Zod validation + Rate limiting + CORS + Helmet |
+| 4 | ✅ | API REST (52+ endpoints) + Tests (140) + CI/CD (GitHub Actions) + Logging (pino) + Zod validation + Rate limiting + CORS + Helmet |
 | 5 | ✅ | Dashboard Web (Next.js 16 + shadcn/ui) — 8 vistas: Dashboard KPIs, Pipeline Kanban, Contactos, Campañas, Chat, Config, Login, Analytics |
 | 6 | ✅ | Campañas automáticas + Template Rotation (anti-ban capa 6/6 completa) + Campaign Scheduler + A/B testing de mensajes |
 | 7 | ✅ | Audit log + GDPR (export/erase/consent) + Data retention + Privacy Policy + Terms of Service |
 | 8 | ✅ | Docker + Producción: Dockerfile multi-stage, docker-compose (app+nginx+backup), deploy guide, Makefile, SSL setup |
 | 9 | ✅ | Analytics: API (6 endpoints) + Dashboard Recharts (5 gráficas) + CSV export (4 tipos) + 9 tests |
 | 10 | ✅ | Escala: DB adapter (SQLite/PG), Redis cache, Prometheus metrics, Grafana dashboard, PM2 cluster, k6 load tests |
+| 11 | ✅ | Hardening: Cifrado AES-256, breach notification GDPR, DPIA, E2E tests (Playwright), i18n ES/EN, dark mode, coverage CI, rate limit/usuario |
 
-## SIGUIENTE: ETAPA 11 — Hardening Pre-Producción
+## SIGUIENTE: PRODUCCIÓN v1.0
 
-| # | Tarea | Rol | Severidad |
-|---|-------|-----|-----------|
-| 11.1 | E2E tests (Playwright) | QA Automation | 🟡 Alta |
-| 11.2 | Breach notification procedure (GDPR) | DPO + Legal | 🟡 Alta |
-| 11.3 | DPIA | DPO | 🟡 Media |
-| 11.4 | Cifrado at-rest sesión WA | Cybersecurity | 🟡 Media |
-| 11.5 | Rate limit por usuario | Backend Dev | 🟢 Baja |
-| 11.6 | Error messages i18n | UX Writer | 🟢 Baja |
-| 11.7 | Coverage report en CI | QA Automation | 🟢 Baja |
-| 11.8 | Dark mode dashboard | UI Designer | 🟢 Info |
+El sistema está listo para producción. Próximos pasos opcionales:
+- Deploy en VPS con `docker compose --profile production up -d`
+- Configurar dominio + SSL
+- Monitorear métricas en Grafana
+- Ejecutar E2E tests contra instancia en vivo
 
 ## DOCUMENTACIÓN
 
