@@ -25,7 +25,7 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 - Branch: main
 - Último commit: (ver git log)
 
-## ESTADO ACTUAL — COMPLETADO HASTA ETAPA 7
+## ESTADO ACTUAL — COMPLETADO HASTA ETAPA 10
 
 | Etapa | Estado | Qué incluye |
 |-------|--------|-------------|
@@ -38,7 +38,15 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 | 9 | ✅ | Analytics: API (6 endpoints) + Dashboard Recharts (5 gráficas) + CSV export (4 tipos) + 9 tests |
 | 10 | ✅ | Escala: DB adapter (SQLite/PG), Redis cache, Prometheus metrics, Grafana dashboard, PM2 cluster, k6 load tests |
 
-## TODAS LAS ETAPAS COMPLETADAS ✅
+## PLAN POST-PRODUCCIÓN (Etapas 11-13)
+
+| Etapa | Estado | Qué incluye |
+|-------|--------|-------------|
+| 11 | ⏳ | Crecimiento: Landing page, SEO, Discord, YouTube, Sponsors, templates industria |
+| 12 | ⏳ | Operaciones: FAQ, breach notification, i18n EN, Sentry, uptime monitoring |
+| 13 | ⏳ | Monetización: Pricing tiers, Stripe, feature gating, ads, partnerships, API pública |
+
+## TÉCNICAMENTE COMPLETADO ✅ — EN FASE DE CRECIMIENTO
 
 ## DOCUMENTACIÓN
 

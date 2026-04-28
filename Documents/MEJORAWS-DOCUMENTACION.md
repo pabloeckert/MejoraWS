@@ -1018,6 +1018,51 @@ services:
 
 ---
 
+### 📋 Plan Post-Producción Optimizado (Etapas 11-13)
+
+> Tareas de crecimiento, operaciones y comercialización post-completación técnica.
+
+#### ✅ ETAPA 11: Crecimiento y Comunidad (Sprint 11-12)
+**Prioridad:** Alta | **Objetivo:** Traction y visibilidad
+
+| # | Tarea | Rol | Estado |
+|---|-------|-----|--------|
+| 11.1 | Landing page con dominio propio | Growth Manager | ⏳ |
+| 11.2 | SEO: structured data + OG tags + blog | SEO Specialist | ⏳ |
+| 11.3 | Discord server + comunidad activa | Community Manager | ⏳ |
+| 11.4 | Video tutorials (YouTube) | Content Manager | ⏳ |
+| 11.5 | GitHub Sponsors setup | Business Dev | ⏳ |
+| 11.6 | Templates por industria (e-commerce, servicios, etc.) | Content Manager | ⏳ |
+| 11.7 | Case studies de uso real | UX Researcher | ⏳ |
+
+#### 🟡 ETAPA 12: Operaciones y Soporte (Sprint 13-14)
+**Prioridad:** Media | **Objetivo:** Sostenibilidad operativa
+
+| # | Tarea | Rol | Estado |
+|---|-------|-----|--------|
+| 12.1 | FAQ + troubleshooting guide completo | Customer Success | ⏳ |
+| 12.2 | Breach notification procedure | DPO | ⏳ |
+| 12.3 | Onboarding wizard mejorado | UX Designer | ⏳ |
+| 12.4 | i18n dashboard (EN) | Localization | ⏳ |
+| 12.5 | Error tracking (Sentry free tier) | SRE | ⏳ |
+| 12.6 | Uptime monitoring | SRE | ⏳ |
+| 12.7 | Changelog automático | Delivery Manager | ⏳ |
+
+#### 🟢 ETAPA 13: Monetización (Sprint 15-16)
+**Prioridad:** Baja | **Objetivo:** Revenue sostenible
+
+| # | Tarea | Rol | Estado |
+|---|-------|-----|--------|
+| 13.1 | Pricing: Free (100 contactos) → Pro ($29) → Business ($99) | RevOps | ⏳ |
+| 13.2 | Stripe integration | Backend Dev | ⏳ |
+| 13.3 | Feature gating por plan | Backend Dev | ⏳ |
+| 13.4 | Landing page con pricing | Growth Manager | ⏳ |
+| 13.5 | Google Ads + Facebook Ads | Performance Marketing | ⏳ |
+| 13.6 | Partnership con agencias | Business Dev | ⏳ |
+| 13.7 | API pública documentada | Backend Dev | ⏳ |
+
+---
+
 ## 14. Registro de Avances
 
 > **Sección actualizada con cada "documentar"**
@@ -1120,5 +1165,6 @@ Cuando el usuario diga **"documentar"**, ejecutar automáticamente:
 
 ---
 
-*Última actualización: 29 abril 2026, 01:03 GMT+8*
+*Última actualización: 29 abril 2026, 04:06 GMT+8*
 *PROYECTO COMPLETO — Etapas 1-10 · 110 tests · 26 commits · 43+ endpoints · 45 archivos fuente · 6,259 líneas backend · 3,597 líneas frontend · 130 archivos totales · $0*
+*Plan post-producción: Etapas 11-13 (Crecimiento → Operaciones → Monetización)*
