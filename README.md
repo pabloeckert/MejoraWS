@@ -19,7 +19,7 @@
 - JWT auth, audit log, GDPR compliance
 - Tests (101), CI/CD (GitHub Actions)
 
-⏳ **Siguiente:** Etapa 8 — Docker + Producción
+⏳ **Siguiente:** Etapa 9 — Analytics e Inteligencia
 
 ## Quick Start
 
@@ -65,6 +65,7 @@ CLI:       ANSI codes nativos
 Dashboard: Next.js 16 + shadcn/ui + Tailwind v4
 Testing:   Vitest + Supertest (101 tests)
 CI/CD:     GitHub Actions (Node 20/22)
+Docker:    Multi-stage + docker-compose + nginx + backup
 Costo:     $0
 ```
 
@@ -91,9 +92,9 @@ Costo:     $0
 | 5 | Dashboard web (Next.js, 7 vistas) | ✅ |
 | 6 | Campañas automáticas + template rotation (anti-ban 6/6) | ✅ |
 | 7 | Seguridad + GDPR + Legal | ✅ |
-| 8 | Docker + Producción | ⏳ **Siguiente** |
-| 9 | Analytics e Inteligencia | ⏳ Backlog |
+| 8 | Docker + Producción | ✅ |
+| 9 | Analytics e Inteligencia | ⏳ **Siguiente** |
 | 10 | Multi-tenancy y Escala | ⏳ Futuro |
 
 ---
-*$0 · Sin Meta API · 10 módulos · Etapas 1-7 completadas · 101 tests · 35+ endpoints*
+*$0 · Sin Meta API · 10 módulos · Etapas 1-8 completadas · 101 tests · 35+ endpoints*

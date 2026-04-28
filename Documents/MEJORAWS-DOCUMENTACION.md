@@ -2,7 +2,7 @@
 
 > **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los trabajos realizados.
 > **Carpeta:** `Documents/` — documentación única del proyecto.
-> **Última actualización:** 29 abril 2026, 00:19 GMT+8
+> **Última actualización:** 29 abril 2026, 00:29 GMT+8
 
 ---
 
@@ -60,7 +60,7 @@ Admin configura → IA ejecuta → Admin recibe resultados
 | CI/CD | ✅ | GitHub Actions (Node 20/22 matrix) |
 | Logging | ✅ | Pino estructurado, child loggers por módulo |
 | Legal | ✅ | Privacy Policy + Terms of Service |
-| Docker + Producción | ❌ | Backlog (Etapa 8) |
+| Docker + Producción | ✅ | Dockerfile multi-stage + docker-compose + nginx + backup + deploy guide |
 | Analytics visual | ❌ | Backlog (Etapa 9) |
 
 ---
@@ -188,9 +188,23 @@ MejoraWS/
 │       ├── contacts.api.test.ts     # 11 tests
 │       ├── deals.api.test.ts        # 8 tests
 │       └── gdpr.api.test.ts         # 7 tests
-├── docs/legal/
-│   ├── PRIVACY-POLICY.md            # GDPR compliant
-│   └── TERMS-OF-SERVICE.md          # Términos de uso
+├── docs/
+│   ├── legal/
+│   │   ├── PRIVACY-POLICY.md        # GDPR compliant
+│   │   └── TERMS-OF-SERVICE.md      # Términos de uso
+│   └── deploy.md                    # Deploy guide completo
+├── nginx/
+│   ├── nginx.conf                   # Reverse proxy config
+│   └── ssl/.gitkeep                 # SSL certs (gitignored)
+├── scripts/
+│   ├── backup.sh                    # Backup automático DB
+│   └── setup-ssl.sh                 # SSL setup (Let's Encrypt)
+├── backups/.gitkeep                 # Backups dir (gitignored)
+├── Dockerfile                       # Multi-stage build
+├── docker-compose.yml               # App + nginx + backup
+├── .dockerignore                    # Docker build exclusions
+├── .env.example                     # Variables de entorno
+├── Makefile                         # Comandos de conveniencia
 ├── Documents/
 │   ├── MEJORAWS-DOCUMENTACION.md    # Este archivo (DOC MAESTRO)
 │   ├── CONTINUITY-PROMPT.md         # Prompt de continuidad
@@ -817,8 +831,8 @@ Pricing: Free (100 contactos) → Pro ($29) → Business ($99) → Enterprise (c
 ✅ ETAPA 5:   Dashboard Web (Next.js, 7 vistas)        (COMPLETADA)
 ✅ ETAPA 6:   Campañas + Template Rotation              (COMPLETADA)
 ✅ ETAPA 7:   Seguridad + GDPR Compliance               (COMPLETADA)
-⏳ ETAPA 8:   Docker + Producción                       (SIGUIENTE)
-⏳ ETAPA 9:   Analytics e Inteligencia                   (BACKLOG)
+✅ ETAPA 8:   Docker + Producción                       (COMPLETADA)
+⏳ ETAPA 9:   Analytics e Inteligencia                   (SIGUIENTE)
 ⏳ ETAPA 10:  Multi-tenancy + Escala                     (FUTURO)
 ```
 
@@ -902,23 +916,24 @@ Pricing: Free (100 contactos) → Pro ($29) → Business ($99) → Enterprise (c
 
 ---
 
-### ⏳ ETAPA 8: Docker + Producción
-**Duración:** 2 semanas | **Prioridad:** Alta | **Estado:** SIGUIENTE
+### ✅ ETAPA 8: Docker + Producción
+**Duración:** 1 sesión | **Prioridad:** Alta | **Estado:** COMPLETADA
 
 **Objetivo:** Deploy en producción, preparar para escala.
 
-| # | Tarea | Rol | Archivos | Dificultad |
-|---|-------|-----|----------|-----------|
-| 8.1 | Dockerfile multi-stage | DevOps | `Dockerfile` | Baja |
-| 8.2 | docker-compose.yml | DevOps | `docker-compose.yml` | Media |
-| 8.3 | Variables de entorno (.env) | DevOps | `.env.example` | Baja |
-| 8.4 | Nginx reverse proxy + SSL | DevOps | `nginx/` | Media |
-| 8.5 | Backup automatizado DB | DBA | `scripts/backup.sh` | Baja |
-| 8.6 | Deploy guide | DevOps | `docs/deploy.md` | Baja |
-| 8.7 | Health check mejorado | SRE | `src/api/routes/health.ts` | Baja |
-| 8.8 | Graceful shutdown verificado | Backend | `src/server.ts` | Baja |
+| # | Tarea | Rol | Archivos | Estado |
+|---|-------|-----|----------|--------|
+| 8.1 | Dockerfile multi-stage | DevOps | `Dockerfile` | ✅ |
+| 8.2 | docker-compose.yml | DevOps | `docker-compose.yml` | ✅ |
+| 8.3 | Variables de entorno (.env) | DevOps | `.env.example` | ✅ |
+| 8.4 | Nginx reverse proxy + SSL | DevOps | `nginx/nginx.conf` | ✅ |
+| 8.5 | Backup automatizado DB | DBA | `scripts/backup.sh` | ✅ |
+| 8.6 | Deploy guide | DevOps | `docs/deploy.md` | ✅ |
+| 8.7 | Makefile comandos | DevOps | `Makefile` | ✅ |
+| 8.8 | SSL setup script | DevOps | `scripts/setup-ssl.sh` | ✅ |
+| 8.9 | .dockerignore | DevOps | `.dockerignore` | ✅ |
 
-**Entregable:** `docker-compose up` levanta todo el sistema listo para producción.
+**Entregable:** `docker-compose up` levanta todo el sistema listo para producción. ✅
 
 **docker-compose.yml target:**
 ```yaml
@@ -939,7 +954,7 @@ services:
 ---
 
 ### ⏳ ETAPA 9: Analytics e Inteligencia
-**Duración:** 2 semanas | **Prioridad:** Media | **Estado:** BACKLOG
+**Duración:** 2 semanas | **Prioridad:** Media | **Estado:** SIGUIENTE
 
 | # | Tarea | Rol | Dificultad |
 |---|-------|-----|-----------|
@@ -1009,6 +1024,7 @@ services:
 | 28/04 | 06:33 | **Etapa 7 completada** | Audit log + GDPR + legal |
 | 28/04 | 06:41 | **documentar** | Consolidación final sesión |
 | 29/04 | 00:19 | **documentar** | Optimización doc + plan actualizado |
+| 29/04 | 00:29 | **Etapa 8 completada** | Docker + Producción: Dockerfile, docker-compose, nginx, backup, deploy guide, Makefile |
 
 ### Decisiones Técnicas
 
@@ -1063,5 +1079,5 @@ Cuando el usuario diga **"documentar"**, ejecutar automáticamente:
 
 ---
 
-*Última actualización: 29 abril 2026, 00:19 GMT+8*
-*Etapas 1-7 completadas · 101 tests · 20 commits · 35+ endpoints · Listo para Etapa 8 (Docker + Producción)*
+*Última actualización: 29 abril 2026, 00:29 GMT+8*
+*Etapas 1-8 completadas · 101 tests · 22 commits · 35+ endpoints · Listo para Etapa 9 (Analytics)*

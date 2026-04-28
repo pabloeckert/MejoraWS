@@ -34,18 +34,11 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 | 5 | ✅ | Dashboard Web (Next.js 16 + shadcn/ui) — 7 vistas: Dashboard KPIs, Pipeline Kanban, Contactos, Campañas, Chat, Config, Login |
 | 6 | ✅ | Campañas automáticas + Template Rotation (anti-ban capa 6/6 completa) + Campaign Scheduler + A/B testing de mensajes |
 | 7 | ✅ | Audit log + GDPR (export/erase/consent) + Data retention + Privacy Policy + Terms of Service |
+| 8 | ✅ | Docker + Producción: Dockerfile multi-stage, docker-compose, nginx, backup auto, deploy guide, Makefile, SSL setup |
 
-## LO QUE FALTA (Etapas 8-10)
+## LO QUE FALTA (Etapas 9-10)
 
-### Etapa 8: Docker + Producción ⏳ SIGUIENTE
-- Dockerfile multi-stage
-- docker-compose.yml (app)
-- Variables de entorno (.env.example)
-- Nginx reverse proxy + SSL
-- Backup automatizado
-- Deploy guide
-
-### Etapa 9: Analytics e Inteligencia ⏳ BACKLOG
+### Etapa 9: Analytics e Inteligencia ⏳ SIGUIENTE
 - Dashboard Analytics (Recharts)
 - Conversion funnel analysis
 - Sentiment trend tracking
