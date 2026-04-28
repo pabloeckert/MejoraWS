@@ -1,9 +1,10 @@
 // src/api/middleware/error.ts
-// Global error handling middleware
+// Global error handling middleware con i18n
 
 import { Request, Response, NextFunction } from 'express'
 import { ZodError } from 'zod'
 import { logger } from '../../utils/logger'
+import { detectLocale, t } from '../../i18n/messages'
 
 export class AppError extends Error {
   constructor(
@@ -17,6 +18,8 @@ export class AppError extends Error {
 }
 
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
+  const locale = detectLocale(req.headers['accept-language'])
+
   // Zod validation error
   if (err instanceof ZodError) {
     const issues = err.issues.map(i => ({
@@ -24,7 +27,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
       message: i.message,
     }))
     res.status(400).json({
-      error: 'Validation error',
+      error: t(locale, 'validation.invalidFormat'),
       code: 'VALIDATION_ERROR',
       details: issues,
     })
@@ -43,14 +46,15 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   // Unknown error
   logger.error({ err, path: req.path }, 'Unhandled error')
   res.status(500).json({
-    error: 'Internal server error',
+    error: t(locale, 'system.internalError'),
     code: 'INTERNAL_ERROR',
   })
 }
 
 export function notFoundHandler(req: Request, res: Response): void {
+  const locale = detectLocale(req.headers['accept-language'])
   res.status(404).json({
-    error: `Route not found: ${req.method} ${req.path}`,
+    error: `${t(locale, 'resource.notFound')}: ${req.method} ${req.path}`,
     code: 'NOT_FOUND',
   })
 }

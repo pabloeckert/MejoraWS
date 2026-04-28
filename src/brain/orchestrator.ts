@@ -16,6 +16,7 @@ import { CampaignEngine } from '../campaigns/engine'
 import { CampaignScheduler } from '../campaigns/scheduler'
 import { AuditLogger } from '../security/audit'
 import { DataRetention } from '../security/retention'
+import { BreachManager } from '../security/breach'
 import { c, status, box } from '../cli/theme'
 import Database from 'better-sqlite3'
 
@@ -42,6 +43,7 @@ export class Orchestrator {
   // Security
   public audit: AuditLogger
   public retention: DataRetention
+  public breach: BreachManager
 
   constructor() {
     this.config = loadConfig()
@@ -69,6 +71,7 @@ export class Orchestrator {
     // Security
     this.audit = new AuditLogger(this.db)
     this.retention = new DataRetention(this.db)
+    this.breach = new BreachManager(this.db)
   }
 
   /**

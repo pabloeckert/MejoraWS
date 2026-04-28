@@ -11,6 +11,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { Boom } from '@hapi/boom'
 import { c, status } from '../cli/theme'
+import { encryptDirectory, decryptDirectory } from '../security/encryption'
 
 export type MessageHandler = (msg: proto.IWebMessageInfo) => void | Promise<void>
 
@@ -32,6 +33,13 @@ export class WhatsAppClient {
     // Asegurar directorio de sesión
     if (!fs.existsSync(this.sessionPath)) {
       fs.mkdirSync(this.sessionPath, { recursive: true })
+    }
+
+    // Descifrar sesión si está cifrada
+    try {
+      decryptDirectory(this.sessionPath)
+    } catch (err) {
+      // Si falla el descifrado, continuar (puede ser primera vez)
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(this.sessionPath)
@@ -199,6 +207,17 @@ export class WhatsAppClient {
       this.sock.end(undefined)
       this.sock = null
       this.connectionState = 'disconnected'
+
+      // Cifrar sesión al desconectar
+      try {
+        const encrypted = encryptDirectory(this.sessionPath)
+        if (encrypted > 0) {
+          console.log(c('dim', `🔒 Sesión cifrada (${encrypted} archivos)`))
+        }
+      } catch (err) {
+        console.error(status.err(`Error cifrando sesión: ${err}`))
+      }
+
       console.log(status.warn('WhatsApp desconectado'))
     }
   }
