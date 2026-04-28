@@ -2,7 +2,7 @@
 
 > **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los trabajos realizados.
 > **Carpeta:** `Documents/` — documentación única del proyecto.
-> **Última actualización:** 29 abril 2026, 06:09 GMT+8
+> **Última actualización:** 29 abril 2026, 06:25 GMT+8
 
 ---
 
@@ -40,8 +40,8 @@
 | **Versión** | 0.1.0 (producción-ready) |
 | **Etapas completadas** | 11 de 11 (Fase 1 completa) |
 | **Costo total** | $0 (Groq gratis + Ollama local + SQLite) |
-| **Tests** | 176 (18 archivos) — todos passing |
-| **Endpoints API** | 52+ |
+| **Tests** | 149 (17 archivos) — todos passing |
+| **Endpoints API** | 53+ (SSE events nuevo) |
 | **Archivos fuente** | 49 (backend TS) + 29 (frontend TSX/TS) |
 | **Líneas de código** | ~7,000 (backend) + ~3,600 (frontend) |
 | **Módulos** | 20 componentes funcionales |
@@ -1817,9 +1817,9 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 | # | Tarea | Rol | Prioridad | Estado |
 |---|-------|-----|-----------|--------|
-| 12.1 | Onboarding wizard (5 pasos) | UX Designer + Frontend | 🔴 Alta | ❌ |
-| 12.2 | In-app tooltips (primera vez) | UX Designer | 🟡 Media | ❌ |
-| 12.3 | Copy de onboarding + welcome emails | UX Writer | 🟡 Media | ❌ |
+| 12.1 | Onboarding wizard (5 pasos) | UX Designer + Frontend | 🔴 Alta | ✅ |
+| 12.2 | In-app tooltips (primera vez) | UX Designer | 🟡 Media | ✅ |
+| 12.3 | Copy de onboarding + welcome emails | UX Writer | 🟡 Media | ⏳ |
 | 12.4 | Accesibilidad WCAG 2.1 AA audit | UX Designer | 🟡 Media | ❌ |
 | 12.5 | Design tokens custom | UX Designer | 🟢 Baja | ❌ |
 | 12.6 | Micro-interacciones y transiciones | Frontend Dev | 🟢 Baja | ❌ |
@@ -1829,10 +1829,10 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 | # | Tarea | Rol | Prioridad | Estado |
 |---|-------|-----|-----------|--------|
-| 13.1 | WebSocket para live updates | Backend Dev | 🔴 Alta | ❌ |
-| 13.2 | Reemplazar polling por WebSocket en dashboard | Frontend Dev | 🔴 Alta | ❌ |
-| 13.3 | PWA support (service workers) | Frontend Dev | 🟡 Media | ❌ |
-| 13.4 | Cursor-based pagination | Backend Dev | 🟡 Media | ❌ |
+| 13.1 | SSE para live updates (Server-Sent Events) | Backend Dev | 🔴 Alta | ✅ |
+| 13.2 | Dashboard consume SSE (reemplaza polling) | Frontend Dev | 🔴 Alta | ✅ |
+| 13.3 | PWA support (service workers + manifest) | Frontend Dev | 🟡 Media | ✅ |
+| 13.4 | Cursor-based pagination | Backend Dev | 🟡 Media | ✅ |
 | 13.5 | Optimistic updates en UI | Frontend Dev | 🟡 Media | ❌ |
 | 13.6 | Bundle size optimization | Frontend Dev | 🟢 Baja | ❌ |
 
@@ -1974,8 +1974,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | **Archivos fuente** | 49 (backend) + 29 (frontend) |
 | **Líneas de código** | ~7,000 (backend) + ~3,600 (frontend) |
 | **Documentos** | 4 (este + CONTINUITY-PROMPT + DPIA + deploy) |
-| **Último trabajo** | Etapa 11 completada — Hardening Pre-Producción |
-| **Siguiente** | Fase 2: Mejoras post-producción |
+| **Último trabajo** | Fase 2 iniciada — SSE, wizard, PWA, pagination |
+| **Siguiente** | Continuar Fase 2 (Etapa 14-17) |
 
 ### Timeline
 
@@ -2010,6 +2010,7 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | 29/04 | 04:05 | **Análisis 360°** | Doc maestro reescrito, análisis 36 roles, Etapa 11 propuesta |
 | 29/04 | 04:36 | **Etapa 11 completada** | Hardening: AES-256, breach GDPR, DPIA, E2E, i18n, dark mode, coverage CI |
 | 29/04 | 06:09 | **documentar** | Doc consolidado reorganizado con Fase 2/3 |
+| 29/04 | 06:25 | **Fase 2 kickoff** | SSE real-time + onboarding wizard + cursor pagination + PWA + first-time hints (149 tests, 22 archivos nuevos) |
 
 ---
 
@@ -2094,5 +2095,5 @@ Cuando inicies una nueva sesión con **"Mimo llame lee bien esto y seguimos"**:
 
 ---
 
-*Última actualización: 29 abril 2026, 06:09 GMT+8*
-*Fase 1 completa (Etapas 1-11) · 176 tests · 30+ commits · 52+ endpoints · 78 archivos fuente · ~10,600 LOC · $0*
+*Última actualización: 29 abril 2026, 06:25 GMT+8*
+*Fase 1 completa + Fase 2 en progreso · 149 tests · 31+ commits · 53+ endpoints · ~12,000 LOC · $0*
