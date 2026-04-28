@@ -1,7 +1,8 @@
 # 📚 DOCUMENTACIÓN CONSOLIDADA — MejoraWS
 
-> **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza con los trabajos realizados.
-> **Última actualización:** 28 abril 2026, 06:41 GMT+8
+> **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los trabajos realizados.
+> **Carpeta:** `Documents/` — documentación única del proyecto.
+> **Última actualización:** 29 abril 2026, 00:19 GMT+8
 
 ---
 
@@ -10,17 +11,18 @@
 1. [Visión y Estado Actual](#1-visión-y-estado-actual)
 2. [Arquitectura del Sistema](#2-arquitectura-del-sistema)
 3. [Módulos Implementados](#3-módulos-implementados)
-4. [Stack Técnico (Real)](#4-stack-técnico-real)
-5. [Modelo de Datos (Actual)]#5-modelo-de-datos-actual)
-6. [CLI — Comandos Disponibles](#6-cli--comandos-disponibles)
-7. [Anti-Ban System](#7-anti-ban-system)
-8. [WhatsApp — Sin Meta API](#8-whatsapp--sin-meta-api)
-9. [Flujo Autónomo](#9-flujo-autónomo)
-10. [Seguridad y Cumplimiento](#10-seguridad-y-cumplimiento)
-11. [Análisis Multidisciplinario (36 Roles)](#11-análisis-multidisciplinario-36-roles)
-12. [Plan Optimizado por Etapas](#12-plan-optimizado-por-etapas)
-13. [Registro de Avances](#13-registro-de-avances)
-14. [Trigger: "documentar"](#14-trigger-documentar)
+4. [Stack Técnico](#4-stack-técnico)
+5. [Modelo de Datos](#5-modelo-de-datos)
+6. [API REST — Endpoints](#6-api-rest--endpoints)
+7. [CLI — Comandos](#7-cli--comandos)
+8. [Anti-Ban System (6 capas)](#8-anti-ban-system-6-capas)
+9. [Seguridad y Compliance](#9-seguridad-y-compliance)
+10. [Dashboard Web](#10-dashboard-web)
+11. [Tests](#11-tests)
+12. [Análisis Multidisciplinario (36 Roles)](#12-análisis-multidisciplinario-36-roles)
+13. [Plan Optimizado por Etapas](#13-plan-optimizado-por-etapas)
+14. [Registro de Avances](#14-registro-de-avances)
+15. [Protocolo: "documentar"](#15-protocolo-documentar)
 
 ---
 
@@ -34,32 +36,32 @@ MejoraWS es un **CRM WhatsApp 100% autónomo con IA** donde el administrador sol
 Admin configura → IA ejecuta → Admin recibe resultados
 ```
 
-### Estado actual: **FUNCIONAL (CLI)**
-
-| Componente | Estado | Detalle |
-|-----------|--------|---------|
-| WhatsApp connection | ✅ Funcional | Baileys multi-device, QR login |
-| Envío/recepción | ✅ Funcional | Con anti-ban completo |
-| Auto-reply IA | ✅ Funcional | Groq + Ollama fallback |
-| CLI interactivo | ✅ Funcional | Colores ANSI, tablas, progress bars |
-| CRM contactos | ✅ Funcional | CRUD, importación, dedup, scoring |
-| Pipeline deals | ✅ Funcional | 7 etapas, follow-ups, estadísticas |
-| Importador | ✅ Funcional | CSV/XLSX/VCF/JSON, auto-mapeo, dedup |
-| Anti-ban | ✅ Funcional | 6 capas (6/6 implementadas) |
-| API REST | ✅ Funcional | Express + Zod validation + rate limiting |
-| Dashboard web | ✅ Funcional | Next.js 16 + shadcn/ui, 6 vistas |
-| Tests | ✅ Funcional | 78 tests, 8 archivos, Vitest |
-| Campañas automáticas | ❌ No implementado | Backlog |
-| Analytics visual | ❌ No implementado | Backlog |
-| CI/CD | ✅ Funcional | GitHub Actions (Node 20/22) |
-| Logging | ✅ Funcional | Pino estructurado |
-| Autenticación | ✅ Funcional | JWT (login + verify + middleware) |
-
 ### Promesa de valor
-- **$0 de costo** (Groq gratis + Ollama local + SQLite)
+- **$0 de costo** — Groq gratis + Ollama local + SQLite
 - **Sin Meta API** — usa Baileys (WhatsApp Web directo)
 - **Anti-ban** de 6 capas con warm-up 14 días
 - **Autonomía total** con supervisión humana mínima
+
+### Estado actual: **Etapas 1-7 completadas**
+
+| Componente | Estado | Detalle |
+|-----------|--------|---------|
+| WhatsApp (Baileys) | ✅ | Multi-device, QR login, envío/recepción |
+| Auto-reply IA | ✅ | Groq (qwen-2.5-32b) + Ollama (llama3.1:8b) fallback |
+| CRM Contactos | ✅ | CRUD, importación CSV/XLSX/VCF/JSON, dedup, scoring |
+| Pipeline Deals | ✅ | 7 etapas, follow-ups, estadísticas |
+| Anti-ban (6/6) | ✅ | Warm-up, Gaussian delay, typing sim, horario, pausas, template rotation |
+| CLI interactivo | ✅ | ANSI colors, tablas, progress bars |
+| API REST | ✅ | 35+ endpoints, Express + Zod + Helmet + CORS + rate limiting |
+| Dashboard Web | ✅ | Next.js 16 + shadcn/ui, 7 vistas |
+| Campañas automáticas | ✅ | Engine + scheduler + template rotation + A/B testing |
+| Seguridad | ✅ | JWT auth, audit log, GDPR (export/erase/consent), data retention |
+| Tests | ✅ | 101 tests (11 archivos), Vitest + Supertest |
+| CI/CD | ✅ | GitHub Actions (Node 20/22 matrix) |
+| Logging | ✅ | Pino estructurado, child loggers por módulo |
+| Legal | ✅ | Privacy Policy + Terms of Service |
+| Docker + Producción | ❌ | Backlog (Etapa 8) |
+| Analytics visual | ❌ | Backlog (Etapa 9) |
 
 ---
 
@@ -70,8 +72,7 @@ Admin configura → IA ejecuta → Admin recibe resultados
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    CAPA DE PRESENTACIÓN                       │
-│              CLI interactivo (ANSI colors)                    │
-│   /estado │ /contactos │ /pipeline │ /config │ /ayuda       │
+│         CLI (ANSI)  │  Dashboard (Next.js)  │  API REST     │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
@@ -81,15 +82,13 @@ Admin configura → IA ejecuta → Admin recibe resultados
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
-│                    CAPA CRM                                   │
-│              ContactManager + DealManager + Importer          │
-│  Contacts │ Deals │ Pipeline │ Follow-ups │ Import           │
+│                    CAPA CRM + CAMPAÑAS                        │
+│     ContactManager │ DealManager │ CampaignEngine │ Importer │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
-│                    CAPA ANTI-BAN                              │
-│              WarmupManager + RateLimiter                     │
-│  Gaussian Delay │ Typing Sim │ Warm-up 14d │ Schedule       │
+│                    CAPA ANTI-BAN (6 capas)                    │
+│     WarmupManager │ RateLimiter │ TemplateRotation           │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
@@ -100,39 +99,9 @@ Admin configura → IA ejecuta → Admin recibe resultados
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
 │                    CAPA DE DATOS                              │
-│              SQLite + better-sqlite3                          │
+│              SQLite + better-sqlite3 (WAL mode)              │
 │  contacts │ messages │ deals │ activities │ campaigns        │
-│  analytics │ config                                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Arquitectura Futura (Objetivo)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    CAPA CLIENTES                              │
-│   Dashboard Web (Next.js) │ Mobile PWA │ CLI │ API pública  │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────┐
-│                    CAPA API GATEWAY                           │
-│   Express + JWT Auth │ Rate Limiting │ CORS │ WebSocket     │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────┐
-│                    CAPA LÓGICA DE NEGOCIO                     │
-│   Orchestrator │ AutoReply │ Campaign Engine │ Analytics     │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────┐
-│                    CAPA INTEGRACIONES                         │
-│   Baileys WA │ Groq API │ Ollama │ Webhooks │ Email/SMTP    │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────┐
-│                    CAPA DATOS                                 │
-│   PostgreSQL (prod) │ SQLite (dev) │ Redis (cache/queue)    │
-│   File Storage │ Backup automático                           │
+│  analytics │ config │ audit_logs                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -141,68 +110,92 @@ Admin configura → IA ejecuta → Admin recibe resultados
 ```
 MejoraWS/
 ├── src/
-│   ├── api/
-│   │   ├── index.ts              # Express app + route mounting
-│   │   ├── middleware/
-│   │   │   ├── error.ts          # Global error handler
-│   │   │   ├── rate-limit.ts     # Per-IP rate limiting
-│   │   │   └── validate.ts       # Zod validation middleware
-│   │   ├── routes/
-│   │   │   ├── contacts.ts       # /api/v1/contacts
-│   │   │   ├── deals.ts          # /api/v1/deals
-│   │   │   ├── health.ts         # /health
-│   │   │   ├── messages.ts       # /api/v1/messages
-│   │   │   └── status.ts         # /api/v1/status
-│   │   └── schemas/
-│   │       └── index.ts          # Zod schemas
-│   ├── cli/
-│   │   └── theme.ts            # Styling ANSI (colores, tablas, progress bars)
+│   ├── server.ts                    # Entry point + CLI + API
+│   ├── config/index.ts              # Configuración central
 │   ├── brain/
-│   │   ├── orchestrator.ts      # Coordinador central
-│   │   └── auto-reply.ts        # Motor de auto-respuesta IA
+│   │   ├── orchestrator.ts          # Coordinador central (216 líneas)
+│   │   └── auto-reply.ts            # Motor auto-respuesta IA (249 líneas)
 │   ├── whatsapp/
-│   │   ├── client.ts            # Conexión Baileys
-│   │   ├── sender.ts            # Envío con anti-ban
-│   │   └── receiver.ts          # Recepción de mensajes
+│   │   ├── client.ts                # Conexión Baileys (205 líneas)
+│   │   ├── sender.ts                # Envío con anti-ban (136 líneas)
+│   │   └── receiver.ts              # Recepción mensajes (155 líneas)
 │   ├── crm/
-│   │   ├── contacts.ts          # Gestión de contactos
-│   │   └── deals.ts             # Pipeline de deals
+│   │   ├── contacts.ts              # Gestión contactos (224 líneas)
+│   │   └── deals.ts                 # Pipeline deals (262 líneas)
+│   ├── campaigns/
+│   │   ├── engine.ts                # Campaign engine (283 líneas)
+│   │   ├── templates.ts             # Template rotation
+│   │   └── scheduler.ts             # Programación campañas
 │   ├── importer/
-│   │   ├── pipeline.ts          # Pipeline de importación
-│   │   ├── parsers.ts           # CSV/XLSX/VCF/JSON parsers
-│   │   ├── cleaner.ts           # Limpieza y normalización
-│   │   └── deduplicator.ts      # Dedup (exacto + Jaro-Winkler)
+│   │   ├── pipeline.ts              # Pipeline importación
+│   │   ├── parsers.ts               # CSV/XLSX/VCF/JSON
+│   │   ├── cleaner.ts               # Limpieza datos
+│   │   └── deduplicator.ts          # Dedup (Jaro-Winkler)
 │   ├── antiban/
-│   │   ├── warmup.ts            # Warm-up 14 días
-│   │   └── rate-limiter.ts      # Gaussian delay, typing sim
+│   │   ├── warmup.ts                # Warm-up 14 días
+│   │   └── rate-limiter.ts          # Gaussian delay, typing sim
 │   ├── llm/
-│   │   ├── index.ts             # LLM Manager (Groq → Ollama)
-│   │   ├── groq.ts              # Groq API client
-│   │   └── ollama.ts            # Ollama client local
-│   ├── config/
-│   │   └── index.ts             # Configuración central
-│   ├── db/
-│   │   └── database.ts          # SQLite schema + init
-│   ├── utils/
-│   │   └── logger.ts            # Pino structured logging
-│   └── server.ts                # Entry point + CLI + API
+│   │   ├── index.ts                 # LLM Manager (123 líneas)
+│   │   ├── groq.ts                  # Groq API client
+│   │   └── ollama.ts                # Ollama client local
+│   ├── api/
+│   │   ├── index.ts                 # Express app (66 líneas)
+│   │   ├── routes/
+│   │   │   ├── auth.ts              # JWT login/verify (104 líneas)
+│   │   │   ├── contacts.ts          # CRUD contacts
+│   │   │   ├── deals.ts             # CRUD deals + pipeline
+│   │   │   ├── messages.ts          # Historial + envío
+│   │   │   ├── campaigns.ts         # CRUD campañas + execute
+│   │   │   ├── gdpr.ts              # GDPR endpoints (184 líneas)
+│   │   │   ├── audit.ts             # Audit log endpoints
+│   │   │   ├── health.ts            # Health check
+│   │   │   └── status.ts            # System status + config
+│   │   ├── middleware/
+│   │   │   ├── error.ts             # Global error handler
+│   │   │   ├── rate-limit.ts        # Per-IP rate limiting
+│   │   │   └── validate.ts          # Zod validation
+│   │   └── schemas/index.ts         # Zod schemas
+│   ├── security/
+│   │   ├── audit.ts                 # Audit log (163 líneas)
+│   │   └── retention.ts             # Data retention (108 líneas)
+│   ├── db/database.ts               # SQLite schema (118 líneas)
+│   ├── utils/logger.ts              # Pino logging
+│   └── cli/theme.ts                 # ANSI colors, tablas
+├── dashboard/                       # Next.js 16 + shadcn/ui
+│   ├── src/app/
+│   │   ├── page.tsx                 # Dashboard KPIs
+│   │   ├── pipeline/page.tsx        # Pipeline Kanban
+│   │   ├── contactos/page.tsx       # CRUD Contactos
+│   │   ├── campaigns/page.tsx       # Campañas
+│   │   ├── chat/page.tsx            # Conversaciones
+│   │   ├── config/page.tsx          # Config bot
+│   │   └── login/page.tsx           # Auth
+│   ├── src/lib/
+│   │   ├── api.ts                   # API client
+│   │   ├── auth-context.tsx         # Auth context
+│   │   └── utils.ts                 # Utilidades
+│   └── src/components/
+│       ├── layout/                  # Sidebar + layout
+│       └── ui/                      # shadcn/ui components
 ├── tests/
 │   ├── unit/
-│   │   ├── antiban/             # rate-limiter, warmup tests
-│   │   ├── crm/                 # contacts, deals tests
-│   │   └── importer/            # cleaner, deduplicator tests
-│   └── integration/
-│       └── api/                 # contacts API, deals API tests
-├── .github/
-│   └── workflows/
-│       └── ci.yml               # GitHub Actions CI
+│   │   ├── antiban/                 # rate-limiter (9), warmup (10)
+│   │   ├── crm/                     # contacts (7), deals (12)
+│   │   ├── importer/                # cleaner (13), deduplicator (8)
+│   │   ├── campaigns/               # templates (10)
+│   │   └── security/                # audit (6)
+│   └── integration/api/
+│       ├── contacts.api.test.ts     # 11 tests
+│       ├── deals.api.test.ts        # 8 tests
+│       └── gdpr.api.test.ts         # 7 tests
+├── docs/legal/
+│   ├── PRIVACY-POLICY.md            # GDPR compliant
+│   └── TERMS-OF-SERVICE.md          # Términos de uso
 ├── Documents/
-│   └── MEJORAWS-DOCUMENTACION.md  # Este archivo (DOC MAESTRO)
-├── data/                        # Datos runtime (gitignored)
-├── vitest.config.ts
-├── package.json
-├── tsconfig.json
-└── README.md
+│   ├── MEJORAWS-DOCUMENTACION.md    # Este archivo (DOC MAESTRO)
+│   ├── CONTINUITY-PROMPT.md         # Prompt de continuidad
+│   └── PROMPT.md                    # Prompt legacy
+└── .github/workflows/ci.yml        # CI/CD GitHub Actions
 ```
 
 ---
@@ -210,36 +203,26 @@ MejoraWS/
 ## 3. Módulos Implementados
 
 ### 3.1 🤖 Auto-Reply Engine
+**Archivo:** `src/brain/auto-reply.ts` (249 líneas)
 
-**Archivo:** `src/brain/auto-reply.ts`
-
-Responde automáticamente a todos los mensajes entrantes como un humano.
-
-**Componentes:**
 - Detección de intención via LLM (CONSULTA, COMPRA, QUEJA, SOPORTE, PRECIO, OTRO)
 - Escalamiento inteligente (keywords + sentimiento + max intercambios)
 - Knowledge base configurable
-- Horario de atención configurable
+- Horario de atención configurable (8:00-20:00 default)
 - Personalidad configurable (nombre, tono, idioma)
 
-**Configuración por defecto:**
-```json
-{
-  "name": "María",
-  "personality": "Soy María, asesora de ventas...",
-  "tone": "profesional-cercano",
-  "schedule": { "start": 8, "end": 20 },
-  "escalation": {
-    "keywords": ["hablar con alguien", "agente", "urgente", "supervisor"],
-    "maxExchanges": 3,
-    "negativeSentiment": true
-  }
-}
-```
+### 3.2 🧠 Orchestrator
+**Archivo:** `src/brain/orchestrator.ts` (216 líneas)
 
-### 3.2 📇 CRM — Contactos
+Coordinador central que conecta todos los módulos:
+- Gestión de WhatsApp client
+- Routing de mensajes entrantes → auto-reply
+- Exposición de managers (contacts, deals, campaigns)
+- Estado del sistema (getStatus con checks reales)
+- Start/stop graceful de todos los servicios
 
-**Archivo:** `src/crm/contacts.ts`
+### 3.3 📇 CRM — Contactos
+**Archivo:** `src/crm/contacts.ts` (224 líneas)
 
 - CRUD completo (create, read, update, delete)
 - Filtros: search, tags, minScore, whatsapp
@@ -247,37 +230,39 @@ Responde automáticamente a todos los mensajes entrantes como un humano.
 - Tags múltiples
 - Estadísticas: total, con WhatsApp, con email, score promedio
 
-### 3.3 🎯 CRM — Pipeline de Deals
-
-**Archivo:** `src/crm/deals.ts`
+### 3.4 🎯 CRM — Pipeline de Deals
+**Archivo:** `src/crm/deals.ts` (262 líneas)
 
 **7 etapas:**
 ```
 nuevo → contactado → interesado → propuesta → negociacion → cerrado-ganado
                                                             → cerrado-perdido
 ```
-
 - Crear deals con valor asociado
 - Mover entre etapas con registro de actividad
 - Follow-ups programados
 - Vista pipeline con conteo por etapa
-- Estadísticas: abiertos, ganados, perdidos, valor total, tasa de conversión
+- Estadísticas completas
 
-### 3.4 📥 Importador de Contactos
+### 3.5 📥 Importador de Contactos
+**Archivos:** `src/importer/` (pipeline, parsers, cleaner, deduplicator)
 
-**Archivo:** `src/importer/pipeline.ts`
+Pipeline: Auto-detección formato → Auto-mapeo columnas (ES/EN) → Limpieza → Dedup 3 capas (teléfono exacto → email exacto → nombre fuzzy Jaro-Winkler) → Import SQLite con upsert
 
-**Pipeline:**
-1. Auto-detección de formato (CSV/XLSX/VCF/JSON)
-2. Auto-mapeo de columnas (ES/EN)
-3. Limpieza determinística (normalización teléfono AR)
-4. Deduplicación en 3 capas (teléfono exacto → email exacto → nombre fuzzy con Jaro-Winkler)
-5. Import a SQLite con upsert (ON CONFLICT)
+Formatos: CSV, Excel (.xlsx/.xls), VCF (vCard), JSON
 
-**Formatos soportados:** CSV, Excel (.xlsx/.xls), VCF (vCard), JSON
+### 3.6 📤 Campañas Automáticas
+**Archivos:** `src/campaigns/` (engine, templates, scheduler)
 
-### 3.5 🛡️ Anti-Ban
+- CRUD completo de campañas
+- Ejecución con anti-ban integrado (respeta warm-up limits)
+- Pausa/reanudación
+- Tracking: sent, delivered, read, replied
+- Audiencia: `all`, `tag:X`, `score:N+`, `phone:n1,n2`
+- Template rotation (anti-ban capa 6): sinónimos + formato + variables `{{nombre}}` `{{empresa}}`
+- Scheduler automático (check cada 60s)
 
+### 3.7 🛡️ Anti-Ban (6 capas)
 **Archivos:** `src/antiban/warmup.ts`, `src/antiban/rate-limiter.ts`
 
 | Capa | Descripción | Estado |
@@ -289,177 +274,72 @@ nuevo → contactado → interesado → propuesta → negociacion → cerrado-ga
 | 5. Pausa cada 10 msgs | 2-5 min de pausa | ✅ |
 | 6. Template rotation | Sinónimos + formato + variaciones | ✅ |
 
-### 3.6 🧠 LLM Manager
-
-**Archivo:** `src/llm/index.ts`
+### 3.8 🧠 LLM Manager
+**Archivo:** `src/llm/index.ts` (123 líneas)
 
 - **Primario:** Groq API (qwen-2.5-32b, gratis, ~30 req/min)
 - **Backup:** Ollama local (llama3.1:8b, sin internet)
 - **Fallback automático:** Groq → Ollama
-- Detección de intención
-- Análisis de sentimiento
+- Detección de intención + análisis de sentimiento
 
-### 3.7 🌐 API REST
+### 3.9 🔐 JWT Auth
+**Archivo:** `src/api/routes/auth.ts` (104 líneas)
 
-**Archivos:** `src/api/`, `src/api/routes/`, `src/api/middleware/`
+- POST `/api/v1/auth/login` — login con credenciales
+- GET `/api/v1/auth/verify` — verificar token
+- Middleware JWT en rutas protegidas
+- Default credentials: admin/admin123 (configurable)
 
-Endpoints completos con validación, error handling y rate limiting:
+### 3.10 📋 GDPR Compliance
+**Archivo:** `src/api/routes/gdpr.ts` (184 líneas)
 
-| Endpoint | Métodos | Descripción |
-|----------|---------|-------------|
-| `/health` | GET | Health check (DB, LLM, uptime) |
-| `/api/v1/contacts` | GET, POST | Listar/crear contactos |
-| `/api/v1/contacts/:id` | GET, PUT, DELETE | CRUD individual |
-| `/api/v1/contacts/phone/:phone` | GET | Buscar por teléfono |
-| `/api/v1/contacts/import` | POST | Importar archivo |
-| `/api/v1/contacts/stats/summary` | GET | Estadísticas |
-| `/api/v1/deals` | GET, POST | Listar/crear deals |
-| `/api/v1/deals/pipeline` | GET | Vista pipeline |
-| `/api/v1/deals/followups` | GET | Follow-ups pendientes |
-| `/api/v1/deals/stats` | GET | Estadísticas |
-| `/api/v1/deals/:id/stage` | PATCH | Mover etapa |
-| `/api/v1/deals/:id/close` | POST | Cerrar deal |
-| `/api/v1/messages/:phone` | GET | Historial |
-| `/api/v1/messages/send` | POST | Enviar mensaje |
-| `/api/v1/status` | GET | Estado del sistema |
-| `/api/v1/status/config` | GET, PUT | Config del bot |
-| `/api/v1/status/kb` | PUT | Knowledge base |
+- GET `/api/v1/gdpr/export/:phone` — exportar datos contacto
+- DELETE `/api/v1/gdpr/erase/:phone` — borrar datos (right to erasure)
+- PUT `/api/v1/gdpr/consent/:phone` — gestionar consentimiento
+- GET `/api/v1/gdpr/stats` — estadísticas consentimiento
 
-**Middleware:**
-- Zod validation (schemas para todos los endpoints)
-- Global error handler (AppError + ZodError + 404)
-- Rate limiting (per-IP, 200 req/min)
-- CORS + Helmet security headers
-- Request logging (pino)
+### 3.11 📊 Audit Log
+**Archivo:** `src/security/audit.ts` (163 líneas)
 
-### 3.8 🧪 Tests
+- Registro de todas las acciones sensibles
+- GET `/api/v1/audit` — consultar logs con filtros
+- GET `/api/v1/audit/stats` — estadísticas
+- POST `/api/v1/audit/cleanup` — limpiar logs antiguos
+- Retención configurable
 
-**Archivos:** `tests/unit/`, `tests/integration/`
+### 3.12 ⏱️ Data Retention
+**Archivo:** `src/security/retention.ts` (108 líneas)
 
-| Archivo | Tests | Tipo |
-|---------|-------|------|
-| `tests/unit/antiban/rate-limiter.test.ts` | 9 | Unit |
-| `tests/unit/antiban/warmup.test.ts` | 10 | Unit |
-| `tests/unit/crm/contacts.test.ts` | 7 | Unit |
-| `tests/unit/crm/deals.test.ts` | 12 | Unit |
-| `tests/unit/importer/cleaner.test.ts` | 13 | Unit |
-| `tests/unit/importer/deduplicator.test.ts` | 8 | Unit |
-| `tests/integration/api/contacts.api.test.ts` | 11 | Integration |
-| `tests/integration/api/deals.api.test.ts` | 8 | Integration |
-| **Total** | **78** | **✅ All passing** |
-
-### 3.9 📊 Logging Estructurado
-
-**Archivo:** `src/utils/logger.ts`
-
-- Pino como logger principal
-- JSON en producción, pretty-print en desarrollo
-- Niveles configurables via `LOG_LEVEL`
-- Child loggers por módulo (`api:contacts`, `api:deals`, etc.)
-
-### 3.10 ⚙️ CI/CD
-
-**Archivo:** `.github/workflows/ci.yml`
-
-- Trigger: push y PR a `main`
-- Matrix: Node.js 20 + 22
-- Steps: install → typecheck → test → build
-
-### 3.11 📤 Campañas Automáticas
-
-**Archivos:** `src/campaigns/engine.ts`, `src/campaigns/templates.ts`, `src/campaigns/scheduler.ts`
-
-**Campaign Engine:**
-- CRUD completo de campañas
-- Ejecución con anti-ban integrado (respeta warm-up limits)
-- Pausa/reanudación de campañas en ejecución
-- Tracking: sent, delivered, read, replied
-- Audiencia configurable: `all`, `tag:X`, `score:N+`, `phone:n1,n2`
-
-**Template Rotation — Anti-ban capa 6:**
-- Sinónimos automáticos (hola→buenos días/buenas/qué tal/hey)
-- Variación de formato (espacios, puntuación, saludos finales)
-- Variables dinámicas: `{{nombre}}`, `{{empresa}}`
-- Selección aleatoria de templates + variaciones
-
-**Campaign Scheduler:**
-- Ejecución automática de campañas programadas
-- Check cada 60s por campañas vencidas
-- Resolución de audiencias flexible
-
-**API Endpoints:**
-```
-GET    /api/v1/campaigns           → Listar
-POST   /api/v1/campaigns           → Crear
-GET    /api/v1/campaigns/:id       → Obtener
-PATCH  /api/v1/campaigns/:id       → Actualizar
-DELETE /api/v1/campaigns/:id       → Eliminar
-GET    /api/v1/campaigns/:id/stats → Estadísticas
-POST   /api/v1/campaigns/:id/execute → Ejecutar
-POST   /api/v1/campaigns/:id/pause   → Pausar
-```
+- Mensajes: 180 días
+- Actividades: 365 días
+- Audit logs: 90 días
+- Cleanup automático configurable
 
 ---
 
-## 4. Stack Técnico (Real)
-
-### Stack Actual
+## 4. Stack Técnico
 
 | Capa | Tecnología | Costo | Notas |
 |------|-----------|-------|-------|
-| **Runtime** | Node.js 22 + TypeScript | $0 | |
+| **Runtime** | Node.js 22 + TypeScript 5.8 | $0 | |
 | **WhatsApp** | @whiskeysockets/baileys ^6.7.16 | $0 | SIN Meta API |
-| **LLM primario** | Groq API (groq-sdk) | $0 | qwen-2.5-32b |
-| **LLM backup** | Ollama (fetch nativo) | $0 | llama3.1:8b local |
+| **LLM primario** | Groq API (qwen-2.5-32b) | $0 | ~30 req/min |
+| **LLM backup** | Ollama (llama3.1:8b) | $0 | Local, sin internet |
 | **Database** | SQLite + better-sqlite3 | $0 | WAL mode |
-| **API** | Express + Zod + Helmet + CORS | $0 | REST v1 |
-| **CLI** | readline + ANSI codes | $0 | Sin dependencias externas |
-| **Import** | xlsx + papaparse | $0 | CSV/Excel/VCF/JSON |
-| **Logging** | pino + pino-pretty | $0 | JSON estructurado |
-| **Testing** | Vitest + Supertest | $0 | 78 tests |
+| **API** | Express 4 + Zod 4 + Helmet + CORS | $0 | REST v1 |
+| **Dashboard** | Next.js 16 + React 19 + shadcn/ui | $0 | Tailwind v4 |
+| **Logging** | Pino + pino-pretty | $0 | JSON estructurado |
+| **Testing** | Vitest + Supertest | $0 | 101 tests |
 | **CI/CD** | GitHub Actions | $0 | Node 20/22 matrix |
-
-### Dependencias (package.json)
-
-```json
-{
-  "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.16",
-    "better-sqlite3": "^11.9.1",
-    "cors": "^2.8.5",
-    "express": "^4.21.2",
-    "groq-sdk": "^1.1.2",
-    "helmet": "^8.1.0",
-    "multer": "^1.4.5-lts.2",
-    "papaparse": "^5.5.3",
-    "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",
-    "uuid": "^14.0.0",
-    "xlsx": "^0.18.5",
-    "zod": "^3.24.0"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.2",
-    "@types/multer": "^1.4.12",
-    "@types/node": "^24.0.4",
-    "@types/papaparse": "^5.5.2",
-    "@types/supertest": "^6.0.2",
-    "@types/uuid": "^10.0.0",
-    "supertest": "^7.1.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3",
-    "vitest": "^4.1.5"
-  }
-}
-```
+| **CLI** | readline + ANSI codes | $0 | Sin deps externas |
+| **Import** | xlsx + papaparse | $0 | CSV/Excel/VCF/JSON |
+| **Costo total** | — | **$0** | |
 
 ---
 
-## 5. Modelo de Datos (Actual)
+## 5. Modelo de Datos
 
-### Schema SQLite (src/db/database.ts)
+### Schema SQLite (`src/db/database.ts`)
 
 ```sql
 -- Contactos
@@ -512,7 +392,7 @@ CREATE TABLE activities (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
--- Campañas (schema listo, no implementado)
+-- Campañas
 CREATE TABLE campaigns (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -530,7 +410,7 @@ CREATE TABLE campaigns (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
--- Analytics (schema listo, no implementado)
+-- Analytics
 CREATE TABLE analytics (
   date TEXT PRIMARY KEY,
   sent INTEGER DEFAULT 0,
@@ -559,9 +439,7 @@ CREATE INDEX idx_activities_created ON activities(created_at);
 ```
 
 ### Observaciones del DBA
-
-- ✅ Schema normalizado correctamente
-- ✅ Índices en columnas de búsqueda frecuente
+- ✅ Schema normalizado, índices en columnas de búsqueda frecuente
 - ✅ WAL mode para concurrencia
 - ⚠️ `tags` como JSON string limita queries complejas → considerar tabla pivot
 - ⚠️ IDs como TEXT (cuidado con colisiones en alta concurrencia)
@@ -570,41 +448,124 @@ CREATE INDEX idx_activities_created ON activities(created_at);
 
 ---
 
-## 6. CLI — Comandos Disponibles
+## 6. API REST — Endpoints
+
+### Auth
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/login` | Login (retorna JWT) |
+| GET | `/api/v1/auth/verify` | Verificar token |
+
+### Contacts
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/contacts` | Listar (con filtros) |
+| POST | `/api/v1/contacts` | Crear contacto |
+| GET | `/api/v1/contacts/:id` | Obtener por ID |
+| PUT | `/api/v1/contacts/:id` | Actualizar |
+| DELETE | `/api/v1/contacts/:id` | Eliminar |
+| GET | `/api/v1/contacts/phone/:phone` | Buscar por teléfono |
+| POST | `/api/v1/contacts/import` | Importar archivo |
+| GET | `/api/v1/contacts/stats/summary` | Estadísticas |
+
+### Deals
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/deals` | Listar deals |
+| POST | `/api/v1/deals` | Crear deal |
+| GET | `/api/v1/deals/pipeline` | Vista pipeline |
+| GET | `/api/v1/deals/followups` | Follow-ups pendientes |
+| GET | `/api/v1/deals/stats` | Estadísticas |
+| PATCH | `/api/v1/deals/:id` | Actualizar deal |
+| PATCH | `/api/v1/deals/:id/stage` | Mover etapa |
+| POST | `/api/v1/deals/:id/close` | Cerrar deal |
+| POST | `/api/v1/deals/:id/followup` | Programar follow-up |
+
+### Messages
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/messages/:phone` | Historial contacto |
+| GET | `/api/v1/messages/recent/all` | Mensajes recientes |
+| POST | `/api/v1/messages/send` | Enviar mensaje |
+| GET | `/api/v1/messages/stats/sending` | Stats envío |
+
+### Campaigns
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/campaigns` | Listar campañas |
+| POST | `/api/v1/campaigns` | Crear campaña |
+| GET | `/api/v1/campaigns/:id` | Obtener campaña |
+| PATCH | `/api/v1/campaigns/:id` | Actualizar |
+| DELETE | `/api/v1/campaigns/:id` | Eliminar |
+| GET | `/api/v1/campaigns/:id/stats` | Estadísticas |
+| POST | `/api/v1/campaigns/:id/execute` | Ejecutar |
+| POST | `/api/v1/campaigns/:id/pause` | Pausar |
+
+### GDPR
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/gdpr/export/:phone` | Exportar datos |
+| DELETE | `/api/v1/gdpr/erase/:phone` | Borrar datos |
+| PUT | `/api/v1/gdpr/consent/:phone` | Gestionar consentimiento |
+| GET | `/api/v1/gdpr/stats` | Stats consentimiento |
+
+### Audit
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/audit` | Consultar logs |
+| GET | `/api/v1/audit/stats` | Estadísticas |
+| POST | `/api/v1/audit/cleanup` | Limpiar antiguos |
+| PUT | `/api/v1/audit/retention` | Configurar retención |
+
+### Status & Health
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/health` | Health check (DB, LLM, WA) |
+| GET | `/api/v1/status` | Estado del sistema |
+| GET | `/api/v1/status/config` | Config del bot |
+| PUT | `/api/v1/status/config` | Actualizar config |
+| PUT | `/api/v1/status/kb` | Actualizar knowledge base |
+
+### Middleware
+- **Zod validation** — schemas para todos los endpoints
+- **Global error handler** — AppError + ZodError + 404
+- **Rate limiting** — 200 req/min por IP
+- **CORS + Helmet** — headers de seguridad
+- **JWT auth** — protección de rutas
+- **Request logging** — pino con request ID
+
+---
+
+## 7. CLI — Comandos
 
 ### Comunicación
-
 | Comando | Descripción |
 |---------|-------------|
 | `/enviar <número> <mensaje>` | Enviar mensaje manual |
-| `/historial <número>` | Ver historial de mensajes (tabla) |
+| `/historial <número>` | Ver historial (tabla) |
 
 ### Contactos
-
 | Comando | Descripción |
 |---------|-------------|
-| `/contactos` | Listar contactos (tabla formateada) |
+| `/contactos` | Listar contactos (tabla) |
 | `/importar <archivo>` | Importar CSV/JSON/XLSX/VCF |
 
 ### Pipeline
-
 | Comando | Descripción |
 |---------|-------------|
-| `/pipeline` | Ver pipeline Kanban (tablas con barras) |
+| `/pipeline` | Ver pipeline Kanban |
 | `/deal <número> [valor]` | Crear deal |
 | `/mover <deal-id> <etapa>` | Mover deal entre etapas |
 | `/followups` | Ver follow-ups pendientes |
 
 ### Configuración
-
 | Comando | Descripción |
 |---------|-------------|
-| `/estado` | Estado completo del sistema (box + progress bars) |
+| `/estado` | Estado completo del sistema |
 | `/kb <texto>` | Actualizar knowledge base |
 | `/config` | Ver configuración del bot |
 
 ### Sistema
-
 | Comando | Descripción |
 |---------|-------------|
 | `/ayuda` | Mostrar ayuda |
@@ -612,733 +573,400 @@ CREATE INDEX idx_activities_created ON activities(created_at);
 
 ---
 
-## 7. Anti-Ban System
+## 8. Anti-Ban System (6 capas)
 
 ### Warm-up de 14 días
 
-| Día | Límite diario |
-|-----|--------------|
-| 1 | 10 |
-| 2 | 12 |
-| 3 | 15 |
-| 4 | 18 |
-| 5 | 22 |
-| 6 | 28 |
-| 7 | 35 |
-| 8 | 45 |
-| 9 | 55 |
-| 10 | 70 |
-| 11 | 85 |
-| 12 | 100 |
-| 13 | 120 |
-| 14 | 150 |
-| 15+ | 200 (máximo) |
-
-### Gaussian Delay
-
-```typescript
-// Distribución normal: media 10s, desviación 3s
-// Mínimo 5s, máximo 20s
-gaussianDelay(mean = 10000, stdDev = 3000)
-```
+| Día | Límite | Día | Límite |
+|-----|--------|-----|--------|
+| 1 | 10 | 8 | 45 |
+| 2 | 12 | 9 | 55 |
+| 3 | 15 | 10 | 70 |
+| 4 | 18 | 11 | 85 |
+| 5 | 22 | 12 | 100 |
+| 6 | 28 | 13 | 120 |
+| 7 | 35 | 14 | 150 |
+| | | 15+ | 200 (máx) |
 
 ### Protecciones activas
-- ✅ Typing indicator 1-3s antes de cada envío
-- ✅ Pausa 2-5 min cada 10 mensajes
-- ✅ Horario laboral 8:00-20:00
-- ✅ Auto-stop si no hay conexión
-- ✅ Warm-up persistente (archivo JSON)
+1. ✅ **Warm-up 14 días** — progresión gradual de 10 a 200 msg/día
+2. ✅ **Gaussian delay** — distribución normal: media 10s, std 3s (min 5s, max 20s)
+3. ✅ **Typing simulation** — 1-3s indicador "escribiendo..." antes de cada envío
+4. ✅ **Horario laboral** — 8:00-20:00, auto-pausa fuera de horario
+5. ✅ **Pausa cada 10 msgs** — 2-5 min de pausa obligatoria
+6. ✅ **Template rotation** — sinónimos automáticos + variación de formato + variables dinámicas
 
 ---
 
-## 8. WhatsApp — Sin Meta API
+## 9. Seguridad y Compliance
 
-### ¿Por qué Baileys y NO Meta Cloud API?
+### Implementado
+- ✅ **JWT Auth** — login protegido para dashboard
+- ✅ **Rate limiting** — 200 req/min por IP
+- ✅ **CORS + Helmet** — headers de seguridad
+- ✅ **Zod validation** — inputs sanitizados
+- ✅ **Audit log** — trazabilidad de acciones sensibles
+- ✅ **GDPR** — export, erase, consent management
+- ✅ **Data retention** — política configurable, cleanup automático
+- ✅ **Privacy Policy** — GDPR compliant
+- ✅ **Terms of Service** — protección legal
+- ✅ **Datos locales** — todo en SQLite, no sale del servidor
+- ✅ **LLM backup local** — Ollama sin internet
 
-| Aspecto | Meta Cloud API | Baileys |
-|---------|---------------|---------|
-| **Costo** | ~$0.05-0.08/msg | $0 |
-| **Aprobación** | Business verification | No requiere |
-| **Límites** | Templates pre-aprobados | Sin límites (con anti-ban) |
-| **Setup** | Complejo | npm install |
-
-### Cómo funciona
-
-```
-MejoraWS → Baileys → WhatsApp Web Protocol → Servidores WhatsApp
-```
-
-Se conecta como dispositivo multi-device (igual que WhatsApp Web/Desktop).
-
----
-
-## 9. Flujo Autónomo
-
-### Día Típico
-
-```
-08:00  Sistema se conecta automáticamente
-       Anti-ban: warm-up activo (día 5/14, límite 25 msg)
-
-08:15  Llega mensaje de "Pedro"
-       → Bot detecta intención: CONSULTA
-       → Genera respuesta humana con delay de 7s
-       → Registra en CRM
-
-10:00  /estado → ve sistema funcionando
-       /pipeline → ve deals en movimiento
-
-14:00  Bot responde a 5 consultas
-       → 1 queja escalada a humano automáticamente
-
-18:00  /contactos → ve contactos creciendo
-       /followups → agenda pendientes
-
-20:00  Sistema pausa envíos automáticamente
-```
-
----
-
-## 10. Seguridad y Cumplimiento
-
-### Estado actual
-
-- **Datos locales:** Todo en SQLite, no sale del servidor
-- **LLM backup local:** Ollama no requiere internet
-- **Sesión WhatsApp:** Encriptada localmente
-- **Sin Meta API:** No hay dependencia de terceros para mensajería
-- **GDPR compliant:** Endpoints de export, erase, consent
-- **Audit log:** Trazabilidad de acciones sensibles
-- **Data retention:** Política configurable, cleanup automático
-- **JWT Auth:** Login protegido para dashboard
-- **Rate limiting:** 200 req/min por IP
-- **CORS + Helmet:** Headers de seguridad
-
-### Brechas restantes
-
+### Pendiente
 | Brecha | Severidad | Descripción |
 |--------|----------|-------------|
 | Cifrado at-rest sesión WA | 🟡 Media | `data/session/` sin cifrado adicional |
 | HTTPS obligatorio | 🟡 Media | Requiere reverse proxy (nginx) en producción |
 | Backup automatizado | 🟢 Baja | Sin backup automático de DB |
+| Secrets management | 🟢 Baja | Variables de entorno sin vault |
 
 ---
 
-## 11. Análisis Multidisciplinario (36 Roles)
+## 10. Dashboard Web
+
+**Stack:** Next.js 16 + React 19 + Tailwind v4 + shadcn/ui
+
+### 7 Vistas
+
+| Vista | Ruta | Función |
+|-------|------|---------|
+| Dashboard KPIs | `/` | Métricas principales, estado sistema |
+| Pipeline Kanban | `/pipeline` | Deals por etapa, drag & drop |
+| Contactos | `/contactos` | CRUD, filtros, importación |
+| Campañas | `/campaigns` | Gestión campañas, ejecución |
+| Chat | `/chat` | Conversaciones en tiempo real |
+| Configuración | `/config` | Bot personality, knowledge base |
+| Login | `/login` | Autenticación JWT |
+
+### Componentes UI (shadcn/ui)
+Button, Card, Input, Label, Select, Textarea, Table, Badge, Avatar, Dialog, Sheet, Tabs, Separator, Dropdown Menu
+
+### Auto-refresh
+Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
+
+---
+
+## 11. Tests
+
+### Resumen: 101 tests, 11 archivos
+
+| Archivo | Tests | Tipo |
+|---------|-------|------|
+| `tests/unit/antiban/rate-limiter.test.ts` | 9 | Unit |
+| `tests/unit/antiban/warmup.test.ts` | 10 | Unit |
+| `tests/unit/crm/contacts.test.ts` | 7 | Unit |
+| `tests/unit/crm/deals.test.ts` | 12 | Unit |
+| `tests/unit/importer/cleaner.test.ts` | 13 | Unit |
+| `tests/unit/importer/deduplicator.test.ts` | 8 | Unit |
+| `tests/unit/campaigns/templates.test.ts` | 10 | Unit |
+| `tests/unit/security/audit.test.ts` | 6 | Unit |
+| `tests/integration/api/contacts.api.test.ts` | 11 | Integration |
+| `tests/integration/api/deals.api.test.ts` | 8 | Integration |
+| `tests/integration/api/gdpr.api.test.ts` | 7 | Integration |
+| **Total** | **101** | **✅ All passing** |
+
+### Stack
+- **Vitest** — test runner (rápido, ESM nativo)
+- **Supertest** — testing HTTP endpoints
+- **CI** — GitHub Actions, matrix Node 20/22
+
+---
+
+## 12. Análisis Multidisciplinario (36 Roles)
 
 ### Área Técnica
 
 #### 🏗️ Software Architect
-**Estado:** ✅ Arquitectura limpia con separación de capas bien definida.
-
-| Fortaleza | Debilidad | Recomendación |
-|-----------|-----------|---------------|
-| Separación clara de responsabilidades | Sin API layer para frontend | Crear `src/api/` con endpoints REST |
-| Orchestrator como coordinador central | Sin dependency injection | Implementar DI para testearabilidad |
-| Patrones consistentes (Manager classes) | Sin error handling middleware global | Agregar `src/api/middleware/` |
-| Config centralizada | Sin logging estructurado | Implementar pino como logger |
-
-**Plan:**
-1. Extraer API REST de Express existente (ya está como dependencia)
-2. Crear middleware: auth, rate-limit, error-handler, cors
-3. Implementar WebSocket para tiempo real
-4. Preparar inyección de dependencias para tests
+**Veredicto:** ✅ Arquitectura limpia, separación de capas bien definida.
+- Fortaleza: Manager classes consistentes, orchestrator como coordinator
+- Mejora: Dependency injection para testearabilidad, WebSocket para real-time
 
 #### ☁️ Cloud Architect
-**Estado:** ⚠️ 100% local, sin plan de deployment.
-
-| Aspecto | Actual | Objetivo |
-|---------|--------|----------|
-| Deployment | Manual | Docker + docker-compose |
-| Database | SQLite (local) | PostgreSQL (prod) / SQLite (dev) |
-| Cache | Ninguno | Redis para sesiones/queues |
-| File storage | Local filesystem | S3-compatible para backups |
-| CI/CD | Ninguno | GitHub Actions |
-| Monitoring | Ninguno | Prometheus + Grafana |
-
-**Plan:**
-1. `Dockerfile` multi-stage (build + runtime)
-2. `docker-compose.yml` con servicios: app, postgres, redis
-3. Variables de entorno para configuración
-4. Health check endpoints para orchestración
+**Veredicto:** ⚠️ 100% local, sin deployment.
+- Plan: Docker multi-stage, docker-compose (app+pg+redis), nginx reverse proxy + SSL
+- Objetivo: Deploy reproducible en un `docker-compose up`
 
 #### 💻 Backend Developer
-**Estado:** ✅ Lógica de negocio sólida, falta API layer.
-
-| Fortaleza | Debilidad | Acción |
-|-----------|-----------|--------|
-| Business logic bien encapsulada | Sin validación de inputs | Agregar Zod/Joi schemas |
-| Transacciones DB correctas | Sin error handling centralizado | Middleware de errores |
-| Código TypeScript limpio | Sin API REST endpoints | Crear rutas `/api/v1/` |
-| CRUD completo en managers | Sin paginación en listados | Agregar cursor-based pagination |
-
-**Endpoints a crear:**
-```
-GET    /api/v1/contacts          # Listar contactos
-POST   /api/v1/contacts          # Crear contacto
-GET    /api/v1/contacts/:id      # Obtener contacto
-PUT    /api/v1/contacts/:id      # Actualizar contacto
-DELETE /api/v1/contacts/:id      # Eliminar contacto
-
-GET    /api/v1/deals             # Listar deals
-POST   /api/v1/deals             # Crear deal
-PUT    /api/v1/deals/:id/stage   # Mover etapa
-
-GET    /api/v1/messages/:phone   # Historial
-POST   /api/v1/messages/send     # Enviar mensaje
-
-GET    /api/v1/status            # Estado del sistema
-GET    /api/v1/analytics         # Datos analytics
-
-POST   /api/v1/import            # Importar contactos
-POST   /api/v1/campaigns         # Crear campaña
-```
+**Veredicto:** ✅ Lógica de negocio sólida, API completa.
+- Fortaleza: 35+ endpoints, Zod validation, error handling centralizado
+- Mejora: Cursor-based pagination, WebSocket para live updates
 
 #### 🎨 Frontend Developer
-**Estado:** ❌ No existe dashboard web.
+**Veredicto:** ✅ Dashboard funcional con 7 vistas.
+- Stack: Next.js 16, React 19, shadcn/ui, Tailwind v4
+- Mejora: Real-time via WebSocket (actualmente polling), PWA support
 
-**Plan para Dashboard (Next.js 14 + shadcn/ui):**
-
-| Vista | Complejidad | Prioridad |
-|-------|------------|-----------|
-| Dashboard KPIs | Media | 🔴 P1 |
-| Pipeline Kanban (drag & drop) | Alta | 🔴 P1 |
-| Contactos (tabla + filtros) | Media | 🔴 P1 |
-| Chat en tiempo real | Alta | 🟠 P2 |
-| Configuración bot | Baja | 🟠 P2 |
-| Importación (upload + preview) | Media | 🟡 P3 |
-| Analytics (Recharts) | Media | 🟡 P3 |
-
-**Stack:** Next.js 14, React 18, TailwindCSS, shadcn/ui, Recharts, Socket.io client
-
-#### 📱 iOS Developer / Android Developer
-**Estado:** No aplica nativamente. Acceso vía PWA responsive.
-
-**Recomendación:** El dashboard web debe ser responsive-first. Futuro: considerar PWA con service workers para notificaciones push.
+#### 📱 iOS/Android Developer
+**Veredicto:** No aplica nativamente. Dashboard responsive-first.
+- Futuro: PWA con service workers para notificaciones push
 
 #### ⚙️ DevOps Engineer
-**Estado:** ❌ Sin CI/CD, sin containerización.
+**Veredicto:** ✅ CI/CD funcional, falta containerización.
+- Completado: GitHub Actions (Node 20/22 matrix)
+- Pendiente: Dockerfile, docker-compose, nginx, deploy guide
 
-**Plan inmediato:**
-```yaml
-# .github/workflows/ci.yml
-name: CI
-on: [push, pull_request]
-jobs:
-  lint-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - run: npm ci
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
-```
-
-**Dockerfile:**
-```dockerfile
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:22-alpine
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-RUN mkdir -p data/session
-EXPOSE 3000
-CMD ["node", "dist/server.js"]
-```
-
-#### 🔒 Site Reliability Engineer (SRE)
-**Estado:** ❌ Sin observabilidad.
-
-**Plan:**
-1. **Health checks:** `GET /health` con checks de DB, LLM, WhatsApp
-2. **Logging estructurado:** pino con JSON output, niveles configurables
-3. **Métricas:** Prometheus client para Node.js (msg/min, latencia, errores)
-4. **Alertas:** Webhook a Telegram/Discord cuando el bot se desconecta
-5. **Dashboard:** Grafana con panels de mensajes, deals, uptime
+#### 🔒 SRE
+**Veredicto:** ⚠️ Logging funcional, falta observabilidad.
+- Completado: Pino structured logging, health check endpoint
+- Pendiente: Prometheus metrics, Grafana dashboards, alerting
 
 #### 🔐 Cybersecurity Architect
-**Estado:** ⚠️ Funcional pero sin hardening de seguridad.
-
-**Prioridades:**
-1. 🔴 **JWT Auth** para API (con refresh tokens)
-2. 🔴 **Rate limiting** en endpoints (express-rate-limit)
-3. 🔴 **Input validation** en todos los endpoints (Zod)
-4. 🟠 **HTTPS** obligatorio (Let's Encrypt + nginx reverse proxy)
-5. 🟠 **Cifrado at-rest** para sesión WhatsApp
-6. 🟡 **CORS** restrictivo
-7. 🟡 **Helmet.js** para headers de seguridad
-8. 🟡 **Audit log** de acciones sensibles
+**Veredicto:** ✅ Hardening básico completo.
+- Completado: JWT, rate limiting, CORS, Helmet, Zod validation, audit log
+- Pendiente: HTTPS, cifrado at-rest, secrets management
 
 #### 📊 Data Engineer
-**Estado:** ✅ Schema limpio, pipeline de importación funcional.
+**Veredicto:** ✅ Schema limpio, import pipeline funcional.
+- Fortaleza: Dedup 3 capas, auto-mapeo columnas
+- Mejora: Migración a PostgreSQL con ORM (Drizzle)
 
-**Mejoras:**
-1. Agregar `company` field al schema de contacts (ya existe pero no se usa mucho)
-2. Crear vista materializada para analytics diarios
-3. Pipeline de exportación a CSV/Excel
-4. Preparar migración a PostgreSQL (usando Knex.js o Drizzle ORM)
-
-#### 🤖 Machine Learning Engineer
-**Estado:** ✅ Integración LLM funcional con fallback.
-
-**Mejoras:**
-1. **Conversation quality scoring:** Evaluar respuestas del bot automáticamente
-2. **A/B testing de prompts:** Probar diferentes personalidades
-3. **Sentiment tracking:** Guardar sentimiento por mensaje para analytics
-4. **Intent accuracy:** Medir precisión de detección de intención
-5. **Fine-tuning futuro:** Preparar dataset de conversaciones exitosas
+#### 🤖 ML Engineer
+**Veredicto:** ✅ Integración LLM funcional con fallback.
+- Fortaleza: Groq → Ollama auto-fallback, intent detection, sentiment
+- Mejora: Conversation quality scoring, A/B testing de prompts
 
 #### 🧪 QA Automation Engineer
-**Estado:** ❌ Sin tests. Crítico.
+**Veredicto:** ✅ 101 tests, buena cobertura.
+- Stack: Vitest + Supertest
+- Pendiente: E2E tests (Playwright), load testing
 
-**Plan de testing:**
-```
-tests/
-├── unit/
-│   ├── antiban/
-│   │   ├── warmup.test.ts
-│   │   └── rate-limiter.test.ts
-│   ├── crm/
-│   │   ├── contacts.test.ts
-│   │   └── deals.test.ts
-│   ├── importer/
-│   │   ├── parsers.test.ts
-│   │   ├── cleaner.test.ts
-│   │   └── deduplicator.test.ts
-│   └── brain/
-│       └── auto-reply.test.ts
-├── integration/
-│   ├── api/
-│   │   ├── contacts.api.test.ts
-│   │   └── deals.api.test.ts
-│   └── whatsapp/
-│       └── sender.test.ts
-└── e2e/
-    └── full-flow.test.ts
-```
-
-**Stack:** Vitest (unit), Supertest (API), Playwright (E2E)
-
-#### 🗄️ Database Administrator (DBA)
-**Estado:** ✅ SQLite funcional con WAL mode.
-
-**Recomendaciones:**
-1. Agregar `FOREIGN KEY` constraints para integridad referencial
-2. Crear tabla de migraciones para versionado de schema
-3. Implementar backup automático (cron: `sqlite3 data/mejoraws.db ".backup data/backup-$(date +%Y%m%d).db"`)
-4. Preparar path de migración a PostgreSQL con ORM (Drizzle recomendado)
-5. Monitorear tamaño de DB y purgar mensajes antiguos (>90 días)
-
----
+#### 🗄️ DBA
+**Veredicto:** ✅ SQLite funcional con WAL mode.
+- Mejora: Foreign keys, tabla de migraciones, backup automático
+- Futuro: PostgreSQL para multi-usuario
 
 ### Área de Producto y Gestión
 
 #### 📋 Product Manager
-**Estado:** ✅ Visión clara, MVP funcional.
-
-**KPIs a trackear:**
-| KPI | Meta | Medición |
-|-----|------|----------|
-| Tiempo de respuesta promedio | <30s | Desde mensaje entrante hasta respuesta |
-| Tasa de resolución automática | >80% | Mensajes resueltos sin escalamiento |
-| Contactos importados/día | >50 | Tracking en analytics |
-| Deals creados/semana | >10 | Pipeline tracking |
-| Tasa de conversión deals | >15% | cerrados-ganados / total |
-
-**User Stories prioritarias:**
-1. Como admin, quiero ver KPIs en un dashboard para monitorear sin usar CLI
-2. Como admin, quiero arrastrar deals entre etapas visualmente
-3. Como admin, quiero crear campañas de mensajes masivos
-4. Como admin, quiero ver conversaciones en tiempo real
+KPIs: tiempo respuesta <30s, resolución auto >80%, conversión deals >15%
 
 #### 🎯 Product Owner
-**Estado:** ✅ Backlog organizado.
+User stories priorizadas, acceptance criteria definidos para cada etapa
 
-**Acceptance Criteria para Etapa 5 (Dashboard):**
-```
-DADO que soy admin
-CUANDO abro localhost:3000
-ENTONCES veo:
-  - KPIs principales (mensajes hoy, contactos, deals activos)
-  - Pipeline Kanban con drag & drop
-  - Últimos mensajes recibidos
-  - Estado de conexión WhatsApp
-  - Botón para acceder a configuración
-```
-
-#### 🏃 Scrum Master / Agile Coach
-**Recomendación:** Trabajar en sprints de 1 semana.
-
-**Ceremonias:**
-- **Sprint Planning:** Lunes, definir 3-5 user stories
-- **Daily:** Automatizado via estado del proyecto
-- **Review:** Viernes, demo de funcionalidad
-- **Retro:** Viernes, qué mejorar
-
-**Definition of Done:**
-- [ ] Código funciona sin errores
-- [ ] Tests unitarios pasan
-- [ ] API documentada
-- [ ] Commiteado y pusheado
-- [ ] Documentación actualizada
+#### 🏃 Scrum Master
+Sprints de 1 semana, ceremonias definidas, DoD claro
 
 #### 🔍 UX Researcher
-**Recomendación:** El usuario es el admin (Pablo). Necesita:
-1. Ver estado del sistema rápido (sin comandos)
-2. Gestionar contactos visualmente
-3. Monitorear conversaciones del bot
-4. Configurar sin editar código
-
-**Insight:** El CLI es potente pero no discoverable. El dashboard resuelve esto.
+Insight: CLI potente pero no discoverable → Dashboard resuelve esto
 
 #### 🎨 UX Designer
-**Wireframes del Dashboard:**
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  MejoraWS Dashboard                        [Config] [?] │
-├──────────┬──────────┬──────────┬──────────┬─────────────┤
-│ 📊 1,234 │ 📇 567   │ 🎯 89    │ 💰 $12K  │ 🤖 Bot: ON  │
-│ Mensajes │ Contactos│ Deals    │ Revenue  │ WA: ✓       │
-├──────────┴──────────┴──────────┴──────────┴─────────────┤
-│                                                          │
-│  ┌─ PIPELINE KANBAN ──────────────────────────────────┐ │
-│  │ Nuevo(12) │ Contactado(8) │ Interesado(5) │ ...    │ │
-│  │ ┌──────┐  │ ┌──────┐      │ ┌──────┐     │        │ │
-│  │ │Pedro │  │ │Ana   │      │ │Luis  │     │        │ │
-│  │ │$500  │  │ │$1200 │      │ │$800  │     │        │ │
-│  │ └──────┘  │ └──────┘      │ └──────┘     │        │ │
-│  └───────────────────────────────────────────────────┘ │
-│                                                          │
-│  ┌─ ÚLTIMOS MENSAJES ──┐  ┌─ FOLLOW-UPS ────────────┐ │
-│  │ 📩 Pedro: "Precio?" │  │ ⏰ Ana - Mañana 10:00   │ │
-│  │ 📤 María: "Te envío"│  │ ⏰ Luis - Hoy 15:00     │ │
-│  │ 📩 Ana: "Gracias"   │  │ ⏰ Carlos - Viernes     │ │
-│  └─────────────────────┘  └──────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
-```
+Wireframes del dashboard definidos y implementados
 
 #### ✍️ UX Writer
-**Mejoras al CLI actual:**
-- Mensajes más consistentes (todos siguen patrón emoji + acción + resultado)
-- Ayuda contextual (mostrar ejemplos al usar comando incorrectamente)
-- Onboarding: primer mensaje al conectar debería guiar al usuario
+Mejoras: mensajes consistentes, ayuda contextual, onboarding
 
 #### 🌍 Localization Manager
-**Estado:** Solo español.
-
-**Plan i18n:**
-1. Extraer strings hardcodeados a archivo de recursos
-2. Soporte inicial: español (default) + inglés
-3. Usar i18next o similar para gestión de traducciones
-4. Bot personality configurable por idioma
+Estado: Solo español. Plan i18n: ES (default) + EN
 
 #### 📦 Delivery Manager
-**Release Plan:**
-| Release | Contenido | Fecha estimada |
-|---------|-----------|---------------|
-| v0.1.0 | CLI funcional (actual) | ✅ Completado |
-| v0.2.0 | API REST + Tests básicos | Semana 1-2 |
-| v0.3.0 | Dashboard web MVP | Semana 3-4 |
-| v0.4.0 | Campañas automáticas | Semana 5-6 |
-| v0.5.0 | Analytics + Reporting | Semana 7-8 |
-| v1.0.0 | Producción (Docker + Auth) | Semana 9-10 |
-
----
+Release plan: v0.1→v0.5 definido, v1.0 producción en semana 9-10
 
 ### Área Comercial y de Crecimiento
 
 #### 📈 Growth Manager
-**Estrategia de crecimiento del producto:**
-1. **Fase 1:** Uso interno, pulir el bot
-2. **Fase 2:** Documentar caso de uso exitoso
-3. **Fase 3:** Crear landing page con demo
-4. **Fase 4:** Beta cerrada con 10 usuarios
-5. **Fase 5:** Pricing model (freemium: 100 contactos gratis)
+Estrategia: Uso interno → Documentar caso → Landing → Beta → Pricing
 
-#### 📱 ASO Specialist
-**No aplica** (sin app nativa). Si se crea PWA:
-- Nombre: "MejoraWS - CRM WhatsApp con IA"
-- Keywords: whatsapp crm, crm ia, ventas whatsapp, bot whatsapp
-- Screenshots del dashboard
-
-#### 🎯 Performance Marketing Manager
-**Campañas para adquisición de usuarios:**
-1. Google Ads: "CRM WhatsApp con IA desde $0"
-2. Facebook/Instagram: Demo videos del bot respondiendo
-3. LinkedIn: Target a emprendedores y pymes
-4. YouTube: Tutorial "Cómo automatizar WhatsApp con IA"
+#### 🎯 Performance Marketing
+Google Ads, Facebook/Instagram demos, LinkedIn pymes, YouTube tutorials
 
 #### 🔍 SEO Specialist
-**Para landing page futura:**
-- Keywords target: "crm whatsapp", "bot whatsapp ventas", "automatizar whatsapp negocio"
-- Blog posts: "Cómo usar WhatsApp para ventas", "Anti-ban WhatsApp guía"
-- Schema markup para software product
+Keywords: "crm whatsapp", "bot whatsapp ventas", "automatizar whatsapp"
 
-#### 🤝 Business Development Manager
-**Oportunidades:**
-1. Integración con e-commerce (Shopify, WooCommerce)
-2. Partnership con agencias de marketing digital
-3. API pública para developers
-4. Marketplace de templates de respuestas
+#### 🤝 Business Dev
+Oportunidades: e-commerce integration, agencias partnership, API pública
 
-#### 👥 Account Manager / Community Manager
-**Estrategia de comunidad:**
-1. Discord server para usuarios
-2. GitHub discussions para feature requests
-3. Newsletter mensual con tips de WhatsApp marketing
-4. Webinars de mejores prácticas
+#### 👥 Community Manager
+Discord server, GitHub discussions, newsletter, webinars
 
 #### 📝 Content Manager
-**Content plan:**
-1. Blog: 2 posts/mes sobre WhatsApp marketing
-2. Videos: tutoriales del dashboard
-3. Templates: 50+ respuestas pre-armadas por industria
-4. Case studies: historias de éxito de usuarios
-
----
+Blog 2 posts/mes, video tutorials, templates por industria, case studies
 
 ### Área de Operaciones, Legal y Análisis
 
-#### 📊 Business Intelligence Analyst
-**KPIs a monitorear:**
-| KPI | Fórmula | Meta |
-|-----|---------|------|
-| Tasa de respuesta automática | respuestas_bot / mensajes_totales | >80% |
-| Tiempo promedio de respuesta | Σ(timestamp_respuesta - timestamp_mensaje) / n | <30s |
-| Tasa de conversión pipeline | deals_ganados / deals_totales | >15% |
-| Revenue por contacto | revenue_total / contactos_totales | >$50 |
-| Engagement rate | respuestas_recibidas / mensajes_enviados | >25% |
+#### 📊 BI Analyst
+KPIs: tasa respuesta auto, tiempo respuesta, conversión pipeline, revenue/contacto
 
 #### 🔬 Data Scientist
-**Análisis a implementar:**
-1. **Sentiment trend:** Evolución del sentimiento promedio por semana
-2. **Intent distribution:** Qué intenciones son más frecuentes
-3. **Conversion funnel:** Análisis de abandono por etapa del pipeline
-4. **Response effectiveness:** Qué respuestas generan más conversiones
-5. **Optimal timing:** Mejor hora para enviar mensajes
+Análisis: sentiment trend, intent distribution, conversion funnel, optimal timing
 
-#### ⚖️ Legal & Compliance Officer
-**Checklist legal:**
-- [ ] Privacy policy publicada
-- [ ] Terms of service definidos
-- [ ] Data processing agreement con LLM providers
-- [ ] Consent mechanism para contactos (campo existe, no se usa activamente)
-- [ ] Data retention policy (máximo 12 meses)
-- [ ] Right to erasure implementado (endpoint DELETE)
-- [ ] Cookie policy para dashboard web
-- [ ] WhatsApp Business Policy compliance
+#### ⚖️ Legal & Compliance
+Checklist: privacy policy ✅, ToS ✅, consent mechanism ✅, data retention ✅
 
-#### 🔒 Data Protection Officer (DPO)
-**GDPR Compliance Plan:**
-1. **Consent:** Activar uso del campo `consent` en contactos
-2. **Access:** Endpoint para que contactos vean sus datos
-3. **Erasure:** Endpoint para borrar datos de un contacto
-4. **Portability:** Exportar datos en formato JSON/CSV
-5. **Breach notification:** Plan de respuesta a incidentes
-6. **DPIA:** Data Protection Impact Assessment
+#### 🔒 DPO
+GDPR: consent ✅, access ✅, erasure ✅, portability ✅, breach notification pendiente
 
-#### 🎧 Customer Success Manager
-**Onboarding flow:**
-1. Welcome message con guía rápida
-2. Setup wizard en dashboard (configurar bot personality)
-3. Importar primeros contactos
-4. Primer test de auto-reply
-5. Check-in a los 7 días
+#### 🎧 Customer Success
+Onboarding: welcome → setup wizard → import → test → check-in 7 días
 
-#### 🛠️ Technical Support (Tier 1/2/3)
-**Tier structure:**
-- **Tier 1:** FAQ, guías de setup, troubleshooting básico
-- **Tier 2:** Configuración avanzada, integraciones, bugs menores
-- **Tier 3:** Bugs críticos, desarrollo de features, arquitectura
+#### 🛠️ Technical Support
+Tier 1: FAQ/guides, Tier 2: config avanzada, Tier 3: bugs/features
 
-**Documentación de soporte:**
-- Setup guide completo
-- Troubleshooting FAQ
-- API documentation
-- Video tutorials
-
-#### 💰 Revenue Operations (RevOps)
-**Modelo de negocio sugerido:**
-| Tier | Precio | Contactos | Features |
-|------|--------|-----------|----------|
-| Free | $0 | 100 | CLI, auto-reply básico |
-| Pro | $29/mes | 1,000 | Dashboard, campañas, analytics |
-| Business | $99/mes | 10,000 | API, multi-bot, priority support |
-| Enterprise | Custom | Ilimitado | Self-hosted, SLA, custom features |
+#### 💰 RevOps
+Pricing: Free (100 contactos) → Pro ($29) → Business ($99) → Enterprise (custom)
 
 ---
 
-## 12. Plan Optimizado por Etapas
+## 13. Plan Optimizado por Etapas
 
 ### Visión General
 
 ```
-ETAPA 4: Fundación Técnica (Semana 1-2)
-    ↓
-ETAPA 5: Dashboard Web (Semana 3-5)
-    ↓
-ETAPA 6: Campañas y Automatización (Semana 6-7)
-    ↓
-ETAPA 7: Seguridad y Compliance (Semana 8-9)
-    ↓
-ETAPA 8: Escalabilidad y Producción (Semana 10-12)
-    ↓
-ETAPA 9: Analytics e Inteligencia (Semana 13-14)
+✅ ETAPA 1-3: WhatsApp + Bot IA + CRM + CLI           (COMPLETADA)
+✅ ETAPA 4:   API REST + Tests + CI/CD + Logging       (COMPLETADA)
+✅ ETAPA 5:   Dashboard Web (Next.js, 7 vistas)        (COMPLETADA)
+✅ ETAPA 6:   Campañas + Template Rotation              (COMPLETADA)
+✅ ETAPA 7:   Seguridad + GDPR Compliance               (COMPLETADA)
+⏳ ETAPA 8:   Docker + Producción                       (SIGUIENTE)
+⏳ ETAPA 9:   Analytics e Inteligencia                   (BACKLOG)
+⏳ ETAPA 10:  Multi-tenancy + Escala                     (FUTURO)
 ```
 
 ---
 
-### ETAPA 4: Fundación Técnica 🔴 CRÍTICA → ✅ COMPLETADA
-**Duración:** 1 sprint | **Prioridad:** Máxima
+### ✅ ETAPA 1-3: Foundation + WhatsApp + Bot + CRM + CLI
+**Estado:** COMPLETADA
 
-**Objetivo:** Base técnica sólida para todo lo que viene.
-
-| # | Tarea | Rol principal | Archivos | Estado |
-|---|-------|--------------|----------|--------|
-| 4.1 | API REST endpoints (17) | Backend Dev | `src/api/routes/` | ✅ |
-| 4.2 | Tests unitarios (78 tests) | QA Automation | `tests/` | ✅ |
-| 4.3 | Input validation (Zod) | Backend Dev | `src/api/schemas/` | ✅ |
-| 4.4 | Error handling middleware | Backend Dev | `src/api/middleware/error.ts` | ✅ |
-| 4.5 | Logging estructurado (pino) | SRE | `src/utils/logger.ts` | ✅ |
-| 4.6 | Health check endpoint | SRE | `src/api/routes/health.ts` | ✅ |
-| 4.7 | GitHub Actions CI | DevOps | `.github/workflows/ci.yml` | ✅ |
-| 4.8 | Rate limiting + CORS + Helmet | Cybersecurity | `src/api/middleware/` | ✅ |
-
-**Entregable:** API funcional con tests, CI corriendo, código formateado. ✅
+| Componente | Detalle |
+|-----------|---------|
+| WhatsApp | Baileys multi-device, QR login |
+| Auto-reply | Groq + Ollama fallback, intent detection, escalation |
+| CRM | Contactos (CRUD, import, dedup, scoring) + Deals (7 etapas, follow-ups) |
+| Anti-ban | 5/6 capas (warm-up, gaussian, typing, horario, pausas) |
+| CLI | Interactivo con ANSI colors, tablas, progress bars |
+| Importador | CSV/XLSX/VCF/JSON, auto-mapeo, dedup 3 capas |
 
 ---
 
-### ETAPA 5: Dashboard Web 🟠 ALTA → ✅ COMPLETADA
-**Duración:** 1 sprint | **Prioridad:** Alta
+### ✅ ETAPA 4: Fundación Técnica
+**Estado:** COMPLETADA
 
-**Objetivo:** Interfaz web visual para el admin.
-
-| # | Tarea | Rol principal | Archivos | Estado |
-|---|-------|--------------|----------|--------|
-| 5.1 | Setup Next.js 16 + shadcn/ui | Frontend Dev | `dashboard/` | ✅ |
-| 5.2 | Auth simple (JWT + login) | Cybersecurity | `src/api/routes/auth.ts` | ✅ |
-| 5.3 | Vista Dashboard (KPIs) | Frontend + BI | `dashboard/src/app/page.tsx` | ✅ |
-| 5.4 | Vista Pipeline Kanban | Frontend + UX | `dashboard/src/app/pipeline/page.tsx` | ✅ |
-| 5.5 | Vista Contactos (tabla) | Frontend Dev | `dashboard/src/app/contactos/page.tsx` | ✅ |
-| 5.6 | Vista Chat (tiempo real) | Frontend Dev | `dashboard/src/app/chat/page.tsx` | ✅ |
-| 5.7 | Vista Configuración | Frontend Dev | `dashboard/src/app/config/page.tsx` | ✅ |
-| 5.8 | WebSocket para live updates | Backend Dev | Polling cada 10-15s (simplificado) | ✅ |
-| 5.9 | Responsive design | UX Designer | Sidebar + mobile layout | ✅ |
-
-**Entregable:** Dashboard funcional con 6 vistas, auth, auto-refresh. ✅
+| # | Tarea | Rol | Estado |
+|---|-------|-----|--------|
+| 4.1 | API REST endpoints (35+) | Backend Dev | ✅ |
+| 4.2 | Tests unitarios (101 tests) | QA Automation | ✅ |
+| 4.3 | Input validation (Zod 4) | Backend Dev | ✅ |
+| 4.4 | Error handling middleware | Backend Dev | ✅ |
+| 4.5 | Logging estructurado (pino) | SRE | ✅ |
+| 4.6 | Health check endpoint | SRE | ✅ |
+| 4.7 | GitHub Actions CI | DevOps | ✅ |
+| 4.8 | Rate limiting + CORS + Helmet | Cybersecurity | ✅ |
 
 ---
 
-### ETAPA 6: Campañas y Automatización 🟠 ALTA → ✅ COMPLETADA
-**Duración:** 1 sprint | **Prioridad:** Alta
+### ✅ ETAPA 5: Dashboard Web
+**Estado:** COMPLETADA
 
-**Objetivo:** Envío masivo inteligente con anti-ban.
-
-| # | Tarea | Rol principal | Archivos | Estado |
-|---|-------|--------------|----------|--------|
-| 6.1 | Campaign Engine | Backend Dev | `src/campaigns/engine.ts` | ✅ |
-| 6.2 | Template rotation (anti-ban capa 6) | Backend Dev | `src/campaigns/templates.ts` | ✅ |
-| 6.3 | Programación de campañas | Backend Dev | `src/campaigns/scheduler.ts` | ✅ |
-| 6.4 | A/B testing de mensajes | ML Engineer | Template variations + selection | ✅ |
-| 6.5 | Vista Campañas en dashboard | Frontend Dev | `dashboard/src/app/campaigns/` | ✅ |
-| 6.6 | Analytics de campañas | BI Analyst | Stats por campaña (sent/delivered/read/replied) | ✅ |
-
-**Entregable:** Crear, programar y ejecutar campañas con analytics. ✅
-
----
-
-### ETAPA 7: Seguridad y Compliance 🟡 MEDIA → ✅ COMPLETADA
-**Duración:** 1 sprint | **Prioridad:** Media
-
-**Objetivo:** Hardening de seguridad y GDPR compliance.
-
-| # | Tarea | Rol principal | Archivos | Estado |
-|---|-------|--------------|----------|--------|
-| 7.1 | JWT auth completo | Cybersecurity | `src/api/routes/auth.ts` | ✅ (Etapa 5) |
-| 7.2 | Rate limiting en API | Cybersecurity | `src/api/middleware/rate-limit.ts` | ✅ (Etapa 4) |
-| 7.3 | CORS + Helmet headers | Cybersecurity | `src/api/index.ts` | ✅ (Etapa 4) |
-| 7.4 | Audit log | SRE | `src/security/audit.ts` | ✅ |
-| 7.5 | Consent management | DPO | `src/api/routes/gdpr.ts` | ✅ |
-| 7.6 | Right to erasure endpoint | DPO | `src/api/routes/gdpr.ts` | ✅ |
-| 7.7 | Data retention policy | DPO | `src/security/retention.ts` | ✅ |
-| 7.8 | Data export (portability) | DPO | `src/api/routes/gdpr.ts` | ✅ |
-| 7.9 | Privacy policy + ToS | Legal | `docs/legal/` | ✅ |
-
-**Entregable:** Sistema seguro, GDPR-compliant, con audit trail. ✅
+| # | Tarea | Rol | Estado |
+|---|-------|-----|--------|
+| 5.1 | Setup Next.js 16 + shadcn/ui | Frontend Dev | ✅ |
+| 5.2 | Auth simple (JWT + login) | Cybersecurity | ✅ |
+| 5.3 | Vista Dashboard (KPIs) | Frontend + BI | ✅ |
+| 5.4 | Vista Pipeline Kanban | Frontend + UX | ✅ |
+| 5.5 | Vista Contactos (tabla) | Frontend Dev | ✅ |
+| 5.6 | Vista Chat | Frontend Dev | ✅ |
+| 5.7 | Vista Configuración | Frontend Dev | ✅ |
+| 5.8 | Polling para live updates | Backend Dev | ✅ |
+| 5.9 | Responsive design | UX Designer | ✅ |
 
 ---
 
-### ETAPA 8: Escalabilidad y Producción 🔵 MEDIA
-**Duración:** 2 semanas | **Prioridad:** Media
+### ✅ ETAPA 6: Campañas y Automatización
+**Estado:** COMPLETADA
+
+| # | Tarea | Rol | Estado |
+|---|-------|-----|--------|
+| 6.1 | Campaign Engine | Backend Dev | ✅ |
+| 6.2 | Template rotation (anti-ban capa 6) | Backend Dev | ✅ |
+| 6.3 | Programación de campañas | Backend Dev | ✅ |
+| 6.4 | A/B testing de mensajes | ML Engineer | ✅ |
+| 6.5 | Vista Campañas en dashboard | Frontend Dev | ✅ |
+| 6.6 | Analytics de campañas | BI Analyst | ✅ |
+
+---
+
+### ✅ ETAPA 7: Seguridad y Compliance
+**Estado:** COMPLETADA
+
+| # | Tarea | Rol | Estado |
+|---|-------|-----|--------|
+| 7.1 | JWT auth completo | Cybersecurity | ✅ |
+| 7.2 | Rate limiting en API | Cybersecurity | ✅ |
+| 7.3 | CORS + Helmet headers | Cybersecurity | ✅ |
+| 7.4 | Audit log | SRE | ✅ |
+| 7.5 | Consent management | DPO | ✅ |
+| 7.6 | Right to erasure endpoint | DPO | ✅ |
+| 7.7 | Data retention policy | DPO | ✅ |
+| 7.8 | Data export (portability) | DPO | ✅ |
+| 7.9 | Privacy policy + ToS | Legal | ✅ |
+
+---
+
+### ⏳ ETAPA 8: Docker + Producción
+**Duración:** 2 semanas | **Prioridad:** Alta | **Estado:** SIGUIENTE
 
 **Objetivo:** Deploy en producción, preparar para escala.
 
-| # | Tarea | Rol principal | Archivos | Estado |
-|---|-------|--------------|----------|--------|
-| 8.1 | Dockerfile multi-stage | DevOps | `Dockerfile` | ⏳ |
-| 8.2 | docker-compose (app + pg + redis) | DevOps | `docker-compose.yml` | ⏳ |
-| 8.3 | Migración SQLite → PostgreSQL | DBA | `src/db/migrations/` | ⏳ |
-| 8.4 | Redis para cache/queues | Backend Dev | `src/utils/cache.ts` | ⏳ |
-| 8.5 | Prometheus metrics | SRE | `src/utils/metrics.ts` | ⏳ |
-| 8.6 | Grafana dashboard | SRE | `monitoring/` | ⏳ |
-| 8.7 | Backup automatizado | DBA | `scripts/backup.sh` | ⏳ |
-| 8.8 | Nginx reverse proxy + SSL | DevOps | `nginx/` | ⏳ |
-| 8.9 | Deploy guide | DevOps | `docs/deploy.md` | ⏳ |
+| # | Tarea | Rol | Archivos | Dificultad |
+|---|-------|-----|----------|-----------|
+| 8.1 | Dockerfile multi-stage | DevOps | `Dockerfile` | Baja |
+| 8.2 | docker-compose.yml | DevOps | `docker-compose.yml` | Media |
+| 8.3 | Variables de entorno (.env) | DevOps | `.env.example` | Baja |
+| 8.4 | Nginx reverse proxy + SSL | DevOps | `nginx/` | Media |
+| 8.5 | Backup automatizado DB | DBA | `scripts/backup.sh` | Baja |
+| 8.6 | Deploy guide | DevOps | `docs/deploy.md` | Baja |
+| 8.7 | Health check mejorado | SRE | `src/api/routes/health.ts` | Baja |
+| 8.8 | Graceful shutdown verificado | Backend | `src/server.ts` | Baja |
 
-**Entregable:** Sistema deployeable en producción con monitoreo.
+**Entregable:** `docker-compose up` levanta todo el sistema listo para producción.
 
----
-
-### ETAPA 9: Analytics e Inteligencia 🟢 BAJA
-**Duración:** 2 semanas | **Prioridad:** Baja (futuro)
-
-**Objetivo:** Business intelligence y optimización basada en datos.
-
-| # | Tarea | Rol principal | Archivos | Estado |
-|---|-------|--------------|----------|--------|
-| 9.1 | Dashboard Analytics (Recharts) | Frontend + BI | `dashboard/app/analytics/` | ⏳ |
-| 9.2 | Conversion funnel analysis | Data Scientist | `src/analytics/funnel.ts` | ⏳ |
-| 9.3 | Sentiment trend tracking | ML Engineer | `src/analytics/sentiment.ts` | ⏳ |
-| 9.4 | Optimal timing analysis | Data Scientist | `src/analytics/timing.ts` | ⏳ |
-| 9.5 | Export reports (PDF/CSV) | Backend Dev | `src/analytics/export.ts` | ⏳ |
-| 9.6 | Conversation quality scoring | ML Engineer | `src/analytics/quality.ts` | ⏳ |
-
-**Entregable:** Analytics completo con gráficas y reportes exportables.
-
----
-
-### Resumen de Prioridades
-
-```
-🔴 CRÍTICA (hacer YA):
-   → API REST + Tests + CI/CD (Etapa 4)
-
-🟠 ALTA (próximo):
-   → Dashboard Web (Etapa 5)
-   → Campañas automáticas (Etapa 6)
-
-🟡 MEDIA (importante):
-   → Seguridad + GDPR (Etapa 7)
-   → Docker + Producción (Etapa 8)
-
-🟢 BAJA (futuro):
-   → Analytics avanzado (Etapa 9)
+**docker-compose.yml target:**
+```yaml
+services:
+  app:
+    build: .
+    ports: ["3000:3000"]
+    volumes: ["./data:/app/data"]
+    env_file: .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 ```
 
 ---
 
-## 13. Registro de Avances
+### ⏳ ETAPA 9: Analytics e Inteligencia
+**Duración:** 2 semanas | **Prioridad:** Media | **Estado:** BACKLOG
+
+| # | Tarea | Rol | Dificultad |
+|---|-------|-----|-----------|
+| 9.1 | Dashboard Analytics (Recharts) | Frontend + BI | Media |
+| 9.2 | Conversion funnel analysis | Data Scientist | Media |
+| 9.3 | Sentiment trend tracking | ML Engineer | Media |
+| 9.4 | Optimal timing analysis | Data Scientist | Baja |
+| 9.5 | Export reports (PDF/CSV) | Backend Dev | Media |
+| 9.6 | Conversation quality scoring | ML Engineer | Alta |
+
+---
+
+### ⏳ ETAPA 10: Multi-tenancy y Escala
+**Duración:** 3-4 semanas | **Prioridad:** Baja | **Estado:** FUTURO
+
+| # | Tarea | Rol | Dificultad |
+|---|-------|-----|-----------|
+| 10.1 | Migración SQLite → PostgreSQL | DBA | Alta |
+| 10.2 | Redis para cache/queues | Backend Dev | Media |
+| 10.3 | Multi-tenant support | Software Architect | Alta |
+| 10.4 | Prometheus metrics + Grafana | SRE | Media |
+| 10.5 | Load testing (k6) | QA Automation | Media |
+| 10.6 | Horizontal scaling (PM2 cluster) | DevOps | Media |
+
+---
+
+## 14. Registro de Avances
 
 > **Sección actualizada con cada "documentar"**
 
@@ -1347,11 +975,12 @@ ETAPA 9: Analytics e Inteligencia (Semana 13-14)
 | Campo | Valor |
 |-------|-------|
 | **Nombre** | MejoraWS |
-| **Fase** | Etapa 3 completada, funcional en CLI |
-| **Commits** | 26 |
-| **Documentos** | 1 (este archivo consolidado) + 2 legales + 1 prompt |
+| **Fase** | Etapas 1-7 completadas |
+| **Commits** | 20 |
 | **Tests** | 101 (11 archivos) |
-| **Último trabajo** | Etapa 7 completada + documentar + prompt continuidad |
+| **Endpoints API** | 35+ |
+| **Documentos** | 3 (este archivo + CONTINUITY-PROMPT + PROMPT) |
+| **Último trabajo** | Etapa 7 completada, documentación consolidada |
 
 ### Timeline
 
@@ -1368,94 +997,71 @@ ETAPA 9: Analytics e Inteligencia (Semana 13-14)
 | 27/04 | 00:29 | PROMPT.md | Prompt de continuidad |
 | 27/04 | 21:36 | Análisis completo | 36 roles evaluados |
 | 27/04 | 03:41 | Consolidación final | 5 docs → 1 documento maestro |
-| 28/04 | 03:41 | **Etapa 1-3 completada** | WhatsApp + Bot + CRM + CLI funcional |
-| 28/04 | 04:01 | Auditoría UX/UI | Análisis contra trends 2026 (Medium) |
-| 28/04 | 04:18 | Fix getStatus() | Bug: LLM status nunca se mostraba real |
-| 28/04 | 04:18 | CLI con colores | Nuevo módulo theme.ts con ANSI codes |
-| 28/04 | 04:26 | **documentar** | Consolidación de doc + fix de desfase |
-| 28/04 | 05:45 | **Reestructuración mayor** | Doc unificado + análisis 36 roles + plan 9 etapas |
-| 28/04 | 06:00 | **Etapa 4 completada** | API REST (17 endpoints) + 78 tests + CI/CD + logging |
-| 28/04 | 06:10 | **Etapa 5 completada** | Dashboard Next.js (6 vistas) + JWT auth |
-| 28/04 | 06:17 | **Etapa 6 completada** | Campañas automáticas + template rotation (anti-ban capa 6) |
-| 28/04 | 06:33 | **Etapa 7 completada** | Audit log + GDPR + data retention + legal docs |
-| 28/04 | 06:41 | **documentar** | Consolidación final sesión + prompt continuidad |
+| 28/04 | 03:41 | **Etapas 1-3 completadas** | WhatsApp + Bot + CRM + CLI funcional |
+| 28/04 | 04:01 | Auditoría UX/UI | Análisis contra trends 2026 |
+| 28/04 | 04:18 | Fix getStatus() | Bug: LLM status hardcoded |
+| 28/04 | 04:18 | CLI con colores | Nuevo theme.ts con ANSI |
+| 28/04 | 04:26 | **documentar** | Consolidación + fix |
+| 28/04 | 05:45 | Reestructuración mayor | Doc unificado + análisis 36 roles |
+| 28/04 | 06:00 | **Etapa 4 completada** | API REST + 78 tests + CI/CD |
+| 28/04 | 06:10 | **Etapa 5 completada** | Dashboard Next.js (6 vistas) |
+| 28/04 | 06:17 | **Etapa 6 completada** | Campañas automáticas |
+| 28/04 | 06:33 | **Etapa 7 completada** | Audit log + GDPR + legal |
+| 28/04 | 06:41 | **documentar** | Consolidación final sesión |
+| 29/04 | 00:19 | **documentar** | Optimización doc + plan actualizado |
 
 ### Decisiones Técnicas
 
 | Decisión | Valor | Justificación |
 |----------|-------|---------------|
 | WhatsApp | Baileys | SIN Meta API, $0 |
-| LLM primario | Groq API (qwen-2.5-32b) | Gratis, rápido |
+| LLM primario | Groq (qwen-2.5-32b) | Gratis, rápido |
 | LLM backup | Ollama (llama3.1:8b) | Local, sin internet |
-| Database | SQLite + better-sqlite3 | $0, WAL mode, sin servidor |
-| CLI styling | ANSI codes nativos | Cero dependencias externas |
-| Anti-ban | Gaussian delay + warmup | 6 capas (5/6 implementadas) |
+| Database | SQLite + better-sqlite3 | $0, WAL mode |
+| API Framework | Express + Zod | Ya era dependencia, Zod type-safe |
+| Dashboard | Next.js 16 + shadcn/ui | SSR, componentes pre-built |
+| Testing | Vitest + Supertest | Rápido, ESM nativo |
+| CI/CD | GitHub Actions | Nativo, matrix Node 20/22 |
+| Logging | Pino | JSON estructurado, bajo overhead |
+| Anti-ban | 6 capas | Máxima protección contra bans |
 | Documentación | 1 archivo consolidado | Simplicidad, trigger "documentar" |
-| API Framework | Express + Zod | Ya era dependencia, Zod para validación type-safe |
-| Testing | Vitest + Supertest | Rápido, nativo ESM, compatible con TypeScript |
-| CI/CD | GitHub Actions | Nativo en GitHub, matrix Node 20/22 |
-| Logging | Pino | JSON estructurado, bajo overhead, child loggers |
-| Costo | $0 | Todo local/gratis |
+| Costo total | $0 | Todo local/gratis |
 
 ### Bugs Corregidos
 
 | Bug | Archivo | Fix |
 |-----|---------|-----|
-| `getStatus()` devolvía `llm: 'checking...'` hardcoded | orchestrator.ts | Ahora es async y consulta `llm.getStatus()` real |
+| `getStatus()` devolvía `llm: 'checking...'` hardcoded | orchestrator.ts | Async + consulta real `llm.getStatus()` |
 | CLI sin colores | server.ts + 8 archivos | Nuevo theme.ts, todos los console.log usan theme |
-| `config.antiBan` no se usa | config/index.ts → rate-limiter.ts | Documentado como pendiente |
-| Schema SQLite sin columna `company` | database.ts | Agregada columna `company` a CREATE TABLE |
-| `req.params` typing en Express 5 | routes/*.ts | Cast explícito a `string` en todos los params |
-
-### Pendientes (Backlog)
-
-| Prioridad | Tarea | Etapa | Estado |
-|-----------|-------|-------|--------|
-| 🔴 Crítica | API REST endpoints | 4 | ✅ Completada |
-| 🔴 Crítica | Tests unitarios (78 tests) | 4 | ✅ Completada |
-| 🔴 Crítica | CI/CD (GitHub Actions) | 4 | ✅ Completada |
-| 🔴 Crítica | Logging estructurado (pino) | 4 | ✅ Completada |
-| 🔴 Crítica | Zod validation | 4 | ✅ Completada |
-| 🔴 Crítica | Rate limiting + error handling | 4 | ✅ Completada |
-| 🟠 Alta | Dashboard web (Next.js) | 5 | ✅ Completada |
-| 🟠 Alta | Campañas automáticas | 6 | ⏳ Siguiente |
-| 🟠 Alta | Template rotation (anti-ban capa 6) | 6 | ✅ Completada |
-| 🟡 Media | JWT Auth + Rate limiting | 7 | ✅ Completada |
-| 🟡 Media | GDPR compliance | 7 | ✅ Completada |
-| 🟡 Media | Docker + deploy | 8 | ⏳ Siguiente |
-| 🟢 Baja | Analytics avanzado | 9 | ⏳ Futuro |
-| 🟢 Baja | i18n (es + en) | — | ⏳ Futuro |
+| Schema SQLite sin columna `company` | database.ts | Agregada columna `company` |
+| `req.params` typing en Express 5 | routes/*.ts | Cast explícito a `string` |
 
 ---
 
-## 14. Trigger: "documentar"
+## 15. Protocolo: "documentar"
 
-### Protocolo
-
-Cuando el usuario diga **"documentar"**:
+### Trigger
+Cuando el usuario diga **"documentar"**, ejecutar automáticamente:
 
 1. Leer `Documents/MEJORAWS-DOCUMENTACION.md`
-2. Revisar cambios desde la última actualización (git log)
-3. Actualizar sección "Registro de Avances":
-   - Agregar entradas al timeline
-   - Actualizar estado general
-   - Actualizar decisiones técnicas
-   - Actualizar pendientes
-4. Si hay nuevos módulos: agregar a sección "Módulos Implementados"
-5. Si cambió el schema: actualizar "Modelo de Datos"
-6. Si hay nuevos comandos: actualizar "CLI"
-7. Si hay nueva etapa completada: actualizar "Plan Optimizado por Etapas"
-8. Commit: `docs: documentar — [resumen de cambios]`
-9. Push al repo
+2. Revisar cambios desde la última actualización (`git log`)
+3. Actualizar secciones:
+   - **Registro de Avances** → timeline, estado general, decisiones, pendientes
+   - **Módulos Implementados** → si hay módulos nuevos
+   - **Modelo de Datos** → si cambió el schema
+   - **API REST** → si hay nuevos endpoints
+   - **CLI** → si hay nuevos comandos
+   - **Plan por Etapas** → si se completó una etapa
+   - **Dashboard** → si hay nuevas vistas
+   - **Tests** → si hay nuevos tests
+4. Commit: `docs: documentar — [resumen de cambios]`
+5. Push al repo
 
 ### Instrucción para el asistente
-
-> Cuando el usuario diga "documentar", ejecutá el protocolo de arriba.
-> No preguntes qué documentar — asumí que querés actualizar TODO lo que cambió desde la última entrada del timeline.
-> El commit message debe resumir los cambios en una línea.
-> **IMPORTANTE:** Este es el ÚNICO documento de documentación. No crear otros archivos de doc.
+> No preguntes qué documentar. Asumí que querés actualizar TODO lo que cambió desde la última entrada del timeline. El commit message resume los cambios en una línea.
+> **DOCUMENTO ÚNICO:** Este es el único archivo de documentación. No crear otros archivos de doc en `Documents/`.
 
 ---
 
-*Última actualización: 28 abril 2026, 06:41 GMT+8*
-*Etapas 1-7 completadas · 101 tests · 26 commits · Listo para Etapa 8 (Docker + Producción)*
+*Última actualización: 29 abril 2026, 00:19 GMT+8*
+*Etapas 1-7 completadas · 101 tests · 20 commits · 35+ endpoints · Listo para Etapa 8 (Docker + Producción)*

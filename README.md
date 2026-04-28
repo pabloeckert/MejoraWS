@@ -5,16 +5,21 @@
 
 ## Estado actual
 
-✅ **Etapas 1-3 completadas** — CLI funcional con colores
+✅ **Etapas 1-7 completadas** — Sistema funcional
 
 - WhatsApp connection (Baileys multi-device)
-- Auto-reply IA (Groq + Ollama)
+- Auto-reply IA (Groq + Ollama fallback)
 - CRM con contactos + pipeline de deals
 - Importador CSV/XLSX/VCF/JSON
-- Anti-ban (Gaussian delay, typing sim, warm-up 14d)
+- Anti-ban 6 capas (warm-up 14d, Gaussian delay, typing sim, template rotation)
 - CLI interactivo con colores ANSI
+- API REST (35+ endpoints, Zod validation, rate limiting)
+- Dashboard web (Next.js 16 + shadcn/ui, 7 vistas)
+- Campañas automáticas con A/B testing
+- JWT auth, audit log, GDPR compliance
+- Tests (101), CI/CD (GitHub Actions)
 
-⏳ **Siguiente:** Dashboard web (Next.js)
+⏳ **Siguiente:** Etapa 8 — Docker + Producción
 
 ## Quick Start
 
@@ -32,7 +37,8 @@ npm install
 export GROQ_API_KEY=tu-key-aqui
 
 # 4. Ejecutar
-npm run dev
+npm run dev          # Backend + CLI + API en puerto 3000
+cd dashboard && npm run dev  # Dashboard en puerto 3001
 ```
 
 ## CLI
@@ -44,6 +50,8 @@ npm run dev
 🚀 mejoraws> /importar data.csv  # Importar contactos
 🚀 mejoraws> /pipeline       # Ver pipeline Kanban
 🚀 mejoraws> /config         # Config del bot
+🚀 mejoraws> /enviar <nro> <msg>  # Enviar mensaje
+🚀 mejoraws> /followups      # Follow-ups pendientes
 ```
 
 ## Stack ($0)
@@ -52,8 +60,11 @@ npm run dev
 WhatsApp:  Baileys (SIN Meta API)
 LLM:       Groq API (gratis) + Ollama (backup local)
 Database:  SQLite + better-sqlite3
-CLI:       ANSI codes nativos (sin deps externas)
-Frontend:  Next.js + TailwindCSS + shadcn/ui (próximo)
+API:       Express + Zod + Helmet + CORS
+CLI:       ANSI codes nativos
+Dashboard: Next.js 16 + shadcn/ui + Tailwind v4
+Testing:   Vitest + Supertest (101 tests)
+CI/CD:     GitHub Actions (Node 20/22)
 Costo:     $0
 ```
 
@@ -63,6 +74,8 @@ Costo:     $0
 |-----------|-------------|
 | [Documents/MEJORAWS-DOCUMENTACION.md](Documents/MEJORAWS-DOCUMENTACION.md) | **📚 Documento maestro ÚNICO** — TODA la documentación + análisis 360° + plan por etapas |
 | [Documents/CONTINUITY-PROMPT.md](Documents/CONTINUITY-PROMPT.md) | **🔄 Prompt de continuidad** — Pegar al inicio de nueva sesión |
+| [docs/legal/PRIVACY-POLICY.md](docs/legal/PRIVACY-POLICY.md) | Privacy Policy (GDPR compliant) |
+| [docs/legal/TERMS-OF-SERVICE.md](docs/legal/TERMS-OF-SERVICE.md) | Terms of Service |
 
 > **Trigger:** Cuando digas **"documentar"**, se actualizan los avances en el documento maestro.
 > **Trigger:** Cuando digas **"Mimo llame lee bien esto y seguimos"**, se lee el prompt de continuidad.
@@ -71,12 +84,16 @@ Costo:     $0
 
 | Etapa | Entregable | Estado |
 |-------|-----------|--------|
-| 1 | WhatsApp + envío/recepción + anti-ban | ✅ |
+| 1 | WhatsApp + envío/recepción + anti-ban (5 capas) | ✅ |
 | 2 | Bot IA auto-reply + orchestrator | ✅ |
 | 3 | CRM + importador + pipeline | ✅ |
-| 4 | Campañas automáticas | ⏳ Backlog |
-| 5 | Dashboard web (Next.js) | ⏳ **Siguiente** |
-| 6 | Sistema 100% autónomo | ⏳ Backlog |
+| 4 | API REST + Tests + CI/CD + Logging | ✅ |
+| 5 | Dashboard web (Next.js, 7 vistas) | ✅ |
+| 6 | Campañas automáticas + template rotation (anti-ban 6/6) | ✅ |
+| 7 | Seguridad + GDPR + Legal | ✅ |
+| 8 | Docker + Producción | ⏳ **Siguiente** |
+| 9 | Analytics e Inteligencia | ⏳ Backlog |
+| 10 | Multi-tenancy y Escala | ⏳ Futuro |
 
 ---
-*$0 · Sin Meta API · 6 módulos · Etapas 1-3 completadas*
+*$0 · Sin Meta API · 10 módulos · Etapas 1-7 completadas · 101 tests · 35+ endpoints*
