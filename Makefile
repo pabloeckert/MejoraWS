@@ -4,7 +4,19 @@
 # Uso: make <comando>
 # ============================================
 
-.PHONY: help dev build start stop restart logs backup clean
+.PHONY: help dev build start stop restart logs backup clean setup test
+
+setup: ## Setup inicial (instalar deps + copiar .env)
+	@test -f .env || (cp .env.example .env && echo "✅ .env creado desde .env.example — editalo con tus keys")
+	npm install
+	cd dashboard && npm install
+	@echo ""
+	@echo "✅ Setup completo. Próximos pasos:"
+	@echo "   1. Editar .env con GROQ_API_KEY y JWT_SECRET"
+	@echo "   2. make dev"
+
+test: ## Ejecutar tests
+	npm test
 
 help: ## Mostrar ayuda
 	@echo "╔═══════════════════════════════════════════╗"

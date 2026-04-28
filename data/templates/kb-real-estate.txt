@@ -1,0 +1,40 @@
+INFORMACIÓN DEL NEGOCIO — INMOBILIARIA
+(Modificar con tus datos reales antes de usar)
+
+SOBRE NOSOTROS:
+Somos una inmobiliaria especializada en [venta/alquiler] de propiedades en [zona/ciudad]. 
+Con más de [X] años de experiencia, ayudamos a encontrar el hogar ideal.
+
+PROPIEDADES DISPONIBLES:
+- Departamento 2 ambientes en [zona], $XX.XXX — [m2] m², [amenities]
+- Casa 3 dormitorios en [zona], $XX.XXX — [m2] m², garage, jardín
+- Local comercial en [zona], $XX.XXX — [m2] m², excelente ubicación
+(Actualizar con propiedades reales)
+
+SERVICIOS:
+- Tasación gratuita
+- Asesoramiento legal incluido
+- Gestión de hipotecas
+- Administración de propiedades
+
+FORMAS DE PAGO:
+- Efectivo
+- Transferencia bancaria
+- Financiación hasta [X] cuotas
+- Aceptamos [moneda extranjera/opciones]
+
+HORARIOS:
+Lunes a Viernes: 9:00 - 18:00
+Sábados: 10:00 - 14:00
+Domingos: Cerrado
+
+CONTACTO:
+Teléfono: +XX XXXX-XXXX
+Email: info@tu-inmobiliaria.com
+Dirección: Calle X 123, Ciudad
+
+PREGUNTAS FRECUENTES:
+- ¿Cuánto cuesta una propiedad en [zona]? → Depende del tipo y tamaño. ¿Buscás algo específico?
+- ¿Tienen departamentos para alquilar? → Sí, ¿en qué zona te interesa?
+- ¿Hacen tasaciones? → Sí, ofrecemos tasación gratuita sin compromiso.
+- ¿Cuánto demora una compra? → Entre 30 y 60 días aproximadamente.

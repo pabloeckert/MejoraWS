@@ -287,6 +287,55 @@ async function main() {
       process.exit(0)
     }
 
+    // === WEBHOOKS ===
+    else if (input === '/webhooks') {
+      const webhooks = orchestrator.webhooks.list()
+      if (webhooks.length === 0) {
+        console.log(status.info('No hay webhooks configurados'))
+      } else {
+        console.log('')
+        console.log(c('bold', '🔗 Webhooks:'))
+        for (const wh of webhooks) {
+          const statusIcon = wh.active ? c('green', '●') : c('red', '○')
+          console.log(`  ${statusIcon} ${c('bold', wh.url)} — ${wh.events.join(', ')} (fallos: ${wh.failure_count})`)
+        }
+        console.log('')
+      }
+    }
+
+    // === QUALITY ===
+    else if (input === '/quality' || input === '/calidad') {
+      const { ConversationQualityScorer } = await import('./brain/conversation-quality')
+      const scorer = new ConversationQualityScorer(orchestrator.getDB())
+      const stats = scorer.getStats(5)
+      console.log('')
+      console.log(c('bold', '📊 Calidad de Conversaciones:'))
+      console.log(`  Total: ${c('cyan', String(stats.totalConversations))}`)
+      console.log(`  Score promedio: ${c('yellow', String(stats.avgQualityScore))}/100`)
+      console.log(`  Auto-resolución: ${c('green', stats.autoResolutionRate + '%')}`)
+      console.log(`  Escalamiento: ${c('red', stats.escalationRate + '%')}`)
+      if (stats.topConversations.length > 0) {
+        console.log(c('bold', '  Top conversaciones:'))
+        for (const conv of stats.topConversations.slice(0, 3)) {
+          console.log(`    ${conv.contactName || conv.phone}: ${conv.qualityScore}/100 — ${conv.summary}`)
+        }
+      }
+      console.log('')
+    }
+
+    // === TEMPLATES ===
+    else if (input === '/templates') {
+      const { getAvailableTemplates } = await import('./brain/prompt-templates')
+      const templates = getAvailableTemplates()
+      console.log('')
+      console.log(c('bold', '🏭 Templates por Industria:'))
+      for (const t of templates) {
+        console.log(`  ${c('cyan', t.id)} — ${c('bold', t.name)}: ${t.description}`)
+      }
+      console.log(`\n  ${c('dim', 'Usar: /config → industry: <id>')}`)
+      console.log('')
+    }
+
     // === DESCONOCIDO ===
     else if (input.startsWith('/')) {
       console.log(status.err(`Comando desconocido: ${c('bold', input)}. Escribí ${c('cyan', '/ayuda')}`))
@@ -328,6 +377,11 @@ function printHelp() {
   console.log(c('cyan', '║') + '    ' + c('brightWhite', '/estado') + c('white', '                       Ver estado del sistema') + '   ' + c('cyan', '║'))
   console.log(c('cyan', '║') + '    ' + c('brightWhite', '/kb') + c('dim', ' <texto>') + c('white', '                   Actualizar knowledge base') + c('cyan', '║'))
   console.log(c('cyan', '║') + '    ' + c('brightWhite', '/config') + c('white', '                       Ver config del bot') + '       ' + c('cyan', '║'))
+  console.log(c('cyan', '║') + '                                                           ' + c('cyan', '║'))
+  console.log(c('cyan', '║') + c('brightCyan', 'bold', '  🔗 Integraciones:') + '                                         ' + c('cyan', '║'))
+  console.log(c('cyan', '║') + '    ' + c('brightWhite', '/webhooks') + c('white', '                     Ver webhooks') + '               ' + c('cyan', '║'))
+  console.log(c('cyan', '║') + '    ' + c('brightWhite', '/templates') + c('white', '                     Ver templates industria') + '    ' + c('cyan', '║'))
+  console.log(c('cyan', '║') + '    ' + c('brightWhite', '/quality') + c('white', '                       Calidad conversaciones') + '   ' + c('cyan', '║'))
   console.log(c('cyan', '║') + '                                                           ' + c('cyan', '║'))
   console.log(c('cyan', '║') + '    ' + c('brightWhite', '/ayuda') + c('white', '                        Ver esta ayuda') + '           ' + c('cyan', '║'))
   console.log(c('cyan', '║') + '    ' + c('brightWhite', '/salir') + c('white', '                        Desconectar y salir') + '      ' + c('cyan', '║'))

@@ -1,0 +1,43 @@
+INFORMACIÓN DEL NEGOCIO — E-COMMERCE / TIENDA
+(Modificar con tus datos reales antes de usar)
+
+SOBRE NOSOTROS:
+[Tu Tienda] es tu tienda online de [categoría: ropa, electrónica, hogar, etc.].
+Envíos a todo el país. Calidad garantizada.
+
+CATÁLOGO DESTACADO:
+- [Producto 1]: $XX.XXX — [Descripción breve]
+- [Producto 2]: $XX.XXX — [Descripción breve]
+- [Producto 3]: $XX.XXX — [Descripción breve]
+(Actualizar con productos reales)
+
+ENVIOS:
+- Envío gratis a partir de $XX.XXX
+- Envío estándar: $X.XXX (3-5 días hábiles)
+- Envío express: $X.XXX (24-48hs)
+- Retiro en tienda: Gratis
+
+FORMAS DE PAGO:
+- Tarjeta de crédito/débito (hasta X cuotas sin interés)
+- Transferencia bancaria (10% descuento)
+- Efectivo (pago contra entrega en [zona])
+- Mercado Pago
+
+POLÍTICA DE DEVOLUCIONES:
+- 30 días para cambios y devoluciones
+- Producto sin usar con etiquetas
+- Devolución gratis por productos defectuosos
+
+GARANTÍA:
+- Todos nuestros productos tienen garantía de [X] meses
+- Soporte técnico incluido
+
+HORARIOS DE ATENCIÓN:
+Lunes a Viernes: 8:00 - 20:00
+Sábados: 9:00 - 15:00
+
+PREGUNTAS FRECUENTES:
+- ¿Cuánto tarda el envío? → 3-5 días hábiles estándar, 24-48hs express.
+- ¿Puedo devolver un producto? → Sí, tenés 30 días. Sin cargo por defectos.
+- ¿Tienen descuento por cantidad? → Sí, pedidos mayores a [X] unidades tienen descuento.
+- ¿Hacen envíos al interior? → Sí, a todo el país.
