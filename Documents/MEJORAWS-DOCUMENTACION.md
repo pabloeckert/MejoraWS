@@ -2,7 +2,7 @@
 
 > **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los trabajos realizados.
 > **Carpeta:** `Documents/` — documentación única del proyecto.
-> **Última actualización:** 29 abril 2026, 06:25 GMT+8
+> **Última actualización:** 29 abril 2026, 06:37 GMT+8
 
 ---
 
@@ -40,8 +40,8 @@
 | **Versión** | 0.1.0 (producción-ready) |
 | **Etapas completadas** | 11 de 11 (Fase 1 completa) |
 | **Costo total** | $0 (Groq gratis + Ollama local + SQLite) |
-| **Tests** | 149 (17 archivos) — todos passing |
-| **Endpoints API** | 53+ (SSE events nuevo) |
+| **Tests** | 162 (19 archivos) — todos passing |
+| **Endpoints API** | 58+ |
 | **Archivos fuente** | 49 (backend TS) + 29 (frontend TSX/TS) |
 | **Líneas de código** | ~7,000 (backend) + ~3,600 (frontend) |
 | **Módulos** | 20 componentes funcionales |
@@ -1841,10 +1841,10 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 | # | Tarea | Rol | Prioridad | Estado |
 |---|-------|-----|-----------|--------|
-| 14.1 | Fine-tuning prompts por industria | ML Engineer | 🟡 Media | ❌ |
-| 14.2 | RAG con embeddings (knowledge base mejorada) | ML Engineer | 🟡 Media | ❌ |
+| 14.1 | Fine-tuning prompts por industria (6 templates) | ML Engineer | 🟡 Media | ✅ |
+| 14.2 | RAG con embeddings (knowledge base mejorada) | ML Engineer | 🟡 Media | ⏳ |
 | 14.3 | Predictive lead scoring | Data Scientist | 🟡 Media | ❌ |
-| 14.4 | Conversation quality scoring automatizado | ML Engineer | 🟢 Baja | ❌ |
+| 14.4 | Conversation quality scoring automatizado | ML Engineer | 🟢 Baja | ✅ |
 | 14.5 | Anomaly detection en métricas | Data Scientist | 🟢 Baja | ❌ |
 
 #### Etapa 15: Seguridad Avanzada
@@ -1852,7 +1852,7 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 | # | Tarea | Rol | Prioridad | Estado |
 |---|-------|-----|-----------|--------|
-| 15.1 | MFA (multi-factor auth) para admin | Cybersecurity | 🟡 Media | ❌ |
+| 15.1 | MFA (TOTP Google Authenticator) | Cybersecurity | 🟡 Media | ✅ |
 | 15.2 | Secrets vault (HashiCorp Vault) | DevOps | 🟡 Media | ❌ |
 | 15.3 | Automatizar Art. 18 (limitación tratamiento) | DPO | 🟢 Baja | ❌ |
 | 15.4 | Automatizar Art. 21 (oposición) | DPO | 🟢 Baja | ❌ |
@@ -1863,8 +1863,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 | # | Tarea | Rol | Prioridad | Estado |
 |---|-------|-----|-----------|--------|
-| 16.1 | API pública documentada | Backend Dev | 🟡 Media | ❌ |
-| 16.2 | Webhook system para eventos | Backend Dev | 🟡 Media | ❌ |
+| 16.1 | API pública documentada (docs/api.md) | Backend Dev | 🟡 Media | ✅ |
+| 16.2 | Webhook system (9 eventos + HMAC) | Backend Dev | 🟡 Media | ✅ |
 | 16.3 | Integración Zapier/Make | Backend Dev | 🟢 Baja | ❌ |
 | 16.4 | Plugin Shopify/WooCommerce | Business Dev | 🟢 Baja | ❌ |
 | 16.5 | CRM import/export (HubSpot, Pipedrive) | Data Engineer | 🟢 Baja | ❌ |
@@ -1874,8 +1874,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 
 | # | Tarea | Rol | Prioridad | Estado |
 |---|-------|-----|-----------|--------|
-| 17.1 | react-intl en dashboard | Frontend Dev | 🟡 Media | ❌ |
-| 17.2 | Bot messages EN translation | UX Writer | 🟡 Media | ❌ |
+| 17.1 | Dashboard i18n ES/EN (sin deps externas) | Frontend Dev | 🟡 Media | ✅ |
+| 17.2 | Bot messages EN translation | UX Writer | 🟡 Media | ⏳ |
 | 17.3 | Preparar estructura para PT, FR | Localization Mgr | 🟢 Baja | ❌ |
 
 ---
@@ -1974,8 +1974,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | **Archivos fuente** | 49 (backend) + 29 (frontend) |
 | **Líneas de código** | ~7,000 (backend) + ~3,600 (frontend) |
 | **Documentos** | 4 (este + CONTINUITY-PROMPT + DPIA + deploy) |
-| **Último trabajo** | Fase 2 iniciada — SSE, wizard, PWA, pagination |
-| **Siguiente** | Continuar Fase 2 (Etapa 14-17) |
+| **Último trabajo** | Fase 2 avanzada — MFA, webhooks, templates, i18n, API docs |
+| **Siguiente** | Beta ready — deploy + testing final |
 
 ### Timeline
 
@@ -2011,6 +2011,8 @@ Es aplicación web, no mobile store. SEO para dashboard web es lo relevante (ver
 | 29/04 | 04:36 | **Etapa 11 completada** | Hardening: AES-256, breach GDPR, DPIA, E2E, i18n, dark mode, coverage CI |
 | 29/04 | 06:09 | **documentar** | Doc consolidado reorganizado con Fase 2/3 |
 | 29/04 | 06:25 | **Fase 2 kickoff** | SSE real-time + onboarding wizard + cursor pagination + PWA + first-time hints (149 tests, 22 archivos nuevos) |
+| 29/04 | 06:33 | **Fase 2 batch 2** | Prompt templates (6 industrias) + conversation quality scoring + webhooks + dashboard i18n ES/EN (162 tests) |
+| 29/04 | 06:37 | **Fase 2 batch 3** | MFA TOTP + API docs completo + industry templates integrados (162 tests, 58+ endpoints) |
 
 ---
 
@@ -2095,5 +2097,5 @@ Cuando inicies una nueva sesión con **"Mimo llame lee bien esto y seguimos"**:
 
 ---
 
-*Última actualización: 29 abril 2026, 06:25 GMT+8*
-*Fase 1 completa + Fase 2 en progreso · 149 tests · 31+ commits · 53+ endpoints · ~12,000 LOC · $0*
+*Última actualización: 29 abril 2026, 06:37 GMT+8*
+*Fase 1 completa + Fase 2 avanzada · 162 tests · 33+ commits · 58+ endpoints · ~14,000 LOC · $0*
