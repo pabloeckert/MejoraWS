@@ -21,6 +21,7 @@ import { metricsRouter, metricsMiddleware } from './routes/metrics'
 import { breachRouter } from './routes/breach'
 import { eventsRouter } from './routes/events'
 import { webhooksRouter } from './routes/webhooks'
+import { mfaRouter } from './routes/mfa'
 import { childLogger } from '../utils/logger'
 
 const log = childLogger('api')
@@ -69,6 +70,7 @@ export function createApi(orchestrator: Orchestrator): express.Application {
   app.use('/api/v1/breach', breachRouter(orchestrator.breach))
   app.use('/api/v1/events', eventsRouter(orchestrator))
   app.use('/api/v1/webhooks', webhooksRouter(orchestrator.webhooks))
+  app.use('/api/v1/mfa', mfaRouter(orchestrator.mfa))
 
   // === ERROR HANDLING ===
   app.use(notFoundHandler)

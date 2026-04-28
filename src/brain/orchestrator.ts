@@ -18,6 +18,7 @@ import { AuditLogger } from '../security/audit'
 import { DataRetention } from '../security/retention'
 import { BreachManager } from '../security/breach'
 import { WebhookManager } from '../integrations/webhooks'
+import { MFAManager } from '../security/mfa'
 import { c, status, box } from '../cli/theme'
 import { SSEEvents } from '../api/routes/events'
 import Database from 'better-sqlite3'
@@ -49,6 +50,7 @@ export class Orchestrator {
 
   // Integrations
   public webhooks: WebhookManager
+  public mfa: MFAManager
 
   constructor() {
     this.config = loadConfig()
@@ -80,6 +82,7 @@ export class Orchestrator {
 
     // Integrations
     this.webhooks = new WebhookManager(this.db)
+    this.mfa = new MFAManager(this.db)
   }
 
   /**
