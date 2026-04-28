@@ -150,7 +150,14 @@ class RedisCache implements CacheAdapter {
 export async function createCache(redisUrl?: string): Promise<CacheAdapter> {
   if (redisUrl) {
     try {
-      const Redis = (await import('ioredis')).default
+      // Dynamic import with require fallback (ioredis is optional)
+      let Redis: any
+      try {
+        Redis = (await import(/* webpackIgnore: true */ 'ioredis' as any)).default
+      } catch {
+        // Fallback to require for environments where dynamic import fails
+        Redis = require('ioredis')
+      }
       const client = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
         retryStrategy: (times: number) => {

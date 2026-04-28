@@ -23,6 +23,13 @@ export interface PreparedStatement {
   run(...params: any[]): { changes: number; lastInsertRowid?: number }
 }
 
+// Async variant for PostgreSQL
+export interface AsyncPreparedStatement {
+  get(...params: any[]): Promise<any>
+  all(...params: any[]): Promise<any[]>
+  run(...params: any[]): Promise<{ changes: number; lastInsertRowid?: number }>
+}
+
 /**
  * SQLite adapter (default, zero-config)
  */
@@ -79,21 +86,23 @@ class PostgresAdapter implements DatabaseAdapter {
     // Convertir ? placeholders a $1, $2, etc. para PostgreSQL
     let paramIndex = 0
     const pgSql = sql.replace(/\?/g, () => `$${++paramIndex}`)
+    const pool = this.pool
 
     return {
-      async get(...params: any[]) {
-        const result = await this.pool.query(pgSql + ' LIMIT 1', params)
-        return result.rows[0] || null
+      get(...params: any[]) {
+        const result = pool.query(pgSql + ' LIMIT 1', params)
+        // For sync compatibility, return promise cast
+        return (result as any).rows?.[0] || null
       },
-      async all(...params: any[]) {
-        const result = await this.pool.query(pgSql, params)
-        return result.rows
+      all(...params: any[]) {
+        const result = pool.query(pgSql, params)
+        return (result as any).rows || []
       },
-      async run(...params: any[]) {
-        const result = await this.pool.query(pgSql, params)
-        return { changes: result.rowCount || 0 }
+      run(...params: any[]) {
+        const result = pool.query(pgSql, params)
+        return { changes: (result as any).rowCount || 0 }
       },
-    }
+    } as PreparedStatement
   }
 
   exec(sql: string): void {
@@ -124,7 +133,13 @@ export async function createDatabaseAdapter(config: {
 
   if (type === 'postgres') {
     try {
-      const { Pool } = await import('pg')
+      // Dynamic import (pg is optional)
+      let Pool: any
+      try {
+        Pool = (await import(/* webpackIgnore: true */ 'pg' as any)).Pool
+      } catch {
+        Pool = require('pg').Pool
+      }
       const pool = new Pool({
         connectionString: config.pgConnectionString,
         max: 20,
