@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express'
 import { Orchestrator } from '../../brain/orchestrator'
 import { AutoReplyEngine } from '../../brain/auto-reply'
+import { getAvailableTemplates } from '../../brain/prompt-templates'
 import { childLogger } from '../../utils/logger'
 
 const log = childLogger('api:status')
@@ -40,6 +41,12 @@ export function statusRouter(orchestrator: Orchestrator) {
     const config = orchestrator.getAutoReply().getConfig()
     log.info('Bot config updated via API')
     res.json({ data: config })
+  })
+
+  // Get available industry templates
+  router.get('/templates', (_req: Request, res: Response) => {
+    const templates = getAvailableTemplates()
+    res.json({ data: templates })
   })
 
   // Update knowledge base

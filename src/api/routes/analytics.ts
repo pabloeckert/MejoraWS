@@ -3,6 +3,7 @@
 
 import { Router, Request, Response } from 'express'
 import Database from 'better-sqlite3'
+import { ConversationQualityScorer } from '../../brain/conversation-quality'
 import { childLogger } from '../../utils/logger'
 
 const log = childLogger('api:analytics')
@@ -247,74 +248,32 @@ export function analyticsRouter(db: Database.Database) {
   })
 
   // === GET /api/v1/analytics/quality ===
-  // Conversation quality scoring
+  // Conversation quality scoring (enhanced with per-conversation scores)
   router.get('/quality', (_req: Request, res: Response) => {
     try {
-      // Average messages per conversation
-      const avgMsgs = db.prepare(`
-        SELECT
-          contact_phone,
-          COUNT(*) as msg_count
-        FROM messages
-        GROUP BY contact_phone
-      `).all()
-
-      const totalConversations = (avgMsgs as any[]).length
-      const avgMessagesPerConv = totalConversations > 0
-        ? Math.round((avgMsgs as any[]).reduce((sum, r) => sum + r.msg_count, 0) / totalConversations)
-        : 0
-
-      // Conversations with escalation (keywords in activities)
-      const escalations = db.prepare(`
-        SELECT COUNT(DISTINCT contact_phone) as count
-        FROM activities
-        WHERE type = 'escalation'
-          AND created_at >= datetime('now', '-30 days')
-      `).get() as any
-
-      // Auto-reply success (messages with outbound that didn't escalate)
-      const autoReplied = db.prepare(`
-        SELECT COUNT(DISTINCT m.contact_phone) as count
-        FROM messages m
-        WHERE m.direction = 'outbound'
-          AND m.contact_phone NOT IN (
-            SELECT DISTINCT contact_phone FROM activities WHERE type = 'escalation'
-          )
-      `).get() as any
-
-      const autoResolutionRate = totalConversations > 0
-        ? Math.round((autoReplied.count / totalConversations) * 100)
-        : 0
-
-      // Intent distribution
-      const intents = db.prepare(`
-        SELECT
-          COALESCE(
-            json_extract(metadata, '$.intent'),
-            'UNKNOWN'
-          ) as intent,
-          COUNT(*) as count
-        FROM activities
-        WHERE type = 'auto-reply'
-          AND created_at >= datetime('now', '-30 days')
-        GROUP BY intent
-        ORDER BY count DESC
-        LIMIT 10
-      `).all()
-
-      res.json({
-        data: {
-          totalConversations,
-          avgMessagesPerConv,
-          escalationRate: totalConversations > 0
-            ? Math.round((escalations.count / totalConversations) * 100)
-            : 0,
-          autoResolutionRate,
-          intents,
-        },
-      })
+      const scorer = new ConversationQualityScorer(db)
+      const limit = parseInt(_req.query.limit as string) || 10
+      const stats = scorer.getStats(limit)
+      res.json({ data: stats })
     } catch (err: any) {
       log.error({ err }, 'Error getting quality')
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  // === GET /api/v1/analytics/quality/:phone ===
+  // Quality score for a specific conversation
+  router.get('/quality/:phone', (req: Request, res: Response) => {
+    try {
+      const scorer = new ConversationQualityScorer(db)
+      const score = scorer.scoreConversation(req.params.phone as string)
+      if (!score) {
+        res.status(404).json({ error: 'No conversation found for this phone' })
+        return
+      }
+      res.json({ data: score })
+    } catch (err: any) {
+      log.error({ err }, 'Error scoring conversation')
       res.status(500).json({ error: err.message })
     }
   })

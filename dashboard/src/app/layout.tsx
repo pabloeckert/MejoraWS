@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { SSEProvider } from "@/lib/sse-context";
+import { I18nProvider } from "@/lib/i18n";
 import { PWARegister } from "@/components/pwa-register";
 
 const geistSans = Geist({
@@ -39,9 +40,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PWARegister />
-        <AuthProvider>
-          <SSEProvider>{children}</SSEProvider>
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <SSEProvider>{children}</SSEProvider>
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );

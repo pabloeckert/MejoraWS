@@ -5,12 +5,15 @@ import { LLMManager } from '../llm'
 import { c, status } from '../cli/theme'
 import Database, { Database as DatabaseType } from 'better-sqlite3'
 import { generateId } from '../db/database'
+import { getTemplateByIndustry, buildPromptFromTemplate, getAvailableTemplates, PromptTemplate } from './prompt-templates'
 
 export interface BotConfig {
   name: string
   personality: string
   tone: string
   language: string
+  industry: string  // Industry template ID (e.g., 'ecommerce', 'real-estate', 'services', 'general')
+  companyName: string
   schedule: { start: number; end: number }
   escalation: {
     keywords: string[]
@@ -32,6 +35,8 @@ const DEFAULT_CONFIG: BotConfig = {
   personality: 'Soy María, asesora de ventas. Respondo de forma clara, amable y profesional. Nunca sueno a robot. Si no sé algo, lo digo honestamente.',
   tone: 'profesional-cercano',
   language: 'español',
+  industry: 'general',
+  companyName: '',
   schedule: { start: 8, end: 20 },
   escalation: {
     keywords: ['hablar con alguien', 'agente', 'urgente', 'supervisor', 'jefe'],
@@ -165,8 +170,22 @@ export class AutoReplyEngine {
     context: ConversationContext,
     intent: string
   ): Promise<string> {
-    // Construir system prompt
-    const systemPrompt = `${this.config.personality}
+    // Build system prompt using industry template
+    let systemPrompt: string
+
+    if (this.config.industry && this.config.industry !== 'custom') {
+      // Use industry-specific template
+      const template = getTemplateByIndustry(this.config.industry)
+      systemPrompt = buildPromptFromTemplate(template, {
+        name: this.config.name,
+        company: this.config.companyName || undefined,
+        knowledge: this.knowledgeBase || undefined,
+        intent,
+        dealStage: context.dealStage,
+      })
+    } else {
+      // Fallback to custom personality
+      systemPrompt = `${this.config.personality}
 
 Tu nombre es ${this.config.name}.
 Tono: ${this.config.tone}
@@ -184,6 +203,7 @@ Reglas:
 
 Intención detectada: ${intent}
 ${context.dealStage ? `Estado del deal: ${context.dealStage}` : ''}`
+    }
 
     // Construir historial para el LLM
     const messages = [

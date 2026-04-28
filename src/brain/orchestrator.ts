@@ -17,6 +17,7 @@ import { CampaignScheduler } from '../campaigns/scheduler'
 import { AuditLogger } from '../security/audit'
 import { DataRetention } from '../security/retention'
 import { BreachManager } from '../security/breach'
+import { WebhookManager } from '../integrations/webhooks'
 import { c, status, box } from '../cli/theme'
 import { SSEEvents } from '../api/routes/events'
 import Database from 'better-sqlite3'
@@ -46,6 +47,9 @@ export class Orchestrator {
   public retention: DataRetention
   public breach: BreachManager
 
+  // Integrations
+  public webhooks: WebhookManager
+
   constructor() {
     this.config = loadConfig()
     this.db = initDatabase(this.config.dbPath)
@@ -73,6 +77,9 @@ export class Orchestrator {
     this.audit = new AuditLogger(this.db)
     this.retention = new DataRetention(this.db)
     this.breach = new BreachManager(this.db)
+
+    // Integrations
+    this.webhooks = new WebhookManager(this.db)
   }
 
   /**
@@ -137,6 +144,13 @@ export class Orchestrator {
       timestamp: new Date().toISOString(),
     })
 
+    // Trigger webhooks
+    this.webhooks.trigger('message.received', {
+      from: msg.from,
+      name: msg.name,
+      text: msg.text,
+    }).catch(() => {})
+
     // Enviar respuesta
     if (response) {
       await this.sender.send(msg.from, response)
@@ -152,6 +166,22 @@ export class Orchestrator {
         escalated,
         timestamp: new Date().toISOString(),
       })
+
+      // Trigger webhooks
+      this.webhooks.trigger('message.sent', {
+        to: msg.from,
+        text: response,
+        intent,
+        escalated,
+      }).catch(() => {})
+
+      if (escalated) {
+        this.webhooks.trigger('bot.escalated', {
+          from: msg.from,
+          name: msg.name,
+          reason: intent,
+        }).catch(() => {})
+      }
 
       if (escalated) {
         console.log(`  ${c('brightYellow', '🔺')} Escalado a humano: ${c('yellow', msg.from)}`)
