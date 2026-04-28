@@ -35,16 +35,11 @@ MejoraWS es un CRM WhatsApp autónomo con IA para uso personal. El admin configu
 | 6 | ✅ | Campañas automáticas + Template Rotation (anti-ban capa 6/6 completa) + Campaign Scheduler + A/B testing de mensajes |
 | 7 | ✅ | Audit log + GDPR (export/erase/consent) + Data retention + Privacy Policy + Terms of Service |
 | 8 | ✅ | Docker + Producción: Dockerfile multi-stage, docker-compose, nginx, backup auto, deploy guide, Makefile, SSL setup |
+| 9 | ✅ | Analytics: API (6 endpoints) + Dashboard Recharts (5 gráficas) + CSV export (4 tipos) + 9 tests |
 
-## LO QUE FALTA (Etapas 9-10)
+## LO QUE FALTA (Etapa 10)
 
-### Etapa 9: Analytics e Inteligencia ⏳ SIGUIENTE
-- Dashboard Analytics (Recharts)
-- Conversion funnel analysis
-- Sentiment trend tracking
-- Export reports (PDF/CSV)
-
-### Etapa 10: Multi-tenancy y Escala ⏳ FUTURO
+### Etapa 10: Multi-tenancy y Escala ⏳ SIGUIENTE
 - Migración SQLite → PostgreSQL
 - Redis cache/queues
 - Multi-tenant support

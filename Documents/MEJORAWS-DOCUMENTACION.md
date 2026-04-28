@@ -2,7 +2,7 @@
 
 > **Trigger:** Cuando digas **"documentar"**, este archivo se actualiza automáticamente con los trabajos realizados.
 > **Carpeta:** `Documents/` — documentación única del proyecto.
-> **Última actualización:** 29 abril 2026, 00:29 GMT+8
+> **Última actualización:** 29 abril 2026, 00:38 GMT+8
 
 ---
 
@@ -61,7 +61,7 @@ Admin configura → IA ejecuta → Admin recibe resultados
 | Logging | ✅ | Pino estructurado, child loggers por módulo |
 | Legal | ✅ | Privacy Policy + Terms of Service |
 | Docker + Producción | ✅ | Dockerfile multi-stage + docker-compose + nginx + backup + deploy guide |
-| Analytics visual | ❌ | Backlog (Etapa 9) |
+| Analytics visual | ✅ | Dashboard con Recharts: tendencias, funnel, sentiment, timing, quality, CSV export |
 
 ---
 
@@ -531,6 +531,17 @@ CREATE INDEX idx_activities_created ON activities(created_at);
 | POST | `/api/v1/audit/cleanup` | Limpiar antiguos |
 | PUT | `/api/v1/audit/retention` | Configurar retención |
 
+### Analytics
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/v1/analytics/overview` | KPIs principales (mensajes, deals, revenue) |
+| GET | `/api/v1/analytics/messages` | Tendencia mensajes (30 días, por día) |
+| GET | `/api/v1/analytics/funnel` | Funnel conversión (contactos→mensajes→deals→cerrados) |
+| GET | `/api/v1/analytics/sentiment` | Tendencia sentimiento (positivo/neutro/negativo) |
+| GET | `/api/v1/analytics/timing` | Mejor horario para enviar (hora + día) |
+| GET | `/api/v1/analytics/quality` | Calidad conversación (auto-resolución, escalamiento, intenciones) |
+| GET | `/api/v1/analytics/export?type=X` | Export CSV (messages, contacts, deals, campaigns) |
+
 ### Status & Health
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
@@ -663,7 +674,7 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 
 ## 11. Tests
 
-### Resumen: 101 tests, 11 archivos
+### Resumen: 110 tests, 12 archivos
 
 | Archivo | Tests | Tipo |
 |---------|-------|------|
@@ -678,7 +689,8 @@ Polling cada 10-15s para actualización de datos (simplificado vs WebSocket)
 | `tests/integration/api/contacts.api.test.ts` | 11 | Integration |
 | `tests/integration/api/deals.api.test.ts` | 8 | Integration |
 | `tests/integration/api/gdpr.api.test.ts` | 7 | Integration |
-| **Total** | **101** | **✅ All passing** |
+| `tests/integration/api/analytics.api.test.ts` | 9 | Integration |
+| **Total** | **110** | **✅ All passing** |
 
 ### Stack
 - **Vitest** — test runner (rápido, ESM nativo)
@@ -832,8 +844,8 @@ Pricing: Free (100 contactos) → Pro ($29) → Business ($99) → Enterprise (c
 ✅ ETAPA 6:   Campañas + Template Rotation              (COMPLETADA)
 ✅ ETAPA 7:   Seguridad + GDPR Compliance               (COMPLETADA)
 ✅ ETAPA 8:   Docker + Producción                       (COMPLETADA)
-⏳ ETAPA 9:   Analytics e Inteligencia                   (SIGUIENTE)
-⏳ ETAPA 10:  Multi-tenancy + Escala                     (FUTURO)
+✅ ETAPA 9:   Analytics e Inteligencia                   (COMPLETADA)
+⏳ ETAPA 10:  Multi-tenancy + Escala                     (SIGUIENTE)
 ```
 
 ---
@@ -953,22 +965,26 @@ services:
 
 ---
 
-### ⏳ ETAPA 9: Analytics e Inteligencia
-**Duración:** 2 semanas | **Prioridad:** Media | **Estado:** SIGUIENTE
+### ✅ ETAPA 9: Analytics e Inteligencia
+**Duración:** 1 sesión | **Prioridad:** Media | **Estado:** COMPLETADA
 
-| # | Tarea | Rol | Dificultad |
-|---|-------|-----|-----------|
-| 9.1 | Dashboard Analytics (Recharts) | Frontend + BI | Media |
-| 9.2 | Conversion funnel analysis | Data Scientist | Media |
-| 9.3 | Sentiment trend tracking | ML Engineer | Media |
-| 9.4 | Optimal timing analysis | Data Scientist | Baja |
-| 9.5 | Export reports (PDF/CSV) | Backend Dev | Media |
-| 9.6 | Conversation quality scoring | ML Engineer | Alta |
+| # | Tarea | Rol | Archivos | Estado |
+|---|-------|-----|----------|--------|
+| 9.1 | Analytics API (6 endpoints) | Backend Dev | `src/api/routes/analytics.ts` | ✅ |
+| 9.2 | Dashboard Analytics (Recharts) | Frontend + BI | `dashboard/src/app/analytics/page.tsx` | ✅ |
+| 9.3 | Conversion funnel | Data Scientist | Endpoint `/analytics/funnel` | ✅ |
+| 9.4 | Sentiment trend tracking | ML Engineer | Endpoint `/analytics/sentiment` | ✅ |
+| 9.5 | Optimal timing analysis | Data Scientist | Endpoint `/analytics/timing` | ✅ |
+| 9.6 | Conversation quality scoring | ML Engineer | Endpoint `/analytics/quality` | ✅ |
+| 9.7 | CSV export (4 tipos) | Backend Dev | Endpoint `/analytics/export` | ✅ |
+| 9.8 | Tests integración | QA | `tests/integration/api/analytics.api.test.ts` | ✅ |
+
+**Entregable:** Dashboard analytics con gráficas + API de analytics + export CSV. ✅
 
 ---
 
 ### ⏳ ETAPA 10: Multi-tenancy y Escala
-**Duración:** 3-4 semanas | **Prioridad:** Baja | **Estado:** FUTURO
+**Duración:** 3-4 semanas | **Prioridad:** Baja | **Estado:** SIGUIENTE
 
 | # | Tarea | Rol | Dificultad |
 |---|-------|-----|-----------|
@@ -1025,6 +1041,7 @@ services:
 | 28/04 | 06:41 | **documentar** | Consolidación final sesión |
 | 29/04 | 00:19 | **documentar** | Optimización doc + plan actualizado |
 | 29/04 | 00:29 | **Etapa 8 completada** | Docker + Producción: Dockerfile, docker-compose, nginx, backup, deploy guide, Makefile |
+| 29/04 | 00:38 | **Etapa 9 completada** | Analytics: API (6 endpoints) + Dashboard Recharts (5 gráficas) + CSV export + 9 tests |
 
 ### Decisiones Técnicas
 
@@ -1079,5 +1096,5 @@ Cuando el usuario diga **"documentar"**, ejecutar automáticamente:
 
 ---
 
-*Última actualización: 29 abril 2026, 00:29 GMT+8*
-*Etapas 1-8 completadas · 101 tests · 22 commits · 35+ endpoints · Listo para Etapa 9 (Analytics)*
+*Última actualización: 29 abril 2026, 00:38 GMT+8*
+*Etapas 1-9 completadas · 110 tests · 23 commits · 42+ endpoints · Listo para Etapa 10 (Multi-tenancy)*
