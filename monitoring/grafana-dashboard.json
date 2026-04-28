@@ -1,0 +1,152 @@
+{
+  "dashboard": {
+    "title": "MejoraWS Dashboard",
+    "tags": ["mejoraws", "whatsapp", "crm"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "panels": [
+      {
+        "title": "Messages (Total)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "mejoraws_messages_total",
+            "legendFormat": "Total"
+          }
+        ]
+      },
+      {
+        "title": "Inbound Messages",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "mejoraws_messages_inbound_total",
+            "legendFormat": "Inbound"
+          }
+        ]
+      },
+      {
+        "title": "Outbound Messages",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "mejoraws_messages_outbound_total",
+            "legendFormat": "Outbound"
+          }
+        ]
+      },
+      {
+        "title": "WhatsApp Status",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "mejoraws_whatsapp_connected",
+            "legendFormat": "Connected"
+          }
+        ]
+      },
+      {
+        "title": "Open Deals",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "mejoraws_deals_open",
+            "legendFormat": "Open"
+          }
+        ]
+      },
+      {
+        "title": "Total Contacts",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 },
+        "targets": [
+          {
+            "expr": "mejoraws_contacts_total",
+            "legendFormat": "Contacts"
+          }
+        ]
+      },
+      {
+        "title": "Warm-up Day",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "mejoraws_warmup_day",
+            "legendFormat": "Day"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 14
+          }
+        }
+      },
+      {
+        "title": "Sent Today / Daily Limit",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 4 },
+        "targets": [
+          {
+            "expr": "mejoraws_sent_today",
+            "legendFormat": "Sent"
+          }
+        ]
+      },
+      {
+        "title": "HTTP Requests Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(mejoraws_http_requests_total[1m])",
+            "legendFormat": "{{method}} {{path}} {{status}}"
+          }
+        ]
+      },
+      {
+        "title": "HTTP Errors",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(mejoraws_http_errors_total[5m])",
+            "legendFormat": "{{method}} {{path}}"
+          }
+        ]
+      },
+      {
+        "title": "LLM Latency (ms)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "mejoraws_llm_latency_ms",
+            "legendFormat": "Latency"
+          }
+        ]
+      },
+      {
+        "title": "Auto-replies vs Escalations",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "rate(mejoraws_auto_replies_total[5m])",
+            "legendFormat": "Auto-replies"
+          },
+          {
+            "expr": "rate(mejoraws_escalations_total[5m])",
+            "legendFormat": "Escalations"
+          }
+        ]
+      }
+    ]
+  }
+}

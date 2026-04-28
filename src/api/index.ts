@@ -17,6 +17,7 @@ import { campaignsRouter } from './routes/campaigns'
 import { gdprRouter } from './routes/gdpr'
 import { auditRouter } from './routes/audit'
 import { analyticsRouter } from './routes/analytics'
+import { metricsRouter, metricsMiddleware } from './routes/metrics'
 import { childLogger } from '../utils/logger'
 
 const log = childLogger('api')
@@ -40,7 +41,11 @@ export function createApi(orchestrator: Orchestrator): express.Application {
     next()
   })
 
+  // Prometheus metrics middleware
+  app.use(metricsMiddleware())
+
   // === ROUTES ===
+  app.use('/metrics', metricsRouter())
   app.use('/health', healthRouter(
     orchestrator.getDB(),
     () => orchestrator.getStatus().then(s => s.llm),
