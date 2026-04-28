@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { SSEProvider } from "@/lib/sse-context";
+import { PWARegister } from "@/components/pwa-register";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,6 +18,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MejoraWS — Dashboard",
   description: "CRM WhatsApp Autónomo con IA — Dashboard",
+  manifest: "/manifest.json",
+  themeColor: "#18181b",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
 };
 
 export default function RootLayout({
@@ -29,7 +38,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AuthProvider>{children}</AuthProvider>
+        <PWARegister />
+        <AuthProvider>
+          <SSEProvider>{children}</SSEProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -19,6 +19,7 @@ import { auditRouter } from './routes/audit'
 import { analyticsRouter } from './routes/analytics'
 import { metricsRouter, metricsMiddleware } from './routes/metrics'
 import { breachRouter } from './routes/breach'
+import { eventsRouter } from './routes/events'
 import { childLogger } from '../utils/logger'
 
 const log = childLogger('api')
@@ -65,6 +66,7 @@ export function createApi(orchestrator: Orchestrator): express.Application {
   app.use('/api/v1/audit', auditRouter(orchestrator.audit, orchestrator.retention))
   app.use('/api/v1/analytics', analyticsRouter(orchestrator.getDB()))
   app.use('/api/v1/breach', breachRouter(orchestrator.breach))
+  app.use('/api/v1/events', eventsRouter(orchestrator))
 
   // === ERROR HANDLING ===
   app.use(notFoundHandler)

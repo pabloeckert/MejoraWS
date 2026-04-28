@@ -18,6 +18,7 @@ import { AuditLogger } from '../security/audit'
 import { DataRetention } from '../security/retention'
 import { BreachManager } from '../security/breach'
 import { c, status, box } from '../cli/theme'
+import { SSEEvents } from '../api/routes/events'
 import Database from 'better-sqlite3'
 
 export class Orchestrator {
@@ -126,10 +127,32 @@ export class Orchestrator {
       msg.name
     )
 
+    // Emit SSE event for incoming message
+    SSEEvents.messageNew({
+      id: msg.id || Date.now().toString(),
+      from: msg.from,
+      name: msg.name,
+      text: msg.text,
+      direction: 'inbound',
+      timestamp: new Date().toISOString(),
+    })
+
     // Enviar respuesta
     if (response) {
       await this.sender.send(msg.from, response)
       
+      // Emit SSE event for outgoing message
+      SSEEvents.messageNew({
+        id: (Date.now() + 1).toString(),
+        from: 'bot',
+        to: msg.from,
+        text: response,
+        direction: 'outbound',
+        intent,
+        escalated,
+        timestamp: new Date().toISOString(),
+      })
+
       if (escalated) {
         console.log(`  ${c('brightYellow', '🔺')} Escalado a humano: ${c('yellow', msg.from)}`)
       }

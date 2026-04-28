@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { useSSEContext } from '@/lib/sse-context'
 import {
   LayoutDashboard,
   GitBranch,
@@ -15,6 +16,7 @@ import {
   Activity,
   Send,
   BarChart3,
+  Radio,
 } from 'lucide-react'
 
 const links = [
@@ -30,12 +32,16 @@ const links = [
 export function Sidebar() {
   const pathname = usePathname()
   const { logout } = useAuth()
+  const { connected } = useSSEContext()
 
   return (
     <aside className="hidden md:flex w-64 flex-col border-r bg-card">
       <div className="flex h-14 items-center gap-2 border-b px-4">
         <Activity className="h-6 w-6 text-primary" />
         <span className="text-lg font-bold">MejoraWS</span>
+        <div className="ml-auto flex items-center gap-1">
+          <Radio className={`h-3 w-3 ${connected ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">

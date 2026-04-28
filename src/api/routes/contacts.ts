@@ -17,17 +17,25 @@ export function contactsRouter(contacts: ContactManager, importer: ContactImport
   const router = Router()
   const upload = multer({ dest: '/tmp/mejora-uploads/', limits: { fileSize: 10 * 1024 * 1024 } })
 
-  // List contacts
+  // List contacts — supports both offset and cursor pagination
   router.get('/', validate(listContactsSchema, 'query'), (req: Request, res: Response) => {
-    const { search, tags, minScore, whatsapp, limit, offset } = req.query as any
+    const { search, tags, minScore, whatsapp, limit, offset, cursor, cursorDirection } = req.query as any
     const filter: any = { limit, offset }
     if (search) filter.search = search
     if (tags) filter.tags = tags.split(',').map((t: string) => t.trim())
     if (minScore !== undefined) filter.minScore = minScore
     if (whatsapp !== undefined) filter.whatsapp = whatsapp
+    if (cursor) {
+      filter.cursor = cursor
+      filter.cursorDirection = cursorDirection || 'after'
+    }
 
     const results = contacts.list(filter)
     const total = contacts.count()
+
+    // Build cursor pagination response
+    const nextCursor = results.length === limit ? results[results.length - 1]?.created_at : null
+    const prevCursor = cursor && results.length > 0 ? results[0]?.created_at : null
 
     res.json({
       data: results,
@@ -36,6 +44,12 @@ export function contactsRouter(contacts: ContactManager, importer: ContactImport
         limit,
         offset,
         hasMore: offset + limit < total,
+        // Cursor pagination fields
+        ...(cursor ? {
+          nextCursor,
+          prevCursor,
+          hasMoreCursor: results.length === limit,
+        } : {}),
       },
     })
   })

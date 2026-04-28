@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getStatus, getRecentMessages } from '@/lib/api'
+import { useSSEContext } from '@/lib/sse-context'
 import {
   MessageSquare,
   Users,
@@ -14,6 +15,7 @@ import {
   WifiOff,
   Bot,
   Clock,
+  Radio,
 } from 'lucide-react'
 
 function KpiCard({
@@ -53,6 +55,7 @@ export default function DashboardPage() {
   const [status, setStatus] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const { connected, on } = useSSEContext()
 
   const fetchData = useCallback(async () => {
     try {
@@ -71,9 +74,26 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 15000) // Refresh every 15s
-    return () => clearInterval(interval)
-  }, [fetchData])
+
+    // SSE: real-time message updates (prepend new messages)
+    const unsubMsg = on('message:new', (data) => {
+      setMessages((prev) => [data, ...prev].slice(0, 10))
+    })
+
+    // SSE: status updates
+    const unsubStatus = on('status:update', (data) => {
+      setStatus(data)
+    })
+
+    // Fallback polling every 60s (for non-SSE data like stats)
+    const interval = setInterval(fetchData, 60000)
+
+    return () => {
+      unsubMsg()
+      unsubStatus()
+      clearInterval(interval)
+    }
+  }, [fetchData, on])
 
   if (loading) {
     return (
@@ -96,6 +116,10 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
+            <Badge variant={connected ? 'default' : 'secondary'} className={connected ? 'bg-green-600' : ''}>
+              <Radio className={`h-3 w-3 mr-1 ${connected ? 'animate-pulse' : ''}`} />
+              {connected ? 'En vivo' : 'Polling'}
+            </Badge>
             {sys.whatsapp ? (
               <Badge variant="default" className="bg-green-600">
                 <Wifi className="h-3 w-3 mr-1" /> WhatsApp Conectado

@@ -2,18 +2,34 @@
 
 import { useAuth } from '@/lib/auth-context'
 import { Sidebar } from '@/components/layout/sidebar'
+import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth()
   const router = useRouter()
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !token) {
       router.push('/login')
     }
   }, [token, isLoading, router])
+
+  // Check onboarding status after mount
+  useEffect(() => {
+    if (token && typeof window !== 'undefined') {
+      const done = localStorage.getItem('onboarding_completed')
+      if (done !== 'true') {
+        setShowOnboarding(true)
+      }
+    }
+  }, [token])
+
+  const handleOnboardingComplete = useCallback(() => {
+    setShowOnboarding(false)
+  }, [])
 
   if (isLoading) {
     return (
@@ -31,6 +47,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-y-auto">
         <div className="p-6">{children}</div>
       </main>
+      {showOnboarding && (
+        <OnboardingWizard onComplete={handleOnboardingComplete} onSkip={handleOnboardingComplete} />
+      )}
     </div>
   )
 }

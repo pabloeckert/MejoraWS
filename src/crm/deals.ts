@@ -84,7 +84,7 @@ export class DealManager {
   /**
    * Lista deals con filtros
    */
-  list(filter?: { stage?: string; contactPhone?: string; limit?: number }): Deal[] {
+  list(filter?: { stage?: string; contactPhone?: string; limit?: number; cursor?: string }): Deal[] {
     let query = `
       SELECT d.*, c.name as contact_name
       FROM deals d
@@ -101,6 +101,12 @@ export class DealManager {
     if (filter?.contactPhone) {
       query += ' AND d.contact_phone = ?'
       params.push(filter.contactPhone)
+    }
+
+    // Cursor-based pagination
+    if (filter?.cursor) {
+      query += ' AND d.updated_at < ?'
+      params.push(filter.cursor)
     }
 
     query += ' ORDER BY d.updated_at DESC'

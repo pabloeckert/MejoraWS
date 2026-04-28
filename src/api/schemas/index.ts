@@ -24,6 +24,8 @@ export const listContactsSchema = z.object({
   whatsapp: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+  cursor: z.string().optional(), // Cursor-based pagination: created_at of last item
+  cursorDirection: z.enum(['after', 'before']).optional(),
 })
 
 // === DEALS ===

@@ -26,6 +26,8 @@ export interface ContactFilter {
   whatsapp?: boolean
   limit?: number
   offset?: number
+  cursor?: string      // Cursor-based pagination: created_at of last item
+  cursorDirection?: 'after' | 'before'
 }
 
 export class ContactManager {
@@ -36,7 +38,12 @@ export class ContactManager {
   }
 
   /**
-   * Lista contactos con filtros
+   * Lista contactos con filtros.
+   * Soporta paginación por cursor (más eficiente que OFFSET para grandes datasets)
+   * y por offset (para compatibilidad).
+   *
+   * Cursor pagination: usar `cursor` con el `created_at` del último item.
+   * Devuelve `nextCursor` y `prevCursor` en la respuesta para navegación.
    */
   list(filter?: ContactFilter): Contact[] {
     let query = 'SELECT * FROM contacts WHERE 1=1'
@@ -64,20 +71,39 @@ export class ContactManager {
       params.push(filter.whatsapp ? 1 : 0)
     }
 
-    query += ' ORDER BY created_at DESC'
+    // Cursor-based pagination (more efficient than OFFSET for large datasets)
+    if (filter?.cursor) {
+      const direction = filter.cursorDirection || 'after'
+      if (direction === 'after') {
+        query += ' AND created_at < ?'
+      } else {
+        query += ' AND created_at > ?'
+      }
+      params.push(filter.cursor)
+      query += direction === 'after' ? ' ORDER BY created_at DESC' : ' ORDER BY created_at ASC'
+    } else {
+      query += ' ORDER BY created_at DESC'
+    }
 
     if (filter?.limit) {
       query += ' LIMIT ?'
       params.push(filter.limit)
     }
 
-    if (filter?.offset) {
+    // Only use OFFSET when no cursor (fallback)
+    if (!filter?.cursor && filter?.offset) {
       query += ' OFFSET ?'
       params.push(filter.offset)
     }
 
     const contacts = this.db.prepare(query).all(...params) as any[]
-    return contacts.map(c => ({
+
+    // If paginating backwards, reverse to maintain consistent order
+    const ordered = filter?.cursor && filter.cursorDirection === 'before'
+      ? contacts.reverse()
+      : contacts
+
+    return ordered.map(c => ({
       ...c,
       tags: c.tags ? JSON.parse(c.tags) : [],
       whatsapp: !!c.whatsapp,
