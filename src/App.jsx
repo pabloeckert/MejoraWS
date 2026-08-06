@@ -10,6 +10,17 @@ const ESTADOS = {
   error: { label: 'Error', dot: 'bg-mc-rojo', text: 'text-mc-rojo', bg: 'bg-red-50 border-red-100' }
 }
 
+const CONTACTO_PRUEBA = { nombre: 'Juan', apellido: 'Pérez', variable: '' }
+
+// Mismo reemplazo de tags {campo} que usa el main al mandar el mensaje real,
+// para que la vista previa sea 1:1 con lo que se termina enviando.
+function renderTemplate(template, contact) {
+  return (template || '').replace(/\{(\w+)\}/g, (match, key) => {
+    const value = contact?.[key]
+    return value !== undefined && value !== null && value !== '' ? String(value) : ''
+  })
+}
+
 function Badge({ estado }) {
   const cfg = ESTADOS[estado] || ESTADOS.pendiente
   return (
@@ -72,6 +83,11 @@ export default function App() {
     const enviados = contacts.filter((c) => c.estado === 'enviado').length
     return { total, pendientes, respondieron, enviados }
   }, [contacts])
+
+  const previewText = useMemo(() => {
+    if (!config) return ''
+    return renderTemplate(config.template, contacts[0] || CONTACTO_PRUEBA)
+  }, [config?.template, contacts])
 
   const filteredContacts = useMemo(() => {
     return contacts.filter((c) => {
@@ -546,13 +562,23 @@ export default function App() {
             <label className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide">
               Mensaje inicial — tags disponibles: {'{nombre}'} {'{apellido}'} {'{variable}'}
             </label>
-            <textarea
-              className="w-full mt-1.5 border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
-              rows={3}
-              value={config.template}
-              onChange={(e) => setConfigState({ ...config, template: e.target.value })}
-              onBlur={() => saveConfig({ template: config.template })}
-            />
+            <div className="grid grid-cols-2 gap-3 mt-1.5">
+              <textarea
+                className="w-full border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
+                rows={3}
+                value={config.template}
+                onChange={(e) => setConfigState({ ...config, template: e.target.value })}
+                onBlur={() => saveConfig({ template: config.template })}
+              />
+              <div className="border border-gray-100 bg-gray-50 rounded-lg p-3 flex flex-col">
+                <p className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide mb-1.5">
+                  Vista previa {contacts[0] ? `(con ${contacts[0].nombre})` : '(contacto de prueba)'}
+                </p>
+                <div className="flex-1 bg-white border border-gray-200 rounded-lg p-2.5 text-sm text-mc-tinta whitespace-pre-wrap">
+                  {previewText || <span className="text-mc-gris">El mensaje va a aparecer acá...</span>}
+                </div>
+              </div>
+            </div>
             <div className="flex items-center justify-between mt-2">
               <button
                 onClick={reviewWithAI}
