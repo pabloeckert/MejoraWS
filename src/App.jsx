@@ -31,6 +31,7 @@ export default function App() {
   const [copiado, setCopiado] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({ nombre: '', apellido: '', telefono: '', variable: '' })
+  const [apiKeyInput, setApiKeyInput] = useState('')
   const [aiReview, setAiReview] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
@@ -265,6 +266,7 @@ export default function App() {
     const res = await window.mejora.resetTotal()
     setSelectedIds([])
     setAiReview(null)
+    setApiKeyInput('')
     setConfigState(res.config)
     await refrescarContactos()
     setLogSummary(await window.mejora.getLogSummary())
@@ -649,11 +651,17 @@ export default function App() {
 
             <Field label="API key de Anthropic (para el botón Revisar con IA)">
               <input type="password" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm"
-                placeholder="sk-ant-..."
-                value={config.anthropicApiKey}
-                onChange={(e) => setConfigState({ ...config, anthropicApiKey: e.target.value })}
-                onBlur={() => saveConfig({ anthropicApiKey: config.anthropicApiKey })} />
-              <p className="text-xs text-mc-gris mt-1">Se guarda solo en tu máquina. La sacás en console.anthropic.com → API Keys. Cada revisión consume crédito de tu cuenta.</p>
+                placeholder={config.apiKeyConfigured ? '••••••••••• (guardada, cifrada)' : 'sk-ant-...'}
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                onBlur={() => {
+                  if (!apiKeyInput.trim()) return
+                  saveConfig({ anthropicApiKey: apiKeyInput.trim() })
+                  setApiKeyInput('')
+                }} />
+              <p className="text-xs text-mc-gris mt-1">
+                {config.apiKeyConfigured ? 'Ya tenés una key guardada (cifrada con el sistema operativo). Escribí acá solo si querés reemplazarla.' : 'Se cifra y se guarda solo en tu máquina.'} La sacás en console.anthropic.com → API Keys. Cada revisión consume crédito de tu cuenta.
+              </p>
             </Field>
           </div>
 

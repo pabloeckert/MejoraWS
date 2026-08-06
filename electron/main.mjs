@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Notification, shell, clipboard } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, shell, clipboard, safeStorage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -30,8 +30,34 @@ const DEFAULT_DATA = {
     replyTemplate: 'Genial {nombre}, te paso el link: [LINK_MEJORADIAGNOSTICO]',
     reportEnabled: true,
     reportPhone: '5493765007805',
-    anthropicApiKey: '',
+    anthropicApiKeyEncrypted: '',
     variantes: []
+  }
+}
+
+// La API key de Anthropic nunca se guarda ni viaja en texto plano: se cifra
+// con safeStorage (DPAPI en Windows) y solo se desencripta en memoria al
+// momento de pegarla en el header de la request a la API.
+function encryptApiKey(plainKey) {
+  if (!safeStorage.isEncryptionAvailable()) return null
+  return safeStorage.encryptString(plainKey).toString('base64')
+}
+
+// Lo único que el renderer necesita saber de la API key es si hay una
+// guardada o no — nunca el valor ni el blob cifrado.
+function configForRenderer() {
+  const { anthropicApiKeyEncrypted, ...rest } = db.data.config
+  return { ...rest, apiKeyConfigured: !!anthropicApiKeyEncrypted }
+}
+
+function getDecryptedApiKey() {
+  const encrypted = db.data.config.anthropicApiKeyEncrypted
+  if (!encrypted) return ''
+  if (!safeStorage.isEncryptionAvailable()) return ''
+  try {
+    return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+  } catch {
+    return ''
   }
 }
 
@@ -573,7 +599,7 @@ function registerIpcHandlers() {
     logEvent('app_reset_total')
 
     mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-    return { ok: true, config: db.data.config }
+    return { ok: true, config: configForRenderer() }
   })
 
   ipcMain.handle('contacts:addManual', async (_e, data) => {
@@ -601,12 +627,17 @@ function registerIpcHandlers() {
     return { ok: true }
   })
 
-  ipcMain.handle('config:get', () => db.data.config)
+  ipcMain.handle('config:get', () => configForRenderer())
 
   ipcMain.handle('config:set', async (_e, config) => {
-    db.data.config = { ...db.data.config, ...config }
+    const { anthropicApiKey, ...rest } = config || {}
+    db.data.config = { ...db.data.config, ...rest }
+    if (typeof anthropicApiKey === 'string' && anthropicApiKey.trim()) {
+      const encrypted = encryptApiKey(anthropicApiKey.trim())
+      if (encrypted) db.data.config.anthropicApiKeyEncrypted = encrypted
+    }
     await db.write()
-    return db.data.config
+    return configForRenderer()
   })
 
   ipcMain.handle('wa:connect', async () => {
@@ -640,7 +671,7 @@ function registerIpcHandlers() {
   ipcMain.handle('logs:summary', () => buildSummaryText())
 
   ipcMain.handle('ai:reviewTemplate', async (_e, template) => {
-    const apiKey = db.data.config.anthropicApiKey
+    const apiKey = getDecryptedApiKey()
     if (!apiKey) return { error: 'Falta cargar tu API key de Anthropic en Configuración.' }
     if (!template?.trim()) return { error: 'Escribí un mensaje primero.' }
 
@@ -715,6 +746,13 @@ app.whenReady().then(async () => {
   // Si venís de una versión anterior, esto rellena los campos nuevos de
   // config sin pisar lo que ya tenías configurado.
   db.data.config = { ...DEFAULT_DATA.config, ...db.data.config }
+  // Migración: si venís de una versión vieja que guardaba la key en texto
+  // plano, la cifra y borra el campo plano de la DB.
+  if (db.data.config.anthropicApiKey) {
+    const encrypted = encryptApiKey(db.data.config.anthropicApiKey)
+    if (encrypted) db.data.config.anthropicApiKeyEncrypted = encrypted
+    delete db.data.config.anthropicApiKey
+  }
   await db.write()
   registerIpcHandlers()
   createWindow()
