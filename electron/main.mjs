@@ -439,7 +439,9 @@ async function runCampaign(onlyIds = null) {
     mainWindow?.webContents.send('campaign:progress', {
       status: 'enviando',
       enviadosHoy: cfg.sentToday,
-      dailyCap: cfg.dailyCap
+      dailyCap: cfg.dailyCap,
+      variantIndex: variantIndex + 1,
+      totalVariantes: variantes.length
     })
 
     await sleep(randomDelayMs(cfg.delayMin, cfg.delayMax))

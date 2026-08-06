@@ -422,7 +422,8 @@ export default function App() {
 
           {progress && (
             <p className="text-xs text-mc-gris border-l-2 border-mc-amarillo pl-2">
-              {progress.status === 'enviando' && `Enviando... ${progress.enviadosHoy}/${progress.dailyCap} hoy`}
+              {progress.status === 'enviando' &&
+                `Enviando... ${progress.enviadosHoy}/${progress.dailyCap} hoy${progress.totalVariantes > 1 ? ` — variante ${progress.variantIndex}/${progress.totalVariantes}` : ''}`}
               {progress.status === 'tope_diario_alcanzado' && 'Tope diario alcanzado — se retoma mañana.'}
               {progress.status === 'detenido' && 'Envío detenido.'}
             </p>
