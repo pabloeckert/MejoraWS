@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Bw Modelica";
+  src: url("/fonts/BwModelica/BwModelica-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Bw Modelica";
+  src: url("/fonts/BwModelica/BwModelica-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "League Spartan";
+  src: url("/fonts/LeagueSpartan/LeagueSpartan-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "League Spartan";
+  src: url("/fonts/LeagueSpartan/LeagueSpartan-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@theme {
+  --font-heading: "Bw Modelica", "League Spartan", sans-serif;
+  --font-support: "League Spartan", sans-serif;
+  --font-body: "Bw Modelica", sans-serif;
+
+  --color-mc-azul: #1a3d84;
+  --color-mc-rojo: #e1061e;
+  --color-mc-amarillo: #f7cc13;
+  --color-mc-tinta: #2b2b2b;
+  --color-mc-gris: #6b7280;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-mc-tinta);
+  background: #ffffff;
+}
