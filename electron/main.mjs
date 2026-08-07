@@ -61,6 +61,43 @@ function getDecryptedApiKey() {
   }
 }
 
+// Cuando el template tiene saltos de línea reales, a veces el modelo
+// devuelve el JSON con esos saltos de línea sin escapar dentro de un
+// string — eso rompe JSON.parse ("Unterminated string"). Esto recorre el
+// texto y escapa \n, \r y \t que aparezcan dentro de comillas, respetando
+// los que ya vienen escapados.
+function sanitizeJsonStringLiterals(text) {
+  let result = ''
+  let inString = false
+  let escaped = false
+  for (const ch of text) {
+    if (inString) {
+      if (escaped) {
+        result += ch
+        escaped = false
+      } else if (ch === '\\') {
+        result += ch
+        escaped = true
+      } else if (ch === '"') {
+        inString = false
+        result += ch
+      } else if (ch === '\n') {
+        result += '\\n'
+      } else if (ch === '\r') {
+        result += '\\r'
+      } else if (ch === '\t') {
+        result += '\\t'
+      } else {
+        result += ch
+      }
+    } else {
+      if (ch === '"') inString = true
+      result += ch
+    }
+  }
+  return result
+}
+
 function normalizePhone(p) {
   return (p || '').toString().replace(/\D/g, '')
 }
@@ -716,7 +753,13 @@ Las 4 variantes dicen lo mismo que versionMejorada pero cada una con otras palab
       const data = await response.json()
       const textBlock = data.content?.find((b) => b.type === 'text')?.text || ''
       const clean = textBlock.replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(clean)
+
+      let parsed
+      try {
+        parsed = JSON.parse(clean)
+      } catch {
+        parsed = JSON.parse(sanitizeJsonStringLiterals(clean))
+      }
 
       db.data.config.variantes = Array.isArray(parsed.variantes) ? parsed.variantes : []
       await db.write()
@@ -724,6 +767,9 @@ Las 4 variantes dicen lo mismo que versionMejorada pero cada una con otras palab
 
       return { ok: true, ...parsed }
     } catch (err) {
+      if (err instanceof SyntaxError) {
+        return { error: 'La IA devolvió una respuesta que no pude interpretar. Probá de nuevo.' }
+      }
       return { error: String(err?.message || err) }
     }
   })
