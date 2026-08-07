@@ -317,6 +317,16 @@ async function connectWhatsApp() {
         connectWhatsApp()
       } else {
         sock = null
+        // El server de WhatsApp invalidó la sesión (logout real, no un corte
+        // de red). Si no se borran las credenciales viejas, el próximo
+        // "Conectar" reintenta con la misma sesión ya muerta y vuelve a
+        // fallar al toque, sin mostrar QR nunca. Borrándolas, el próximo
+        // intento arranca de cero y pide un QR nuevo para revincular.
+        try {
+          fs.rmSync(path.join(app.getPath('userData'), 'auth'), { recursive: true, force: true })
+        } catch {
+          // si falla el borrado, el próximo intento va a repetir el mismo error
+        }
       }
     }
   })
