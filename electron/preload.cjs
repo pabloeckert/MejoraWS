@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('mejora', {
   setIncluido: (ids, incluido) => ipcRenderer.invoke('contacts:setIncluido', { ids, incluido }),
   setEstadoBulk: (ids, estado) => ipcRenderer.invoke('contacts:setEstado', { ids, estado }),
   clearAllContacts: () => ipcRenderer.invoke('contacts:clearAll'),
+  validateContacts: (ids) => ipcRenderer.invoke('contacts:validate', ids),
   getContacts: () => ipcRenderer.invoke('contacts:list'),
 
   // Reset total de la app

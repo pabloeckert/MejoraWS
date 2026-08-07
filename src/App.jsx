@@ -70,6 +70,7 @@ export default function App() {
   const [progress, setProgress] = useState(null)
   const [sending, setSending] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [validando, setValidando] = useState(false)
   const [logSummary, setLogSummary] = useState('')
   const [copiado, setCopiado] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
@@ -188,6 +189,34 @@ export default function App() {
     await window.mejora.stopCampaign()
     setSending(false)
     setPaused(false)
+  }
+
+  async function validarNumeros(ids) {
+    const cuantos = ids?.length || contacts.length
+    if (!confirm(
+      `Chequear ${cuantos} número(s) contra WhatsApp?\n\n` +
+      'Le pregunta a WhatsApp cuáles tienen cuenta de verdad, para no gastar envíos ' +
+      'en números mal escritos.\n\n' +
+      `Va despacio a propósito (no parecer bot): tarda alrededor de ${Math.ceil(cuantos * 0.5 / 60)} min para ${cuantos}.`
+    )) return
+
+    setValidando(true)
+    const res = await window.mejora.validateContacts(ids)
+    setValidando(false)
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    await refrescarContactos()
+    setLogSummary(await window.mejora.getLogSummary())
+    alert(
+      `Revisados: ${res.revisados}\n\n` +
+      `✓ Con WhatsApp: ${res.conWhatsapp}\n` +
+      `✗ Sin WhatsApp: ${res.sinWhatsapp}\n` +
+      `✗ Mal escritos: ${res.formatoRaro}\n` +
+      (res.errores ? `? No se pudo verificar: ${res.errores}\n` : '') +
+      '\nLos que no tienen WhatsApp se saltean solos en el próximo envío.'
+    )
   }
 
   async function pauseCampaign() {
@@ -471,6 +500,14 @@ export default function App() {
               >
                 Importar CSV/Excel
               </button>
+              <button
+                onClick={() => validarNumeros(null)}
+                disabled={validando || sending || contacts.length === 0}
+                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Le pregunta a WhatsApp qué números existen de verdad"
+              >
+                {validando ? 'Validando...' : 'Validar números'}
+              </button>
               {!sending ? (
                 <button
                   onClick={() => startCampaign()}
@@ -587,6 +624,9 @@ export default function App() {
               <button onClick={marcarPendienteSeleccionados} className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors">
                 Marcar pendiente
               </button>
+              <button onClick={() => validarNumeros(selectedIds)} disabled={validando} className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors disabled:opacity-40">
+                Validar estos números
+              </button>
               <button onClick={eliminarSeleccionados} className="px-3 py-1.5 rounded-lg bg-mc-rojo hover:bg-[#c00519] text-white text-xs font-medium transition-colors">
                 Eliminar
               </button>
@@ -651,7 +691,17 @@ export default function App() {
                             title="Incluir en el próximo envío masivo" />
                         </td>
                         <td className="px-4 py-2.5 text-mc-tinta">{c.nombre} {c.apellido || ''}</td>
-                        <td className="px-4 py-2.5 text-mc-gris">{c.telefono}</td>
+                        <td className="px-4 py-2.5 text-mc-gris">
+                          <span className="inline-flex items-center gap-1.5">
+                            {c.telefono}
+                            {c.waValido === true && (
+                              <span className="text-mc-azul text-xs" title="Verificado: este número tiene WhatsApp">✓</span>
+                            )}
+                            {c.waValido === false && (
+                              <span className="text-mc-rojo text-xs" title={c.waMotivo || 'Este número no tiene WhatsApp'}>⚠</span>
+                            )}
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5"><Badge estado={c.estado} /></td>
                         <td className="px-2 py-2.5"><EntregaTicks contact={c} /></td>
                         <td className="px-4 py-2.5 text-mc-gris">{c.fechaEnvio ? new Date(c.fechaEnvio).toLocaleString() : '-'}</td>

@@ -204,6 +204,8 @@ function describirEvento(e) {
       return 'campaña iniciada'
     case 'campana_detenida':
       return `campaña detenida (${e.enviadosHoy ?? 0} enviados hoy)`
+    case 'contactos_validados':
+      return `validaste ${e.revisados} número(s): ${e.conWhatsapp} con WhatsApp, ${e.sinWhatsapp} sin WhatsApp, ${e.formatoRaro} mal escritos`
     case 'campana_pausada':
       return `pausaste el envío (${e.enviadosHoy ?? 0} enviados hoy)`
     case 'campana_reanudada':
@@ -513,6 +515,15 @@ async function runCampaign(onlyIds = null) {
       continue
     }
 
+    // Si ya lo validaste y WhatsApp dijo que ese número no existe, no gastes
+    // un envío al pedo. (waValido null = nunca se validó, se manda igual.)
+    if (contact.waValido === false) {
+      contact.estado = 'error'
+      contact.error = contact.waMotivo || 'El número no tiene WhatsApp'
+      await db.write()
+      continue
+    }
+
     if (cfg.sentToday >= cfg.dailyCap) {
       mainWindow?.webContents.send('campaign:progress', { status: 'tope_diario_alcanzado' })
       logEvent('tope_diario_alcanzado', { enviadosHoy: cfg.sentToday })
@@ -691,6 +702,71 @@ function registerIpcHandlers() {
     mainWindow?.webContents.send('contacts:updated', db.data.contacts)
     logEvent('contactos_estado_cambiado', { cantidad: ids.length, estado })
     return { ok: true }
+  })
+
+  // Le pregunta a WhatsApp cuáles de estos números tienen cuenta de verdad.
+  // Sirve para no quemar envíos (y reputación del número) contra teléfonos
+  // mal tipeados o que directamente no tienen WhatsApp.
+  ipcMain.handle('contacts:validate', async (_e, ids) => {
+    if (!sock) return { error: 'Conectá WhatsApp primero' }
+
+    const objetivo = Array.isArray(ids) && ids.length
+      ? db.data.contacts.filter((c) => ids.includes(c.id))
+      : db.data.contacts
+
+    let conWhatsapp = 0
+    let sinWhatsapp = 0
+    let formatoRaro = 0
+    let errores = 0
+
+    for (const contact of objetivo) {
+      const telefono = normalizePhone(contact.telefono)
+
+      // Un número internacional válido tiene entre 8 y 15 dígitos (norma E.164).
+      // Fuera de ese rango ni vale la pena preguntarle a WhatsApp.
+      if (telefono.length < 8 || telefono.length > 15) {
+        contact.waValido = false
+        contact.waMotivo = `El teléfono tiene ${telefono.length} dígitos — un número válido tiene entre 8 y 15`
+        formatoRaro++
+        continue
+      }
+
+      try {
+        // onWhatsApp toma el número pelado y puede devolver undefined (no un
+        // array vacío) si la consulta no trae respuesta — de ahí el `|| []`,
+        // sin eso el destructuring tira TypeError.
+        const resultados = (await sock.onWhatsApp(telefono)) || []
+        const res = resultados[0]
+        if (res?.exists) {
+          contact.waValido = true
+          contact.waMotivo = null
+          conWhatsapp++
+        } else {
+          contact.waValido = false
+          contact.waMotivo = 'Este número no tiene WhatsApp'
+          sinWhatsapp++
+        }
+      } catch (err) {
+        contact.waValido = null
+        contact.waMotivo = `No se pudo verificar: ${String(err?.message || err)}`
+        errores++
+      }
+
+      // Pausa corta entre consultas: preguntar de golpe por muchos números
+      // seguidos es justo el patrón que WhatsApp marca como bot.
+      await sleep(300 + Math.random() * 400)
+    }
+
+    await db.write()
+    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
+    logEvent('contactos_validados', {
+      revisados: objetivo.length,
+      conWhatsapp,
+      sinWhatsapp,
+      formatoRaro,
+      errores
+    })
+    return { ok: true, revisados: objetivo.length, conWhatsapp, sinWhatsapp, formatoRaro, errores }
   })
 
   ipcMain.handle('contacts:clearAll', async () => {
