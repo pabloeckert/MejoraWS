@@ -21,6 +21,37 @@ function renderTemplate(template, contact) {
   })
 }
 
+// Los tildes de entrega, igual que en WhatsApp: un tilde gris = salió,
+// dos grises = llegó al teléfono, dos azules = lo leyó.
+function EntregaTicks({ contact }) {
+  if (contact.estado !== 'enviado' && !contact.entregaStatus) {
+    return <span className="text-mc-gris text-xs">-</span>
+  }
+
+  const status = contact.entregaStatus || 0
+  const cfg =
+    status >= 4
+      ? { ticks: 2, color: 'text-mc-azul', label: 'Leído', fecha: contact.fechaLeido }
+      : status === 3
+        ? { ticks: 2, color: 'text-mc-gris', label: 'Llegó al teléfono', fecha: contact.fechaLlego }
+        : status === 2
+          ? { ticks: 1, color: 'text-mc-gris', label: 'Salió de WhatsApp', fecha: contact.fechaSalio }
+          : { ticks: 0, color: 'text-mc-gris', label: 'Esperando confirmación de WhatsApp', fecha: null }
+
+  const title = cfg.fecha ? `${cfg.label} — ${new Date(cfg.fecha).toLocaleString()}` : cfg.label
+
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs ${cfg.color}`} title={title}>
+      {cfg.ticks === 0 ? (
+        <span className="text-mc-gris">⏳</span>
+      ) : (
+        <span className="font-bold tracking-tighter">{cfg.ticks === 2 ? '✓✓' : '✓'}</span>
+      )}
+      <span className="text-[11px]">{cfg.label.split(' ')[0]}</span>
+    </span>
+  )
+}
+
 function Badge({ estado }) {
   const cfg = ESTADOS[estado] || ESTADOS.pendiente
   return (
@@ -532,6 +563,7 @@ export default function App() {
                   <th className="text-left font-support font-semibold px-4 py-2.5">Nombre</th>
                   <th className="text-left font-support font-semibold px-4 py-2.5">Teléfono</th>
                   <th className="text-left font-support font-semibold px-4 py-2.5">Estado</th>
+                  <th className="text-left font-support font-semibold px-2 py-2.5 w-24">Entrega</th>
                   <th className="text-left font-support font-semibold px-4 py-2.5">Enviado</th>
                   <th className="text-left font-support font-semibold px-4 py-2.5">Respuesta</th>
                   <th className="text-left font-support font-semibold px-4 py-2.5 w-20">Acciones</th>
@@ -544,7 +576,7 @@ export default function App() {
                       <>
                         <td className="px-3 py-2"></td>
                         <td className="px-2 py-2"></td>
-                        <td className="px-2 py-2" colSpan={4}>
+                        <td className="px-2 py-2" colSpan={5}>
                           <div className="grid grid-cols-4 gap-1.5">
                             <input className="border border-gray-200 rounded p-1.5 text-xs" placeholder="Nombre"
                               value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} />
@@ -577,6 +609,7 @@ export default function App() {
                         <td className="px-4 py-2.5 text-mc-tinta">{c.nombre} {c.apellido || ''}</td>
                         <td className="px-4 py-2.5 text-mc-gris">{c.telefono}</td>
                         <td className="px-4 py-2.5"><Badge estado={c.estado} /></td>
+                        <td className="px-2 py-2.5"><EntregaTicks contact={c} /></td>
                         <td className="px-4 py-2.5 text-mc-gris">{c.fechaEnvio ? new Date(c.fechaEnvio).toLocaleString() : '-'}</td>
                         <td className="px-4 py-2.5 text-mc-gris truncate max-w-xs">{c.respuesta || '-'}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap space-x-2">
@@ -589,7 +622,7 @@ export default function App() {
                 ))}
                 {filteredContacts.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-mc-gris text-sm">
+                    <td colSpan={9} className="px-4 py-8 text-center text-mc-gris text-sm">
                       {contacts.length === 0
                         ? 'Todavía no hay contactos. Importá un CSV/Excel o agregá uno con "+ Agregar contacto".'
                         : 'Ningún contacto coincide con la búsqueda/filtro actual.'}

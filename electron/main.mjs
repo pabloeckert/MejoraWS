@@ -104,6 +104,14 @@ function sanitizeJsonStringLiterals(text) {
   return result
 }
 
+// Los estados de entrega de WhatsApp, en criollo.
+const DELIVERY_LABELS = {
+  2: 'salió',
+  3: 'llegó',
+  4: 'leído',
+  5: 'leído'
+}
+
 function normalizePhone(p) {
   return (p || '').toString().replace(/\D/g, '')
 }
@@ -198,7 +206,7 @@ function describirEvento(e) {
     case 'tope_diario_alcanzado':
       return 'tope diario alcanzado'
     case 'mensaje_confirmado_whatsapp':
-      return `WhatsApp confirmó la entrega a ${e.nombre}`
+      return `mensaje a ${e.nombre}: ${e.etapa || 'confirmado'}`
     case 'wa_conectado':
       return 'WhatsApp conectado'
     case 'wa_desconectado':
@@ -236,6 +244,13 @@ function buildSummaryText() {
 
   const enviados = entries.filter((e) => e.type === 'mensaje_enviado')
   const confirmadosWa = entries.filter((e) => e.type === 'mensaje_confirmado_whatsapp')
+  // Cuenta contactos únicos por etapa, no eventos: un mismo mensaje pasa por
+  // salió -> llegó -> leído y generaría tres eventos para una sola persona.
+  const porEtapa = (minStatus) =>
+    new Set(confirmadosWa.filter((e) => (e.status ?? 0) >= minStatus).map((e) => e.telefono)).size
+  const salieron = porEtapa(2)
+  const llegaron = porEtapa(3)
+  const leyeron = porEtapa(4)
   const respuestasContactos = entries.filter((e) => e.type === 'mensaje_recibido' && e.listado)
   const respuestasOtras = entries.filter((e) => e.type === 'mensaje_recibido' && !e.listado)
   const autoRespuestas = entries.filter((e) => e.type === 'auto_respuesta_enviada')
@@ -255,7 +270,9 @@ Generado: ${new Date().toISOString().replace('T', ' ').slice(0, 16)}
 Período con datos: ${desde} a ${hasta}
 
 Enviados (nuestra API no tiró error): ${enviados.length}
-Confirmados por WhatsApp de verdad: ${confirmadosWa.length}
+  ├─ Salieron (WhatsApp los recibió): ${salieron}
+  ├─ Llegaron al teléfono: ${llegaron}
+  └─ Leídos: ${leyeron}${leyeron < llegaron ? ' (los que tienen el tilde azul apagado no se pueden contar)' : ''}
 Respondieron (contactos de tu lista): ${respuestasContactos.length} (${tasaRespuesta}% de los enviados)
 Otros mensajes detectados (no listados): ${respuestasOtras.length}
 Auto-respuestas disparadas: ${autoRespuestas.length}
@@ -353,9 +370,15 @@ async function connectWhatsApp() {
     }
   })
 
-  // Confirmación real de entrega. sendMessage() resolver sin error solo dice
-  // que WhatsApp aceptó encolarlo — esto es lo que prueba que el mensaje
-  // salió de verdad: status 2 = servidor lo recibió, 3 = entregado al telefono.
+  // Los tres tildes de WhatsApp, tal cual los ves en el celu:
+  //   status 2 = salió    (un tilde)   — el servidor de WhatsApp lo recibió
+  //   status 3 = llegó    (dos tildes) — entró al teléfono del contacto
+  //   status 4 = leído    (dos azules) — el contacto abrió el chat
+  // sendMessage() resolver sin error NO prueba nada de esto: solo dice que
+  // WhatsApp aceptó encolarlo. Esto es la prueba real.
+  // Ojo: "leído" solo llega si el contacto tiene las confirmaciones de
+  // lectura activadas en su WhatsApp. Si las tiene apagadas, el mensaje
+  // puede haberse leído igual y nunca vas a ver el tilde azul.
   sock.ev.on('messages.update', async (updates) => {
     for (const u of updates) {
       const msgId = u.key?.id
@@ -363,12 +386,28 @@ async function connectWhatsApp() {
       if (!msgId || status == null || status < 2) continue
 
       const contact = db.data.contacts.find((c) => c.msgId === msgId)
-      if (contact && !contact.confirmadoServidor) {
-        contact.confirmadoServidor = true
-        await db.write()
-        logEvent('mensaje_confirmado_whatsapp', { telefono: contact.telefono, nombre: contact.nombre, status })
-        mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-      }
+      if (!contact) continue
+
+      // Los estados solo avanzan, nunca retroceden: si ya estaba leído, un
+      // update tardío de "llegó" no lo tiene que pisar.
+      const previo = contact.entregaStatus || 0
+      if (status <= previo) continue
+
+      const ahora = new Date().toISOString()
+      contact.entregaStatus = status
+      contact.confirmadoServidor = true // se mantiene por compatibilidad con datos viejos
+      if (status >= 2 && !contact.fechaSalio) contact.fechaSalio = ahora
+      if (status >= 3 && !contact.fechaLlego) contact.fechaLlego = ahora
+      if (status >= 4 && !contact.fechaLeido) contact.fechaLeido = ahora
+
+      await db.write()
+      logEvent('mensaje_confirmado_whatsapp', {
+        telefono: contact.telefono,
+        nombre: contact.nombre,
+        status,
+        etapa: DELIVERY_LABELS[status] || String(status)
+      })
+      mainWindow?.webContents.send('contacts:updated', db.data.contacts)
     }
   })
 }
@@ -474,7 +513,12 @@ async function runCampaign(onlyIds = null) {
       contact.estado = 'enviado'
       contact.fechaEnvio = new Date().toISOString()
       contact.msgId = sentMsg?.key?.id || null
+      // Arranca de cero el seguimiento de tildes para este envío
       contact.confirmadoServidor = false
+      contact.entregaStatus = 0
+      contact.fechaSalio = null
+      contact.fechaLlego = null
+      contact.fechaLeido = null
       cfg.sentToday += 1
       enviadosCorrida++
       indiceEnvio++
