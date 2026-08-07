@@ -3,3 +3,6 @@ dist
 dist-electron
 .DS_Store
 *.log
+
+# respaldo local, no es codigo fuente
+mejora-contacto.zip

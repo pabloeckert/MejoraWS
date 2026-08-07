@@ -649,9 +649,28 @@ export default function App() {
                   </span>
                 </p>
                 <p className="text-sm text-mc-tinta">{aiReview.feedback}</p>
+
+                {aiReview.correcciones?.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                    <p className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide mb-2">
+                      Ortografía y redacción — {aiReview.correcciones.length} {aiReview.correcciones.length === 1 ? 'corrección' : 'correcciones'}
+                    </p>
+                    <ul className="space-y-1.5">
+                      {aiReview.correcciones.map((c, i) => (
+                        <li key={i} className="text-xs text-mc-tinta">
+                          <span className="text-mc-rojo line-through">{c.original}</span>
+                          {' → '}
+                          <span className="text-mc-azul font-medium">{c.corregido}</span>
+                          <span className="text-mc-gris"> — {c.motivo}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="bg-white border border-gray-200 rounded-lg p-3">
                   <p className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide mb-1">Versión sugerida</p>
-                  <p className="text-sm text-mc-tinta">{aiReview.versionMejorada}</p>
+                  <p className="text-sm text-mc-tinta whitespace-pre-wrap">{aiReview.versionMejorada}</p>
                 </div>
                 <button
                   onClick={usarVersionMejorada}

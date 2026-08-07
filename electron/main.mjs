@@ -684,7 +684,10 @@ function registerIpcHandlers() {
   ipcMain.handle('config:get', () => configForRenderer())
 
   ipcMain.handle('config:set', async (_e, config) => {
-    const { anthropicApiKey, ...rest } = config || {}
+    // apiKeyConfigured es un campo sintético que arma configForRenderer()
+    // para el lado del renderer — nunca tiene que volver a escribirse en la
+    // config real, o ensucia data.json con un campo que no es de config.
+    const { anthropicApiKey, apiKeyConfigured, ...rest } = config || {}
     db.data.config = { ...db.data.config, ...rest }
     if (typeof anthropicApiKey === 'string' && anthropicApiKey.trim()) {
       const encrypted = encryptApiKey(anthropicApiKey.trim())
@@ -731,19 +734,52 @@ function registerIpcHandlers() {
 
     const systemPrompt = `Sos un revisor de copy para Mejora Continua (mejoraok.com), una consultora de claridad estratégica. Aplicá siempre este criterio:
 
-- Cálido y directo a la vez. Nunca vende, clarifica.
+- Cálido y directo a la vez. Nunca vende, clarifica. La calidez está en el cuidado detrás de decir la verdad, no en el consuelo.
 - Nunca tiene que sonar a mensaje armado, IA o plantilla de marketing: tiene que sonar como si Pablo lo tipeó él mismo, rápido, para alguien que ya conoce.
-- Nada de jerga, nada de motivacional vacío, nada de urgencia artificial.
+- Nada de jerga, nada de motivacional vacío, nada de urgencia artificial. Nunca se vende por precio.
+- El problema nunca es la persona: es lo que falta (foco, estructura, criterio externo).
+- Escribí en español rioplatense (vos, no tú), con todos los acentos y la ñ correctos.
 - Mantené EXACTAMENTE los tags entre llaves que aparezcan en el original (por ejemplo {nombre}, {apellido}, {variable}), sin traducirlos ni sacarlos.
 
-Te paso un mensaje de WhatsApp que Pablo quiere mandar a contactos que ya lo conocen (dueños de comercio, prospectos tibios). Respondé EXCLUSIVAMENTE con un JSON válido, sin texto extra antes ni después, con esta forma exacta:
-{
-  "esClaro": true o false,
-  "feedback": "2-3 líneas directas: qué funciona y qué no",
-  "versionMejorada": "el mensaje reescrito, más cálido y humano, mismos tags",
-  "variantes": ["variante 1", "variante 2", "variante 3", "variante 4"]
-}
-Las 4 variantes dicen lo mismo que versionMejorada pero cada una con otras palabras y otra estructura de oración — para que no se repita el mismo texto exacto mensaje tras mensaje.`
+Te paso un mensaje de WhatsApp que Pablo quiere mandar a contactos que ya lo conocen (dueños de comercio, prospectos tibios).
+
+Además de revisar el tono, corregí la ortografía y la gramática, y señalá cualquier parte que se entienda mal o sea ambigua.
+
+El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dicen lo mismo que versionMejorada pero cada una con otras palabras y otra estructura de oración — para que WhatsApp no vea el mismo texto exacto mensaje tras mensaje y lo tome por bot.`
+
+    // El JSON lo garantiza la API con un esquema (structured outputs) en vez de
+    // pedirlo por prompt y cruzar los dedos: así no puede volver mal formado ni
+    // cortado a la mitad. max_tokens generoso porque la respuesta trae la
+    // versión mejorada MÁS 4 variantes — o sea ~5 veces el largo del original.
+    const RESPUESTA_SCHEMA = {
+      type: 'object',
+      properties: {
+        esClaro: { type: 'boolean', description: 'true si el mensaje se entiende bien como está' },
+        feedback: { type: 'string', description: '2-3 líneas directas: qué funciona y qué no' },
+        correcciones: {
+          type: 'array',
+          description: 'Errores de ortografía, gramática o redacción encontrados en el original. Vacío si no hay.',
+          items: {
+            type: 'object',
+            properties: {
+              original: { type: 'string', description: 'El fragmento tal cual está escrito' },
+              corregido: { type: 'string', description: 'Cómo debería estar escrito' },
+              motivo: { type: 'string', description: 'Por qué, en pocas palabras' }
+            },
+            required: ['original', 'corregido', 'motivo'],
+            additionalProperties: false
+          }
+        },
+        versionMejorada: { type: 'string', description: 'El mensaje reescrito, corregido y más humano, con los mismos tags' },
+        variantes: {
+          type: 'array',
+          description: 'Exactamente 4 variantes que dicen lo mismo con otras palabras',
+          items: { type: 'string' }
+        }
+      },
+      required: ['esClaro', 'feedback', 'correcciones', 'versionMejorada', 'variantes'],
+      additionalProperties: false
+    }
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -754,9 +790,10 @@ Las 4 variantes dicen lo mismo que versionMejorada pero cada una con otras palab
           'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-5',
-          max_tokens: 1024,
+          model: 'claude-opus-5',
+          max_tokens: 16000,
           system: systemPrompt,
+          output_config: { format: { type: 'json_schema', schema: RESPUESTA_SCHEMA } },
           messages: [{ role: 'user', content: template }]
         })
       })
@@ -767,6 +804,9 @@ Las 4 variantes dicen lo mismo que versionMejorada pero cada una con otras palab
       }
 
       const data = await response.json()
+      if (data.stop_reason === 'refusal') {
+        return { error: 'La IA no quiso revisar este mensaje. Probá reformulándolo.' }
+      }
       const textBlock = data.content?.find((b) => b.type === 'text')?.text || ''
       const clean = textBlock.replace(/```json|```/g, '').trim()
 
