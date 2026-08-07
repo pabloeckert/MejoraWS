@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('mejora', {
   pauseCampaign: () => ipcRenderer.invoke('campaign:pause'),
   resumeCampaign: () => ipcRenderer.invoke('campaign:resume'),
 
+  // Exportar a CSV (se abre con Excel)
+  exportar: (tipo) => ipcRenderer.invoke('export:run', tipo),
+  revelarArchivo: (filePath) => ipcRenderer.invoke('export:reveal', filePath),
+
   // Log de actividad (para monitoreo personal)
   getLogSummary: () => ipcRenderer.invoke('logs:summary'),
   copyLogSummary: () => ipcRenderer.invoke('logs:copy'),

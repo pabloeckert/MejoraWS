@@ -267,6 +267,19 @@ export default function App() {
     setPaused(false)
   }
 
+  async function exportar(tipo) {
+    const res = await window.mejora.exportar(tipo)
+    if (res?.cancelado) return
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    setLogSummary(await window.mejora.getLogSummary())
+    if (confirm(`Listo: ${res.cantidad} fila(s) exportadas.\n\n¿Abrir la carpeta donde quedó?`)) {
+      await window.mejora.revelarArchivo(res.filePath)
+    }
+  }
+
   // Mete el emoji justo donde está el cursor, no al final del texto.
   function insertarEnMensaje(fragmento) {
     const el = templateRef.current
@@ -1034,6 +1047,20 @@ export default function App() {
                 className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors"
               >
                 Abrir carpeta
+              </button>
+              <button
+                onClick={() => exportar('contactos')}
+                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors"
+                title="Contactos, estado de entrega y qué respondió cada uno"
+              >
+                Exportar contactos
+              </button>
+              <button
+                onClick={() => exportar('actividad')}
+                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors"
+                title="Todo lo que pasó, evento por evento"
+              >
+                Exportar actividad
               </button>
               <button
                 onClick={copiarResumen}

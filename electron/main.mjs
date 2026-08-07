@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Notification, shell, clipboard, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, shell, clipboard, safeStorage, dialog } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -120,6 +120,31 @@ function normalizePhone(p) {
   return (p || '').toString().replace(/\D/g, '')
 }
 
+// --- Exportación a CSV ---
+// Excel en español espera punto y coma como separador, no coma. Y sin el BOM
+// del principio se come los acentos y las ñ.
+function toCsv(filas, columnas) {
+  const escapar = (v) => {
+    if (v === null || v === undefined) return ''
+    const s = String(v)
+    return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const cabecera = columnas.map((c) => escapar(c.titulo)).join(';')
+  const cuerpo = filas.map((f) => columnas.map((c) => escapar(c.valor(f))).join(';'))
+  return '﻿' + [cabecera, ...cuerpo].join('\r\n')
+}
+
+function fechaLegible(iso) {
+  return iso ? new Date(iso).toLocaleString('es-AR') : ''
+}
+
+function etapaEntrega(c) {
+  if (c.entregaStatus >= 4) return 'Leído'
+  if (c.entregaStatus === 3) return 'Llegó al teléfono'
+  if (c.entregaStatus === 2) return 'Salió'
+  return c.estado === 'enviado' ? 'Sin confirmar' : ''
+}
+
 // Busca la primera columna del CSV/Excel cuyo nombre matchea alguno de los
 // candidatos (en orden de prioridad) y que además tiene un valor no vacío
 // en esa fila. Así "Whatsapp_Format", "Comercio", "Teléfono", etc. se
@@ -207,6 +232,8 @@ function describirEvento(e) {
       return 'campaña iniciada'
     case 'campana_detenida':
       return `campaña detenida (${e.enviadosHoy ?? 0} enviados hoy)`
+    case 'exportacion':
+      return `exportaste ${e.cantidad} fila(s) de ${e.tipo} a ${e.archivo}`
     case 'contactos_validados':
       return `validaste ${e.revisados} número(s): ${e.conWhatsapp} con WhatsApp, ${e.sinWhatsapp} sin WhatsApp, ${e.formatoRaro} mal escritos`
     case 'campana_pausada':
@@ -1016,6 +1043,65 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
       }
       return { error: String(err?.message || err) }
     }
+  })
+
+  // Exporta contactos o actividad a CSV. Se abre con doble clic en Excel.
+  ipcMain.handle('export:run', async (_e, tipo) => {
+    const hoy = new Date().toISOString().slice(0, 10)
+    const nombreSugerido = tipo === 'actividad'
+      ? `MejoraContacto-actividad-${hoy}.csv`
+      : `MejoraContacto-contactos-${hoy}.csv`
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: tipo === 'actividad' ? 'Guardar informe de actividad' : 'Guardar contactos y mensajes',
+      defaultPath: path.join(app.getPath('documents'), nombreSugerido),
+      filters: [{ name: 'CSV para Excel', extensions: ['csv'] }]
+    })
+    if (canceled || !filePath) return { cancelado: true }
+
+    let csv
+    let cantidad
+
+    if (tipo === 'actividad') {
+      const entries = readLogEntries()
+      cantidad = entries.length
+      csv = toCsv(entries, [
+        { titulo: 'Fecha y hora', valor: (e) => fechaLegible(e.ts) },
+        { titulo: 'Qué pasó', valor: (e) => describirEvento(e) },
+        { titulo: 'Tipo', valor: (e) => e.type },
+        { titulo: 'Contacto', valor: (e) => e.nombre || '' },
+        { titulo: 'Teléfono', valor: (e) => e.telefono || '' },
+        { titulo: 'Detalle', valor: (e) => e.texto || e.error || '' }
+      ])
+    } else {
+      const contactos = db.data.contacts
+      cantidad = contactos.length
+      csv = toCsv(contactos, [
+        { titulo: 'Nombre', valor: (c) => c.nombre || '' },
+        { titulo: 'Apellido', valor: (c) => c.apellido || '' },
+        { titulo: 'Teléfono', valor: (c) => c.telefono || '' },
+        { titulo: 'Estado', valor: (c) => c.estado || '' },
+        { titulo: 'Entrega', valor: (c) => etapaEntrega(c) },
+        { titulo: 'Enviado', valor: (c) => fechaLegible(c.fechaEnvio) },
+        { titulo: 'Salió', valor: (c) => fechaLegible(c.fechaSalio) },
+        { titulo: 'Llegó', valor: (c) => fechaLegible(c.fechaLlego) },
+        { titulo: 'Leído', valor: (c) => fechaLegible(c.fechaLeido) },
+        { titulo: 'Qué respondió', valor: (c) => c.respuesta || '' },
+        { titulo: 'Cuándo respondió', valor: (c) => fechaLegible(c.fechaRespuesta) },
+        { titulo: 'Le respondimos', valor: (c) => (c.autoRespondido ? 'Sí' : 'No') },
+        { titulo: 'Tiene WhatsApp', valor: (c) => (c.waValido === true ? 'Sí' : c.waValido === false ? 'No' : 'Sin verificar') },
+        { titulo: 'Error', valor: (c) => c.error || '' }
+      ])
+    }
+
+    fs.writeFileSync(filePath, csv, 'utf-8')
+    logEvent('exportacion', { tipo, cantidad, archivo: path.basename(filePath) })
+    return { ok: true, filePath, cantidad }
+  })
+
+  ipcMain.handle('export:reveal', (_e, filePath) => {
+    if (filePath && fs.existsSync(filePath)) shell.showItemInFolder(filePath)
+    return true
   })
 
   ipcMain.handle('logs:copy', () => {
