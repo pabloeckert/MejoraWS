@@ -24,24 +24,269 @@ let stopRequested = false
 let pauseRequested = false
 let LOG_FILE = null
 
+// --- Modelo de datos ---
+//
+// La app se organiza en CARPETAS (una por cada uso: el cumple, los ferreteros,
+// el aviso a los asociados...). Cada carpeta tiene su propia lista, su mensaje
+// y su tono, y todas conviven sin pisarse.
+//
+//   contactos → la persona. Existe UNA sola vez aunque esté en varias
+//               carpetas. Acá va lo que no cambia según el uso: nombre,
+//               teléfono, si tiene WhatsApp.
+//   carpetas  → cada uso. Adentro, "miembros" guarda qué pasó con cada
+//               persona EN ESA carpeta (si le llegó, qué respondió).
+//   config    → lo que es de la app entera, no de una carpeta: la API key,
+//               tu número para el informe.
+
+// Los tonos vienen con estos cuatro de fábrica, pero podés crear los tuyos.
+const TONOS = {
+  personal: {
+    nombre: 'Personal',
+    guia: 'Escribile como a alguien que conocés de verdad. Cercano, sin formalidad, sin nada que suene a plantilla ni a negocio.'
+  },
+  familiar: {
+    nombre: 'Familiar',
+    guia: 'Tono de familia y amigos: relajado, afectuoso, corto. Nada de estructura formal ni lenguaje de trabajo.'
+  },
+  comercial: {
+    nombre: 'Comercial',
+    guia: 'Cálido y directo a la vez. Nunca vende, clarifica. El problema nunca es la persona: es lo que falta.'
+  },
+  operativo: {
+    nombre: 'Operativo',
+    guia: 'Informativo y claro. Que se entienda qué hay que hacer, cuándo y dónde. Sin vueltas ni adornos.'
+  }
+}
+
+// Criterio de Mejora Continua: manual de tono + los dos buyer personas que
+// aplican a su lista. Solo se le pasa a la IA en las carpetas marcadas como
+// comerciales — en el cumple del hijo, Pablo es el papa, no la consultora.
+const BLOQUE_MEJORA_CONTINUA = `
+## A quién le escribe
+Dueños de comercio y pymes (ferreterías, bulonerías, distribuidoras) que ya conocen a Pablo. Casi siempre caen en uno de estos dos perfiles:
+
+1. EMPRENDEDOR SATURADO — trabaja mucho, avanza poco, vive apagando incendios. Siente que todo depende de él. Dice "estoy en mil cosas", "no doy más", "no sé por dónde empezar". No busca motivación: busca claridad. Su dolor no es técnico, es mental.
+
+2. EL QUE NECESITA ORDEN PARA CRECER — creció rápido y sin estructura, y sabe que si sigue así desbarranca. Dice "crecí rápido", "no llego a todo", "estoy a mil". Tiene miedo de que ordenar signifique frenar o perder lo logrado. No quiere trabajar menos: quiere trabajar mejor.
+
+Ninguno de los dos busca motivación. Los dos buscan claridad y criterio.
+
+## Cómo se les habla
+Corto. Directo. Con autoridad serena. Sin tecnicismos, sin vueltas, con claridad inmediata. No necesita un pitch largo: necesita sentirse entendido.
+
+Estructura que funciona: nombrar el dolor sin juzgar → correr el foco de "vos hiciste mal" a "esto funciona así, por eso pasa esto" → cerrar con una dirección concreta, nunca con un reto.
+
+## Mensajes que le pegan (el patrón, no para copiar literal)
+- "No estás saturado por trabajar mucho, sino por trabajar sin claridad."
+- "Tu problema no es el tiempo, es el foco."
+- "No necesitás más ideas, necesitás orden."
+- "No necesitás cambiar todo, necesitás ordenar lo que ya funciona."
+- "No estás mal, estás desordenado."
+- "No estás frenando, estás ordenando para crecer."
+El patrón es: negar el diagnóstico equivocado y devolver el verdadero en una sola frase.
+
+## Qué NO decirle nunca
+- "Tenés que organizarte mejor / delegar más / planificar / bajar un cambio." Todo eso ya lo sabe; decírselo suena a reto y a consejo genérico.
+- "Tenés que frenar / cambiar todo / replantear tu negocio / hacer un proceso largo." Eso lo asusta, lo paraliza y lo aleja.
+- Nada de "vos podés" ni motivación vacía.
+
+## Criterio de marca (manda sobre todo lo demás)
+- El sujeto del problema es siempre lo que falta — foco, estructura, criterio externo — NUNCA la capacidad ni la inteligencia de la persona.
+- Cálido y directo a la vez: la calidez está en el cuidado detrás de decir la verdad, no en el consuelo.
+- Nunca vende, clarifica. Nunca se vende por precio. Nada de urgencia artificial.
+- Nunca tiene que sonar a mensaje armado, a IA o a plantilla de marketing: tiene que sonar como si Pablo lo tipeó él mismo, rápido, para alguien que ya conoce.
+`
+
+function nuevaCarpeta(nombre, tono = 'personal') {
+  return {
+    id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    nombre,
+    tono,
+    objetivo: '',
+    creada: new Date().toISOString(),
+    archivada: false,
+    // Solo las carpetas comerciales de Mejora Continua aplican el manual de
+    // marca y los buyer personas. En el cumple de tu hijo sos vos, no la
+    // consultora.
+    usarManualMarca: tono === 'comercial',
+    config: {
+      template: '',
+      variantes: [],
+      keywords: ['si', 'sí', 'dale', 'quiero', 'info', 'contame'],
+      replyTemplate: '',
+      acuseTemplate: 'Gracias por responder {nombre}. Lo leo bien y te contesto en un rato.',
+      delayMin: 20,
+      delayMax: 90,
+      dailyCap: 40,
+      sentToday: 0,
+      lastSentDate: ''
+    },
+    miembros: []
+  }
+}
+
+// --- Acceso a la carpeta abierta ---
+
+function carpetaActiva() {
+  const id = db.data.config.carpetaActivaId
+  return db.data.carpetas.find((c) => c.id === id) || db.data.carpetas[0] || null
+}
+
+function contactoPorId(id) {
+  return db.data.contactos.find((c) => c.id === id)
+}
+
+// Une la persona con lo que le pasó en ESTA carpeta. La UI trabaja con estas
+// filas: para ella sigue siendo "un contacto con su estado", igual que antes.
+function filaDeMiembro(m) {
+  const c = contactoPorId(m.contactoId) || { id: m.contactoId, nombre: m.contactoId, telefono: m.contactoId }
+  return { ...c, ...m, id: m.contactoId }
+}
+
+function filasDeCarpeta(carpeta) {
+  return carpeta ? carpeta.miembros.map(filaDeMiembro) : []
+}
+
+function emitirContactos() {
+  mainWindow?.webContents.send('contacts:updated', filasDeCarpeta(carpetaActiva()))
+}
+
+// Busca a una persona por teléfono dentro de la carpeta abierta. Devuelve el
+// miembro (su estado acá) y el contacto (quién es), que viven separados.
+function buscarEnCarpetaPorTelefono(carpeta, phone) {
+  if (!carpeta) return {}
+  const contacto = db.data.contactos.find((c) => normalizePhone(c.telefono) === phone)
+  if (!contacto) return {}
+  const miembro = carpeta.miembros.find((m) => m.contactoId === contacto.id)
+  return { contacto, miembro }
+}
+
+function resumenCarpeta(c) {
+  const total = c.miembros.length
+  return {
+    id: c.id,
+    nombre: c.nombre,
+    tono: c.tono,
+    objetivo: c.objetivo,
+    creada: c.creada,
+    archivada: !!c.archivada,
+    usarManualMarca: !!c.usarManualMarca,
+    total,
+    pendientes: c.miembros.filter((m) => m.estado === 'pendiente').length,
+    enviados: c.miembros.filter((m) => m.estado === 'enviado').length,
+    respondieron: c.miembros.filter((m) => String(m.estado).startsWith('respondio')).length
+  }
+}
+
+// Convierte los datos del formato viejo (una sola lista global) al nuevo
+// (carpetas). Corre una sola vez: lo que había pasa a ser la primera carpeta,
+// sin perder un solo contacto ni una sola respuesta.
+function migrarACarpetas() {
+  if (!Array.isArray(db.data.contacts)) return // ya está migrado
+  if (!db.data.contactos) db.data.contactos = []
+  if (!db.data.carpetas) db.data.carpetas = []
+
+  const viejos = db.data.contacts
+  const cfgVieja = db.data.config || {}
+
+  const carpeta = nuevaCarpeta('Mi primera lista', 'comercial')
+  carpeta.objetivo = 'Lo que ya tenías cargado antes de organizar por carpetas'
+  carpeta.config = {
+    template: cfgVieja.template || '',
+    variantes: cfgVieja.variantes || [],
+    keywords: cfgVieja.keywords || ['si', 'sí', 'dale', 'quiero', 'info', 'contame'],
+    replyTemplate: cfgVieja.replyTemplate || '',
+    acuseTemplate: cfgVieja.acuseTemplate || 'Gracias por responder {nombre}. Lo leo bien y te contesto en un rato.',
+    delayMin: cfgVieja.delayMin ?? 20,
+    delayMax: cfgVieja.delayMax ?? 90,
+    dailyCap: cfgVieja.dailyCap ?? 40,
+    sentToday: cfgVieja.sentToday ?? 0,
+    lastSentDate: cfgVieja.lastSentDate || ''
+  }
+
+  for (const v of viejos) {
+    const telefono = normalizePhone(v.telefono)
+    if (!telefono) continue
+
+    if (!db.data.contactos.some((c) => c.id === telefono)) {
+      db.data.contactos.push({
+        id: telefono,
+        nombre: v.nombre || telefono,
+        apellido: v.apellido || '',
+        telefono,
+        variable: v.variable || '',
+        // La validación de WhatsApp es de la persona, no de la carpeta:
+        // que un número exista no cambia según para qué le escribas.
+        waValido: v.waValido ?? null,
+        waMotivo: v.waMotivo || null,
+        notas: ''
+      })
+    }
+
+    const m = nuevoMiembro(telefono)
+    m.estado = v.estado || 'pendiente'
+    m.incluido = v.incluido !== false
+    m.fechaEnvio = v.fechaEnvio || null
+    m.msgId = v.msgId || null
+    // confirmadoServidor quedó redundante con entregaStatus: si venía marcado
+    // pero sin etapa, se asume que al menos salió.
+    m.entregaStatus = v.entregaStatus ?? (v.confirmadoServidor ? 2 : 0)
+    m.fechaSalio = v.fechaSalio || null
+    m.fechaLlego = v.fechaLlego || null
+    m.fechaLeido = v.fechaLeido || null
+    m.respuesta = v.respuesta || null
+    m.fechaRespuesta = v.fechaRespuesta || null
+    m.autoRespondido = !!v.autoRespondido
+    m.fechaAutoRespuesta = v.fechaAutoRespuesta || null
+    m.error = v.error || null
+    carpeta.miembros.push(m)
+  }
+
+  db.data.carpetas.push(carpeta)
+  db.data.config.carpetaActivaId = carpeta.id
+
+  // Estos campos ahora viven en la carpeta, no en la config global
+  for (const k of ['template', 'variantes', 'keywords', 'replyTemplate', 'acuseTemplate',
+    'delayMin', 'delayMax', 'dailyCap', 'sentToday', 'lastSentDate']) {
+    delete db.data.config[k]
+  }
+  delete db.data.contacts
+
+  logEvent('migracion_a_carpetas', {
+    contactos: db.data.contactos.length,
+    miembros: carpeta.miembros.length,
+    carpeta: carpeta.nombre
+  })
+}
+
+function nuevoMiembro(contactoId) {
+  return {
+    contactoId,
+    estado: 'pendiente',
+    incluido: true,
+    fechaEnvio: null,
+    msgId: null,
+    entregaStatus: 0,
+    fechaSalio: null,
+    fechaLlego: null,
+    fechaLeido: null,
+    respuesta: null,
+    fechaRespuesta: null,
+    autoRespondido: false,
+    fechaAutoRespuesta: null,
+    error: null
+  }
+}
+
 const DEFAULT_DATA = {
-  contacts: [],
+  contactos: [],
+  carpetas: [],
   config: {
-    template: 'Hola {nombre}! Te quiero compartir algo que armé, capaz te sirve: [LINK_MEJORADIAGNOSTICO]',
-    delayMin: 20,
-    delayMax: 90,
-    dailyCap: 40,
-    sentToday: 0,
-    lastSentDate: '',
-    keywords: ['si', 'sí', 'info', 'quiero', 'dale', 'contame'],
-    replyTemplate: 'Genial {nombre}, te paso el link: [LINK_MEJORADIAGNOSTICO]',
-    // Para cuando responden algo que no matchea ninguna keyword: que nadie
-    // quede sin respuesta. Tono del manual — cálido y directo, sin vender.
-    acuseTemplate: 'Gracias por responder {nombre}. Lo leo bien y te contesto en un rato.',
     reportEnabled: true,
     reportPhone: '5493765007805',
     anthropicApiKeyEncrypted: '',
-    variantes: []
+    carpetaActivaId: null,
+    tonosPropios: {}
   }
 }
 
@@ -53,11 +298,18 @@ function encryptApiKey(plainKey) {
   return safeStorage.encryptString(plainKey).toString('base64')
 }
 
-// Lo único que el renderer necesita saber de la API key es si hay una
-// guardada o no — nunca el valor ni el blob cifrado.
+// Lo que ve el renderer: la config de la carpeta abierta (mensaje, keywords,
+// delays) mezclada con la global (tu número para el informe). De la API key
+// solo sabe si hay una guardada — nunca el valor ni el blob cifrado.
 function configForRenderer() {
-  const { anthropicApiKeyEncrypted, ...rest } = db.data.config
-  return { ...rest, apiKeyConfigured: !!anthropicApiKeyEncrypted }
+  const { anthropicApiKeyEncrypted, tonosPropios, ...global } = db.data.config
+  const carpeta = carpetaActiva()
+  return {
+    ...global,
+    ...(carpeta ? carpeta.config : {}),
+    apiKeyConfigured: !!anthropicApiKeyEncrypted,
+    carpeta: carpeta ? resumenCarpeta(carpeta) : null
+  }
 }
 
 function getDecryptedApiKey() {
@@ -422,87 +674,129 @@ async function connectWhatsApp() {
       const status = u.update?.status
       if (!msgId || status == null || status < 2) continue
 
-      const contact = db.data.contacts.find((c) => c.msgId === msgId)
-      if (!contact) continue
+      // El mensaje puede pertenecer a cualquier carpeta, no solo a la abierta.
+      let carpeta = null
+      let miembro = null
+      for (const c of db.data.carpetas) {
+        const m = c.miembros.find((x) => x.msgId === msgId)
+        if (m) { carpeta = c; miembro = m; break }
+      }
+      if (!miembro) continue
 
       // Los estados solo avanzan, nunca retroceden: si ya estaba leído, un
       // update tardío de "llegó" no lo tiene que pisar.
-      const previo = contact.entregaStatus || 0
+      const previo = miembro.entregaStatus || 0
       if (status <= previo) continue
 
       const ahora = new Date().toISOString()
-      contact.entregaStatus = status
-      contact.confirmadoServidor = true // se mantiene por compatibilidad con datos viejos
-      if (status >= 2 && !contact.fechaSalio) contact.fechaSalio = ahora
-      if (status >= 3 && !contact.fechaLlego) contact.fechaLlego = ahora
-      if (status >= 4 && !contact.fechaLeido) contact.fechaLeido = ahora
+      miembro.entregaStatus = status
+      if (status >= 2 && !miembro.fechaSalio) miembro.fechaSalio = ahora
+      if (status >= 3 && !miembro.fechaLlego) miembro.fechaLlego = ahora
+      if (status >= 4 && !miembro.fechaLeido) miembro.fechaLeido = ahora
 
       await db.write()
+      const persona = contactoPorId(miembro.contactoId)
       logEvent('mensaje_confirmado_whatsapp', {
-        telefono: contact.telefono,
-        nombre: contact.nombre,
+        carpeta: carpeta.nombre,
+        telefono: persona?.telefono,
+        nombre: persona?.nombre,
         status,
         etapa: DELIVERY_LABELS[status] || String(status)
       })
-      mainWindow?.webContents.send('contacts:updated', db.data.contacts)
+      emitirContactos()
     }
   })
 }
 
 async function handleIncomingMessage(phone, text) {
-  const contact = db.data.contacts.find((c) => normalizePhone(c.telefono) === phone)
-  const cfg = db.data.config
   const now = new Date().toISOString()
 
-  if (contact) {
-    contact.estado = 'respondio'
-    contact.respuesta = text
-    contact.fechaRespuesta = now
-  } else {
-    db.data.contacts.push({
-      id: phone,
-      nombre: phone,
-      telefono: phone,
-      variable: '',
-      estado: 'respondio_no_listado',
-      respuesta: text,
-      fechaRespuesta: now,
-      fechaEnvio: null
-    })
+  // ¿A qué carpeta corresponde esta respuesta? A la que le escribió último.
+  // Si la misma persona está en varias, la respuesta va contra la conversación
+  // más reciente, que es la que tiene en la cabeza cuando te contesta.
+  let carpeta = null
+  let miembro = null
+  let persona = db.data.contactos.find((c) => normalizePhone(c.telefono) === phone)
+
+  if (persona) {
+    let ultimoEnvio = null
+    for (const c of db.data.carpetas) {
+      const m = c.miembros.find((x) => x.contactoId === persona.id)
+      if (!m) continue
+      const cuando = m.fechaEnvio || ''
+      if (!miembro || cuando > ultimoEnvio) {
+        carpeta = c
+        miembro = m
+        ultimoEnvio = cuando
+      }
+    }
   }
+
+  // Alguien que no está en ninguna lista. Se guarda igual, en la carpeta
+  // abierta, para que no se pierda el mensaje.
+  if (!miembro) {
+    carpeta = carpetaActiva()
+    if (!carpeta) return
+    if (!persona) {
+      persona = {
+        id: phone,
+        nombre: phone,
+        apellido: '',
+        telefono: phone,
+        variable: '',
+        waValido: true,
+        waMotivo: null,
+        notas: ''
+      }
+      db.data.contactos.push(persona)
+    }
+    miembro = nuevoMiembro(persona.id)
+    miembro.estado = 'respondio_no_listado'
+    carpeta.miembros.push(miembro)
+  } else {
+    miembro.estado = 'respondio'
+  }
+
+  miembro.respuesta = text
+  miembro.fechaRespuesta = now
+
   await db.write()
-  mainWindow?.webContents.send('contacts:updated', db.data.contacts)
+  emitirContactos()
   logEvent('mensaje_recibido', {
+    carpeta: carpeta.nombre,
     telefono: phone,
-    nombre: contact?.nombre || phone,
+    nombre: persona.nombre || phone,
     texto: text.slice(0, 140),
-    listado: !!contact
+    listado: miembro.estado !== 'respondio_no_listado'
   })
 
   new Notification({
-    title: contact ? `Respondió ${contact.nombre}` : `Mensaje de ${phone}`,
+    title: `Respondió ${persona.nombre || phone}`,
     body: text.slice(0, 140)
   }).show()
 
+  // Cada carpeta tiene sus propias keywords y sus propias respuestas: al
+  // cumpleaños se contesta distinto que a un contacto comercial.
+  const cfg = carpeta.config
   const keywords = (cfg.keywords || []).map((k) => k.toLowerCase().trim()).filter(Boolean)
   const matched = keywords.some((k) => text.toLowerCase().includes(k))
-  const destino = contact || db.data.contacts.find((c) => normalizePhone(c.telefono) === phone)
+  const datos = { ...persona, ...miembro }
 
   // Nadie que escribe se queda sin respuesta. Si dijo alguna de las keywords
   // ("dale", "info"...) va la respuesta con el link; si escribió cualquier
   // otra cosa igual recibe un acuse humano, para que no quede hablando solo.
   //
-  // Se responde UNA sola vez por contacto (autoRespondido): a partir de ahí
-  // seguís vos a mano. Eso evita el ping-pong automático — dos bots
-  // respondiéndose es exactamente lo que WhatsApp detecta y bloquea.
-  if (destino && sock && !destino.autoRespondido) {
+  // Se responde UNA sola vez por persona y por carpeta: a partir de ahí seguís
+  // vos a mano. Eso evita el ping-pong automático — dos bots respondiéndose es
+  // exactamente lo que WhatsApp detecta y bloquea.
+  if (sock && !miembro.autoRespondido) {
     const texto = matched && cfg.replyTemplate
-      ? renderTemplate(cfg.replyTemplate, destino)
-      : renderTemplate(cfg.acuseTemplate || DEFAULT_DATA.config.acuseTemplate, destino)
+      ? renderTemplate(cfg.replyTemplate, datos)
+      : renderTemplate(cfg.acuseTemplate, datos)
 
     if (texto.trim()) {
-      destino.autoRespondido = true
-      destino.fechaAutoRespuesta = new Date().toISOString()
+      miembro.autoRespondido = true
+      miembro.fechaAutoRespuesta = new Date().toISOString()
       await db.write()
 
       const jid = `${phone}@s.whatsapp.net`
@@ -510,8 +804,9 @@ async function handleIncomingMessage(phone, text) {
       setTimeout(() => {
         sock?.sendMessage(jid, { text: texto }).catch(() => {})
         logEvent('auto_respuesta_enviada', {
+          carpeta: carpeta.nombre,
           telefono: phone,
-          nombre: destino.nombre || phone,
+          nombre: persona.nombre || phone,
           tipo: matched ? 'con keyword' : 'acuse'
         })
       }, 4000 + Math.random() * 6000)
@@ -520,25 +815,37 @@ async function handleIncomingMessage(phone, text) {
 }
 
 async function runCampaign(onlyIds = null) {
+  const carpeta = carpetaActiva()
+  if (!carpeta) return
+
   campaignRunning = true
   stopRequested = false
   pauseRequested = false
-  const cfg = db.data.config
+  const cfg = carpeta.config
   const today = new Date().toISOString().slice(0, 10)
   if (cfg.lastSentDate !== today) {
     cfg.sentToday = 0
     cfg.lastSentDate = today
   }
 
-  const pendientesInicio = db.data.contacts.filter((c) => c.estado === 'pendiente').length
-  logEvent('campana_iniciada', { pendientes: pendientesInicio, soloSeleccionados: !!onlyIds })
+  const pendientesInicio = carpeta.miembros.filter((m) => m.estado === 'pendiente').length
+  logEvent('campana_iniciada', {
+    carpeta: carpeta.nombre,
+    pendientes: pendientesInicio,
+    soloSeleccionados: !!onlyIds
+  })
 
   let enviadosCorrida = 0
   let erroresCorrida = 0
   let motivoFin = 'completado'
   let indiceEnvio = 0
 
-  for (const contact of db.data.contacts) {
+  for (const miembro of carpeta.miembros) {
+    const persona = contactoPorId(miembro.contactoId)
+    if (!persona) continue
+    // "contact" junta a la persona con su estado en esta carpeta, que es lo
+    // que necesitan tanto el texto del mensaje como los logs.
+    const contact = { ...persona, ...miembro }
     if (stopRequested) {
       motivoFin = 'detenido manualmente'
       break
@@ -556,22 +863,22 @@ async function runCampaign(onlyIds = null) {
       break
     }
 
-    if (contact.estado !== 'pendiente') continue
+    if (miembro.estado !== 'pendiente') continue
 
     // Si vino una lista puntual ("enviar solo a estos"), manda a esos sin
     // importar el flag incluido. Si no, respeta el flag incluido de cada uno
     // (default true — un contacto sin ese campo, de datos viejos, cuenta como incluido).
     if (onlyIds) {
-      if (!onlyIds.includes(contact.id)) continue
-    } else if (contact.incluido === false) {
+      if (!onlyIds.includes(miembro.contactoId)) continue
+    } else if (miembro.incluido === false) {
       continue
     }
 
     // Si ya lo validaste y WhatsApp dijo que ese número no existe, no gastes
     // un envío al pedo. (waValido null = nunca se validó, se manda igual.)
-    if (contact.waValido === false) {
-      contact.estado = 'error'
-      contact.error = contact.waMotivo || 'El número no tiene WhatsApp'
+    if (persona.waValido === false) {
+      miembro.estado = 'error'
+      miembro.error = persona.waMotivo || 'El número no tiene WhatsApp'
       await db.write()
       continue
     }
@@ -583,37 +890,52 @@ async function runCampaign(onlyIds = null) {
       break
     }
 
-    const jid = `${normalizePhone(contact.telefono)}@s.whatsapp.net`
+    const jid = `${normalizePhone(persona.telefono)}@s.whatsapp.net`
     // Cada 5 envíos rota a la siguiente variante (si hay variantes generadas
     // por IA); si no hay, usa siempre la plantilla base.
     const variantes = cfg.variantes && cfg.variantes.length ? cfg.variantes : [cfg.template]
     const variantIndex = Math.floor(indiceEnvio / 5) % variantes.length
     const texto = renderTemplate(variantes[variantIndex], contact)
 
+    if (!texto.trim()) {
+      motivoFin = 'no hay mensaje escrito en esta carpeta'
+      break
+    }
+
     try {
       const sentMsg = await sock.sendMessage(jid, { text: texto })
-      contact.estado = 'enviado'
-      contact.fechaEnvio = new Date().toISOString()
-      contact.msgId = sentMsg?.key?.id || null
+      miembro.estado = 'enviado'
+      miembro.fechaEnvio = new Date().toISOString()
+      miembro.msgId = sentMsg?.key?.id || null
       // Arranca de cero el seguimiento de tildes para este envío
-      contact.confirmadoServidor = false
-      contact.entregaStatus = 0
-      contact.fechaSalio = null
-      contact.fechaLlego = null
-      contact.fechaLeido = null
+      miembro.entregaStatus = 0
+      miembro.fechaSalio = null
+      miembro.fechaLlego = null
+      miembro.fechaLeido = null
+      miembro.error = null
       cfg.sentToday += 1
       enviadosCorrida++
       indiceEnvio++
-      logEvent('mensaje_enviado', { telefono: contact.telefono, nombre: contact.nombre, variante: variantIndex + 1 })
+      logEvent('mensaje_enviado', {
+        carpeta: carpeta.nombre,
+        telefono: persona.telefono,
+        nombre: persona.nombre,
+        variante: variantIndex + 1
+      })
     } catch (err) {
-      contact.estado = 'error'
-      contact.error = String(err?.message || err)
+      miembro.estado = 'error'
+      miembro.error = String(err?.message || err)
       erroresCorrida++
-      logEvent('error_envio', { telefono: contact.telefono, nombre: contact.nombre, error: contact.error })
+      logEvent('error_envio', {
+        carpeta: carpeta.nombre,
+        telefono: persona.telefono,
+        nombre: persona.nombre,
+        error: miembro.error
+      })
     }
 
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
+    emitirContactos()
     mainWindow?.webContents.send('campaign:progress', {
       status: 'enviando',
       enviadosHoy: cfg.sentToday,
@@ -627,22 +949,22 @@ async function runCampaign(onlyIds = null) {
 
   campaignRunning = false
   mainWindow?.webContents.send('campaign:progress', { status: 'detenido' })
-  logEvent('campana_detenida', { enviadosHoy: cfg.sentToday })
+  logEvent('campana_detenida', { carpeta: carpeta.nombre, enviadosHoy: cfg.sentToday })
 
-  const pendientesRestantes = db.data.contacts.filter((c) => c.estado === 'pendiente').length
-  await sendCycleReport({ motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes })
+  const pendientesRestantes = carpeta.miembros.filter((m) => m.estado === 'pendiente').length
+  await sendCycleReport({ carpeta, motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes })
 }
 
-async function sendCycleReport({ motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes }) {
+async function sendCycleReport({ carpeta, motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes }) {
   const cfg = db.data.config
   if (!cfg.reportEnabled || !cfg.reportPhone || !sock) return
 
   const jid = `${normalizePhone(cfg.reportPhone)}@s.whatsapp.net`
-  const texto = `📋 MejoraContacto — ciclo terminado (${motivoFin})
+  const texto = `📋 MejoraContacto — "${carpeta.nombre}" terminó (${motivoFin})
 
 Enviados en esta corrida: ${enviadosCorrida}
 Errores: ${erroresCorrida}
-Enviados hoy (total): ${cfg.sentToday}/${cfg.dailyCap}
+Enviados hoy en esta carpeta: ${carpeta.config.sentToday}/${carpeta.config.dailyCap}
 Pendientes restantes: ${pendientesRestantes}`
 
   try {
@@ -654,8 +976,82 @@ Pendientes restantes: ${pendientesRestantes}`
 }
 
 function registerIpcHandlers() {
+  // --- Carpetas ---
+
+  ipcMain.handle('carpetas:list', () => ({
+    carpetas: db.data.carpetas.map(resumenCarpeta),
+    activaId: carpetaActiva()?.id || null,
+    tonos: { ...TONOS, ...(db.data.config.tonosPropios || {}) }
+  }))
+
+  ipcMain.handle('carpetas:create', async (_e, { nombre, tono, objetivo }) => {
+    const limpio = (nombre || '').trim()
+    if (!limpio) return { error: 'Poné un nombre para la carpeta' }
+    if (db.data.carpetas.some((c) => c.nombre.toLowerCase() === limpio.toLowerCase())) {
+      return { error: 'Ya tenés una carpeta con ese nombre' }
+    }
+
+    const carpeta = nuevaCarpeta(limpio, tono || 'personal')
+    carpeta.objetivo = (objetivo || '').trim()
+    db.data.carpetas.push(carpeta)
+    db.data.config.carpetaActivaId = carpeta.id
+    await db.write()
+    logEvent('carpeta_creada', { nombre: carpeta.nombre, tono: carpeta.tono })
+    emitirContactos()
+    return { ok: true, id: carpeta.id }
+  })
+
+  ipcMain.handle('carpetas:activar', async (_e, id) => {
+    if (campaignRunning) return { error: 'Hay un envío en curso. Detenelo antes de cambiar de carpeta.' }
+    if (!db.data.carpetas.some((c) => c.id === id)) return { error: 'Esa carpeta no existe' }
+    db.data.config.carpetaActivaId = id
+    await db.write()
+    emitirContactos()
+    return { ok: true }
+  })
+
+  ipcMain.handle('carpetas:update', async (_e, { id, nombre, tono, objetivo, usarManualMarca }) => {
+    const carpeta = db.data.carpetas.find((c) => c.id === id)
+    if (!carpeta) return { error: 'Esa carpeta no existe' }
+
+    if (typeof nombre === 'string' && nombre.trim()) {
+      const repetido = db.data.carpetas.some(
+        (c) => c.id !== id && c.nombre.toLowerCase() === nombre.trim().toLowerCase()
+      )
+      if (repetido) return { error: 'Ya tenés una carpeta con ese nombre' }
+      carpeta.nombre = nombre.trim()
+    }
+    if (typeof tono === 'string') carpeta.tono = tono
+    if (typeof objetivo === 'string') carpeta.objetivo = objetivo
+    if (typeof usarManualMarca === 'boolean') carpeta.usarManualMarca = usarManualMarca
+
+    await db.write()
+    return { ok: true }
+  })
+
+  ipcMain.handle('carpetas:delete', async (_e, id) => {
+    if (campaignRunning) return { error: 'Hay un envío en curso. Detenelo primero.' }
+    const carpeta = db.data.carpetas.find((c) => c.id === id)
+    if (!carpeta) return { error: 'Esa carpeta no existe' }
+    if (db.data.carpetas.length === 1) return { error: 'Es la única carpeta que tenés: no se puede borrar' }
+
+    db.data.carpetas = db.data.carpetas.filter((c) => c.id !== id)
+    if (db.data.config.carpetaActivaId === id) {
+      db.data.config.carpetaActivaId = db.data.carpetas[0]?.id || null
+    }
+    await db.write()
+    logEvent('carpeta_eliminada', { nombre: carpeta.nombre, miembros: carpeta.miembros.length })
+    emitirContactos()
+    return { ok: true }
+  })
+
+  // --- Contactos (siempre dentro de la carpeta abierta) ---
+
   ipcMain.handle('contacts:import', async (_e, rows) => {
-    const existing = new Set(db.data.contacts.map((c) => normalizePhone(c.telefono)))
+    const carpeta = carpetaActiva()
+    if (!carpeta) return { error: 'Creá una carpeta primero' }
+
+    const yaEnCarpeta = new Set(carpeta.miembros.map((m) => m.contactoId))
     let added = 0
     let sinTelefono = 0
     let duplicados = 0
@@ -670,89 +1066,126 @@ function registerIpcHandlers() {
         sinTelefono++
         continue
       }
-      if (existing.has(telefono)) {
+      if (yaEnCarpeta.has(telefono)) {
         duplicados++
         continue
       }
 
-      db.data.contacts.push({
-        id: telefono,
-        nombre: (nameKey ? row[nameKey] : '') || telefono,
-        apellido: (lastNameKey ? row[lastNameKey] : '') || '',
-        telefono,
-        variable: '',
-        incluido: true,
-        estado: 'pendiente',
-        fechaEnvio: null,
-        respuesta: null,
-        fechaRespuesta: null
-      })
-      existing.add(telefono)
+      // La persona se guarda una sola vez. Si ya la tenías de otra carpeta, se
+      // reusa: mantiene su validación de WhatsApp y sus notas.
+      if (!contactoPorId(telefono)) {
+        db.data.contactos.push({
+          id: telefono,
+          nombre: (nameKey ? row[nameKey] : '') || telefono,
+          apellido: (lastNameKey ? row[lastNameKey] : '') || '',
+          telefono,
+          variable: '',
+          waValido: null,
+          waMotivo: null,
+          notas: ''
+        })
+      }
+
+      carpeta.miembros.push(nuevoMiembro(telefono))
+      yaEnCarpeta.add(telefono)
       added++
     }
 
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-    logEvent('contactos_importados', { added, sinTelefono, duplicados, total: db.data.contacts.length })
-    return { added, sinTelefono, duplicados, total: db.data.contacts.length }
+    emitirContactos()
+    logEvent('contactos_importados', {
+      carpeta: carpeta.nombre,
+      added,
+      sinTelefono,
+      duplicados,
+      total: carpeta.miembros.length
+    })
+    return { added, sinTelefono, duplicados, total: carpeta.miembros.length }
   })
 
-  ipcMain.handle('contacts:list', () => db.data.contacts)
+  ipcMain.handle('contacts:list', () => filasDeCarpeta(carpetaActiva()))
 
   ipcMain.handle('contacts:update', async (_e, data) => {
-    const contact = db.data.contacts.find((c) => c.id === data.id)
-    if (!contact) return { error: 'Contacto no encontrado' }
+    const persona = contactoPorId(data.id)
+    if (!persona) return { error: 'Contacto no encontrado' }
 
     const nuevoTelefono = normalizePhone(data.telefono)
     if (!nuevoTelefono) return { error: 'Teléfono inválido' }
 
-    if (nuevoTelefono !== contact.telefono) {
-      const enUso = db.data.contacts.some((c) => c.id !== contact.id && normalizePhone(c.telefono) === nuevoTelefono)
+    if (nuevoTelefono !== persona.telefono) {
+      const enUso = db.data.contactos.some((c) => c.id !== persona.id && normalizePhone(c.telefono) === nuevoTelefono)
       if (enUso) return { error: 'Ese teléfono ya lo tiene otro contacto' }
     }
 
-    contact.nombre = data.nombre?.trim() || nuevoTelefono
-    contact.apellido = data.apellido?.trim() || ''
-    contact.telefono = nuevoTelefono
-    contact.variable = data.variable?.trim() || ''
-    contact.id = nuevoTelefono
+    const idViejo = persona.id
+    persona.nombre = data.nombre?.trim() || nuevoTelefono
+    persona.apellido = data.apellido?.trim() || ''
+    persona.telefono = nuevoTelefono
+    persona.variable = data.variable?.trim() || ''
+    persona.id = nuevoTelefono
+
+    // Si cambió el número, cambió el id: hay que reapuntar sus membresías en
+    // TODAS las carpetas, no solo en la abierta.
+    if (idViejo !== nuevoTelefono) {
+      persona.waValido = null // el número es otro: la validación anterior ya no vale
+      persona.waMotivo = null
+      for (const c of db.data.carpetas) {
+        for (const m of c.miembros) {
+          if (m.contactoId === idViejo) m.contactoId = nuevoTelefono
+        }
+      }
+    }
 
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-    logEvent('contacto_editado', { telefono: nuevoTelefono, nombre: contact.nombre })
+    emitirContactos()
+    logEvent('contacto_editado', { telefono: nuevoTelefono, nombre: persona.nombre })
     return { ok: true }
   })
 
+  // Saca a la persona de ESTA carpeta. Sigue existiendo en las otras.
   ipcMain.handle('contacts:delete', async (_e, ids) => {
-    const antes = db.data.contacts.length
-    db.data.contacts = db.data.contacts.filter((c) => !ids.includes(c.id))
-    const eliminados = antes - db.data.contacts.length
+    const carpeta = carpetaActiva()
+    if (!carpeta) return { error: 'No hay carpeta abierta' }
+
+    const antes = carpeta.miembros.length
+    carpeta.miembros = carpeta.miembros.filter((m) => !ids.includes(m.contactoId))
+    const eliminados = antes - carpeta.miembros.length
+
+    // Si la persona no quedó en ninguna carpeta, se va del todo.
+    for (const id of ids) {
+      const enAlguna = db.data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === id))
+      if (!enAlguna) db.data.contactos = db.data.contactos.filter((c) => c.id !== id)
+    }
 
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-    logEvent('contactos_eliminados', { cantidad: eliminados })
+    emitirContactos()
+    logEvent('contactos_eliminados', { carpeta: carpeta.nombre, cantidad: eliminados })
     return { ok: true, eliminados }
   })
 
   ipcMain.handle('contacts:setIncluido', async (_e, { ids, incluido }) => {
-    for (const c of db.data.contacts) {
-      if (ids.includes(c.id)) c.incluido = incluido
+    const carpeta = carpetaActiva()
+    if (!carpeta) return { error: 'No hay carpeta abierta' }
+    for (const m of carpeta.miembros) {
+      if (ids.includes(m.contactoId)) m.incluido = incluido
     }
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
+    emitirContactos()
     return { ok: true }
   })
 
   ipcMain.handle('contacts:setEstado', async (_e, { ids, estado }) => {
-    for (const c of db.data.contacts) {
-      if (ids.includes(c.id)) {
-        c.estado = estado
-        if (estado === 'pendiente') c.error = null
+    const carpeta = carpetaActiva()
+    if (!carpeta) return { error: 'No hay carpeta abierta' }
+    for (const m of carpeta.miembros) {
+      if (ids.includes(m.contactoId)) {
+        m.estado = estado
+        if (estado === 'pendiente') m.error = null
       }
     }
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-    logEvent('contactos_estado_cambiado', { cantidad: ids.length, estado })
+    emitirContactos()
+    logEvent('contactos_estado_cambiado', { carpeta: carpeta.nombre, cantidad: ids.length, estado })
     return { ok: true }
   })
 
@@ -762,9 +1195,12 @@ function registerIpcHandlers() {
   ipcMain.handle('contacts:validate', async (_e, ids) => {
     if (!sock) return { error: 'Conectá WhatsApp primero' }
 
+    // La validación es de la persona, no de la carpeta: si no se pasan ids,
+    // se validan los de la carpeta abierta.
+    const carpeta = carpetaActiva()
     const objetivo = Array.isArray(ids) && ids.length
-      ? db.data.contacts.filter((c) => ids.includes(c.id))
-      : db.data.contacts
+      ? db.data.contactos.filter((c) => ids.includes(c.id))
+      : (carpeta ? carpeta.miembros.map((m) => contactoPorId(m.contactoId)).filter(Boolean) : [])
 
     let conWhatsapp = 0
     let sinWhatsapp = 0
@@ -810,7 +1246,7 @@ function registerIpcHandlers() {
     }
 
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
+    emitirContactos()
     logEvent('contactos_validados', {
       revisados: objetivo.length,
       conWhatsapp,
@@ -821,18 +1257,35 @@ function registerIpcHandlers() {
     return { ok: true, revisados: objetivo.length, conWhatsapp, sinWhatsapp, formatoRaro, errores }
   })
 
+  // Vacía la carpeta abierta. Las otras carpetas no se tocan.
   ipcMain.handle('contacts:clearAll', async () => {
-    const cantidadAnterior = db.data.contacts.length
-    db.data.contacts = []
+    const carpeta = carpetaActiva()
+    if (!carpeta) return { error: 'No hay carpeta abierta' }
+
+    const cantidadAnterior = carpeta.miembros.length
+    const eran = carpeta.miembros.map((m) => m.contactoId)
+    carpeta.miembros = []
+
+    for (const id of eran) {
+      const enAlguna = db.data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === id))
+      if (!enAlguna) db.data.contactos = db.data.contactos.filter((c) => c.id !== id)
+    }
+
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-    logEvent('contactos_vaciados', { cantidadAnterior })
+    emitirContactos()
+    logEvent('contactos_vaciados', { carpeta: carpeta.nombre, cantidadAnterior })
     return { ok: true }
   })
 
   ipcMain.handle('app:resetTotal', async () => {
-    db.data.contacts = []
+    db.data.contactos = []
+    db.data.carpetas = []
     db.data.config = { ...DEFAULT_DATA.config }
+
+    // Siempre tiene que quedar una carpeta para que la app sea usable
+    const primera = nuevaCarpeta('Mi primera carpeta', 'personal')
+    db.data.carpetas.push(primera)
+    db.data.config.carpetaActivaId = primera.id
     await db.write()
 
     try {
@@ -843,32 +1296,37 @@ function registerIpcHandlers() {
     }
     logEvent('app_reset_total')
 
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
+    emitirContactos()
     return { ok: true, config: configForRenderer() }
   })
 
   ipcMain.handle('contacts:addManual', async (_e, data) => {
+    const carpeta = carpetaActiva()
+    if (!carpeta) return { error: 'Creá una carpeta primero' }
+
     const telefono = normalizePhone(data?.telefono)
     if (!telefono) return { error: 'Teléfono inválido' }
 
-    const yaExiste = db.data.contacts.some((c) => normalizePhone(c.telefono) === telefono)
-    if (yaExiste) return { error: 'Ese teléfono ya está en la lista' }
+    if (carpeta.miembros.some((m) => m.contactoId === telefono)) {
+      return { error: 'Ese teléfono ya está en esta carpeta' }
+    }
 
-    db.data.contacts.push({
-      id: telefono,
-      nombre: data.nombre?.trim() || telefono,
-      apellido: data.apellido?.trim() || '',
-      telefono,
-      variable: data.variable?.trim() || '',
-      incluido: true,
-      estado: 'pendiente',
-      fechaEnvio: null,
-      respuesta: null,
-      fechaRespuesta: null
-    })
+    if (!contactoPorId(telefono)) {
+      db.data.contactos.push({
+        id: telefono,
+        nombre: data.nombre?.trim() || telefono,
+        apellido: data.apellido?.trim() || '',
+        telefono,
+        variable: data.variable?.trim() || '',
+        waValido: null,
+        waMotivo: null,
+        notas: ''
+      })
+    }
+    carpeta.miembros.push(nuevoMiembro(telefono))
     await db.write()
-    mainWindow?.webContents.send('contacts:updated', db.data.contacts)
-    logEvent('contacto_agregado_manual', { telefono, nombre: data.nombre })
+    emitirContactos()
+    logEvent('contacto_agregado_manual', { carpeta: carpeta.nombre, telefono, nombre: data.nombre })
     return { ok: true }
   })
 
@@ -878,12 +1336,26 @@ function registerIpcHandlers() {
     // apiKeyConfigured es un campo sintético que arma configForRenderer()
     // para el lado del renderer — nunca tiene que volver a escribirse en la
     // config real, o ensucia data.json con un campo que no es de config.
-    const { anthropicApiKey, apiKeyConfigured, ...rest } = config || {}
-    // Object.assign en vez de reemplazar el objeto: una campaña en curso tiene
-    // una referencia viva a db.data.config. Si acá se creara un objeto nuevo,
-    // la campaña seguiría leyendo el viejo — el mensaje corregido no se usaría
-    // y el contador de enviados del día se perdería al terminar.
-    Object.assign(db.data.config, rest)
+    const { anthropicApiKey, apiKeyConfigured, carpeta: _c, ...rest } = config || {}
+
+    // Los campos del mensaje son de la carpeta abierta; el resto (API key, tu
+    // número para el informe) son de la app entera.
+    const DE_CARPETA = ['template', 'variantes', 'keywords', 'replyTemplate',
+      'acuseTemplate', 'delayMin', 'delayMax', 'dailyCap', 'sentToday', 'lastSentDate']
+
+    const carpeta = carpetaActiva()
+    for (const [k, v] of Object.entries(rest)) {
+      if (DE_CARPETA.includes(k)) {
+        // Object.assign en vez de reemplazar el objeto: una campaña en curso
+        // tiene una referencia viva a carpeta.config. Si acá se creara uno
+        // nuevo, seguiría leyendo el viejo — el mensaje corregido no se usaría
+        // y el contador de enviados del día se perdería.
+        if (carpeta) carpeta.config[k] = v
+      } else {
+        db.data.config[k] = v
+      }
+    }
+
     if (typeof anthropicApiKey === 'string' && anthropicApiKey.trim()) {
       const encrypted = encryptApiKey(anthropicApiKey.trim())
       if (encrypted) db.data.config.anthropicApiKeyEncrypted = encrypted
@@ -947,48 +1419,33 @@ function registerIpcHandlers() {
     if (!apiKey) return { error: 'Falta cargar tu API key de Anthropic en Configuración.' }
     if (!template?.trim()) return { error: 'Escribí un mensaje primero.' }
 
-    const systemPrompt = `Sos el revisor de copy de Pablo, de Mejora Continua (mejoraok.com), una consultora de claridad estratégica.
+    const carpeta = carpetaActiva()
+    const tonos = { ...TONOS, ...(db.data.config.tonosPropios || {}) }
+    const tono = tonos[carpeta?.tono] || TONOS.personal
 
-## A quién le escribe
-Dueños de comercio y pymes (ferreterías, bulonerías, distribuidoras) que ya conocen a Pablo. Casi siempre caen en uno de estos dos perfiles:
+    // El manual de marca SOLO se aplica donde corresponde. Para el cumpleaños
+    // del hijo, Pablo es el papá, no la consultora: meterle criterio comercial
+    // ahí arruinaría el mensaje.
+    const bloqueMarca = carpeta?.usarManualMarca ? BLOQUE_MEJORA_CONTINUA : ''
 
-1. EMPRENDEDOR SATURADO — trabaja mucho, avanza poco, vive apagando incendios. Siente que todo depende de él. Dice "estoy en mil cosas", "no doy más", "no sé por dónde empezar". No busca motivación: busca claridad. Su dolor no es técnico, es mental.
+    const systemPrompt = `Sos el asistente de escritura de Pablo. Te pasa mensajes de WhatsApp antes de mandarlos y vos los revisás.
 
-2. EL QUE NECESITA ORDEN PARA CRECER — creció rápido y sin estructura, y sabe que si sigue así desbarranca. Dice "crecí rápido", "no llego a todo", "estoy a mil". Tiene miedo de que ordenar signifique frenar o perder lo logrado. No quiere trabajar menos: quiere trabajar mejor.
+## Para qué es este mensaje
+Carpeta: "${carpeta?.nombre || 'sin nombre'}"${carpeta?.objetivo ? `\nObjetivo: ${carpeta.objetivo}` : ''}
+Registro: ${tono.nombre} — ${tono.guia}
 
-Ninguno de los dos busca motivación. Los dos buscan claridad y criterio.
-
-## Cómo se les habla
-Corto. Directo. Con autoridad serena. Sin tecnicismos, sin vueltas, con claridad inmediata. No necesita un pitch largo: necesita sentirse entendido.
-
-Estructura que funciona: nombrar el dolor sin juzgar → correr el foco de "vos hiciste mal" a "esto funciona así, por eso pasa esto" → cerrar con una dirección concreta, nunca con un reto.
-
-## Mensajes que le pegan (el patrón, no para copiar literal)
-- "No estás saturado por trabajar mucho, sino por trabajar sin claridad."
-- "Tu problema no es el tiempo, es el foco."
-- "No necesitás más ideas, necesitás orden."
-- "No necesitás cambiar todo, necesitás ordenar lo que ya funciona."
-- "No estás mal, estás desordenado."
-- "No estás frenando, estás ordenando para crecer."
-El patrón es: negar el diagnóstico equivocado y devolver el verdadero en una sola frase.
-
-## Qué NO decirle nunca
-- "Tenés que organizarte mejor / delegar más / planificar / bajar un cambio." Todo eso ya lo sabe; decírselo suena a reto y a consejo genérico.
-- "Tenés que frenar / cambiar todo / replantear tu negocio / hacer un proceso largo." Eso lo asusta, lo paraliza y lo aleja.
-- Nada de "vos podés" ni motivación vacía.
-
-## Criterio de marca (manda sobre todo lo demás)
-- El sujeto del problema es siempre lo que falta — foco, estructura, criterio externo — NUNCA la capacidad ni la inteligencia de la persona.
-- Cálido y directo a la vez: la calidez está en el cuidado detrás de decir la verdad, no en el consuelo.
-- Nunca vende, clarifica. Nunca se vende por precio. Nada de urgencia artificial.
-- Nunca tiene que sonar a mensaje armado, a IA o a plantilla de marketing: tiene que sonar como si Pablo lo tipeó él mismo, rápido, para alguien que ya conoce.
+## Reglas que valen siempre
 - Español rioplatense (vos, no tú), con todos los acentos y la ñ correctos.
-- Mantené EXACTAMENTE los tags entre llaves que aparezcan en el original ({nombre}, {apellido}, {variable}), sin traducirlos ni sacarlos.
-
+- Mantené EXACTAMENTE los tags entre llaves que aparezcan ({nombre}, {apellido}, {variable}), sin traducirlos ni sacarlos.
+- DOGMA: no puede sonar a IA ni a plantilla. Tiene que sonar a que lo escribió Pablo, rápido, a alguien que ya conoce. Si suena perfecto y pulido, está mal.
+- Corregí ortografía y gramática, y señalá lo que se entienda mal o sea ambiguo.
+- No infles el mensaje: si el original es corto y funciona, dejalo corto.
+${bloqueMarca}
 ## Tu tarea
-Te paso un mensaje de WhatsApp que Pablo quiere mandar. Revisá el tono contra todo lo de arriba, corregí ortografía y gramática, y señalá lo que se entienda mal o sea ambiguo.
+Revisá el mensaje contra todo lo de arriba.
 
 El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dicen lo mismo que versionMejorada pero cada una con otras palabras y otra estructura de oración — para que WhatsApp no vea el mismo texto exacto mensaje tras mensaje y lo tome por bot.`
+
 
     // El JSON lo garantiza la API con un esquema (structured outputs) en vez de
     // pedirlo por prompt y cruzar los dedos: así no puede volver mal formado ni
@@ -1102,9 +1559,19 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
         { titulo: 'Detalle', valor: (e) => e.texto || e.error || '' }
       ])
     } else {
-      const contactos = db.data.contacts
-      cantidad = contactos.length
-      csv = toCsv(contactos, [
+      // Exporta TODAS las carpetas: una fila por persona y carpeta, para que
+      // en Excel puedas filtrar por carpeta o ver el recorrido de alguien.
+      const filas = []
+      for (const carp of db.data.carpetas) {
+        for (const m of carp.miembros) {
+          const p = contactoPorId(m.contactoId) || {}
+          filas.push({ ...p, ...m, carpetaNombre: carp.nombre, carpetaTono: carp.tono })
+        }
+      }
+      cantidad = filas.length
+      csv = toCsv(filas, [
+        { titulo: 'Carpeta', valor: (c) => c.carpetaNombre || '' },
+        { titulo: 'Tono', valor: (c) => c.carpetaTono || '' },
         { titulo: 'Nombre', valor: (c) => c.nombre || '' },
         { titulo: 'Apellido', valor: (c) => c.apellido || '' },
         { titulo: 'Teléfono', valor: (c) => c.telefono || '' },
@@ -1158,6 +1625,7 @@ app.whenReady().then(async () => {
     if (encrypted) db.data.config.anthropicApiKeyEncrypted = encrypted
     delete db.data.config.anthropicApiKey
   }
+  migrarACarpetas()
   await db.write()
   registerIpcHandlers()
   createWindow()
