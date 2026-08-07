@@ -21,6 +21,7 @@ let sock = null
 let db = null
 let campaignRunning = false
 let stopRequested = false
+let pauseRequested = false
 let LOG_FILE = null
 
 const DEFAULT_DATA = {
@@ -203,6 +204,10 @@ function describirEvento(e) {
       return 'campaña iniciada'
     case 'campana_detenida':
       return `campaña detenida (${e.enviadosHoy ?? 0} enviados hoy)`
+    case 'campana_pausada':
+      return `pausaste el envío (${e.enviadosHoy ?? 0} enviados hoy)`
+    case 'campana_reanudada':
+      return 'reanudaste el envío'
     case 'tope_diario_alcanzado':
       return 'tope diario alcanzado'
     case 'mensaje_confirmado_whatsapp':
@@ -463,6 +468,7 @@ async function handleIncomingMessage(phone, text) {
 async function runCampaign(onlyIds = null) {
   campaignRunning = true
   stopRequested = false
+  pauseRequested = false
   const cfg = db.data.config
   const today = new Date().toISOString().slice(0, 10)
   if (cfg.lastSentDate !== today) {
@@ -483,6 +489,19 @@ async function runCampaign(onlyIds = null) {
       motivoFin = 'detenido manualmente'
       break
     }
+
+    // Pausa: se queda esperando acá sin mandar nada, hasta que le des
+    // "Reanudar" (o "Detener"). Sirve para corregir el texto en el medio de
+    // una corrida sin perder lo ya enviado — el mensaje corregido se usa
+    // desde el próximo envío, porque el texto se arma recién abajo.
+    while (pauseRequested && !stopRequested) {
+      await sleep(500)
+    }
+    if (stopRequested) {
+      motivoFin = 'detenido manualmente'
+      break
+    }
+
     if (contact.estado !== 'pendiente') continue
 
     // Si vino una lista puntual ("enviar solo a estos"), manda a esos sin
@@ -732,7 +751,11 @@ function registerIpcHandlers() {
     // para el lado del renderer — nunca tiene que volver a escribirse en la
     // config real, o ensucia data.json con un campo que no es de config.
     const { anthropicApiKey, apiKeyConfigured, ...rest } = config || {}
-    db.data.config = { ...db.data.config, ...rest }
+    // Object.assign en vez de reemplazar el objeto: una campaña en curso tiene
+    // una referencia viva a db.data.config. Si acá se creara un objeto nuevo,
+    // la campaña seguiría leyendo el viejo — el mensaje corregido no se usaría
+    // y el contador de enviados del día se perdería al terminar.
+    Object.assign(db.data.config, rest)
     if (typeof anthropicApiKey === 'string' && anthropicApiKey.trim()) {
       const encrypted = encryptApiKey(anthropicApiKey.trim())
       if (encrypted) db.data.config.anthropicApiKeyEncrypted = encrypted
@@ -766,7 +789,27 @@ function registerIpcHandlers() {
 
   ipcMain.handle('campaign:stop', () => {
     stopRequested = true
+    pauseRequested = false // por si estaba pausada: la saca del bucle de espera
     return true
+  })
+
+  ipcMain.handle('campaign:pause', () => {
+    if (!campaignRunning) return { error: 'No hay ningún envío en curso' }
+    pauseRequested = true
+    mainWindow?.webContents.send('campaign:progress', {
+      status: 'pausado',
+      enviadosHoy: db.data.config.sentToday,
+      dailyCap: db.data.config.dailyCap
+    })
+    logEvent('campana_pausada', { enviadosHoy: db.data.config.sentToday })
+    return { ok: true }
+  })
+
+  ipcMain.handle('campaign:resume', () => {
+    if (!campaignRunning) return { error: 'No hay ningún envío en curso' }
+    pauseRequested = false
+    logEvent('campana_reanudada', { enviadosHoy: db.data.config.sentToday })
+    return { ok: true }
   })
 
   ipcMain.handle('logs:summary', () => buildSummaryText())

@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('mejora', {
   // Campaña de envío
   startCampaign: (onlyIds) => ipcRenderer.invoke('campaign:start', onlyIds),
   stopCampaign: () => ipcRenderer.invoke('campaign:stop'),
+  pauseCampaign: () => ipcRenderer.invoke('campaign:pause'),
+  resumeCampaign: () => ipcRenderer.invoke('campaign:resume'),
 
   // Log de actividad (para monitoreo personal)
   getLogSummary: () => ipcRenderer.invoke('logs:summary'),

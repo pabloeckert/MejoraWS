@@ -69,6 +69,7 @@ export default function App() {
   const [config, setConfigState] = useState(null)
   const [progress, setProgress] = useState(null)
   const [sending, setSending] = useState(false)
+  const [paused, setPaused] = useState(false)
   const [logSummary, setLogSummary] = useState('')
   const [copiado, setCopiado] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
@@ -102,7 +103,10 @@ export default function App() {
     })
     window.mejora.onCampaignProgress((p) => {
       setProgress(p)
-      if (p.status === 'detenido' || p.status === 'tope_diario_alcanzado') setSending(false)
+      if (p.status === 'detenido' || p.status === 'tope_diario_alcanzado') {
+        setSending(false)
+        setPaused(false)
+      }
       window.mejora.getLogSummary().then(setLogSummary)
     })
 
@@ -176,12 +180,32 @@ export default function App() {
       return
     }
     setSending(true)
+    setPaused(false)
     setSelectedIds([])
   }
 
   async function stopCampaign() {
     await window.mejora.stopCampaign()
     setSending(false)
+    setPaused(false)
+  }
+
+  async function pauseCampaign() {
+    const res = await window.mejora.pauseCampaign()
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    setPaused(true)
+  }
+
+  async function resumeCampaign() {
+    const res = await window.mejora.resumeCampaign()
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    setPaused(false)
   }
 
   async function copiarResumen() {
@@ -455,12 +479,30 @@ export default function App() {
                   Iniciar envío
                 </button>
               ) : (
-                <button
-                  onClick={stopCampaign}
-                  className="px-4 py-2 rounded-lg bg-mc-rojo hover:bg-[#c00519] text-white text-sm font-medium transition-colors"
-                >
-                  Detener
-                </button>
+                <>
+                  {!paused ? (
+                    <button
+                      onClick={pauseCampaign}
+                      className="px-4 py-2 rounded-lg border border-mc-amarillo bg-yellow-50 hover:bg-yellow-100 text-mc-tinta text-sm font-medium transition-colors"
+                      title="Frena el envío sin perder lo ya mandado. Podés corregir el mensaje y seguir."
+                    >
+                      Pausar
+                    </button>
+                  ) : (
+                    <button
+                      onClick={resumeCampaign}
+                      className="px-4 py-2 rounded-lg bg-mc-amarillo hover:bg-[#e0b910] text-mc-tinta text-sm font-medium transition-colors"
+                    >
+                      Reanudar
+                    </button>
+                  )}
+                  <button
+                    onClick={stopCampaign}
+                    className="px-4 py-2 rounded-lg bg-mc-rojo hover:bg-[#c00519] text-white text-sm font-medium transition-colors"
+                  >
+                    Detener
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -501,6 +543,8 @@ export default function App() {
             <p className="text-xs text-mc-gris border-l-2 border-mc-amarillo pl-2">
               {progress.status === 'enviando' &&
                 `Enviando... ${progress.enviadosHoy}/${progress.dailyCap} hoy${progress.totalVariantes > 1 ? ` — variante ${progress.variantIndex}/${progress.totalVariantes}` : ''}`}
+              {progress.status === 'pausado' &&
+                `En pausa — ${progress.enviadosHoy}/${progress.dailyCap} enviados hoy. Corregí el mensaje si hace falta y dale Reanudar: el texto nuevo se usa desde el próximo envío.`}
               {progress.status === 'tope_diario_alcanzado' && 'Tope diario alcanzado — se retoma mañana.'}
               {progress.status === 'detenido' && 'Envío detenido.'}
             </p>
