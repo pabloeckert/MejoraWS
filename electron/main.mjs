@@ -10,6 +10,12 @@ import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaile
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const logger = pino({ level: 'silent' }) // subir a 'debug' si algo falla y hay que ver qué pasa
 
+// En esta máquina (GPU Intel), Electron a veces deja la ventana pintada en
+// blanco hasta que algo fuerza un repintado (ej. abrir DevTools) — bug
+// conocido de aceleración por hardware con estos drivers. Forzar renderizado
+// por software evita que la ventana quede en blanco al arrancar.
+app.disableHardwareAcceleration()
+
 let mainWindow = null
 let sock = null
 let db = null
