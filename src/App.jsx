@@ -146,6 +146,11 @@ export default function App() {
   const [sending, setSending] = useState(false)
   const [paused, setPaused] = useState(false)
   const [validando, setValidando] = useState(false)
+  const [carpetas, setCarpetas] = useState([])
+  const [carpetaActivaId, setCarpetaActivaId] = useState(null)
+  const [tonos, setTonos] = useState({})
+  const [nuevaCarpetaOpen, setNuevaCarpetaOpen] = useState(false)
+  const [formCarpeta, setFormCarpeta] = useState({ nombre: '', tono: 'personal', objetivo: '' })
   const [logSummary, setLogSummary] = useState('')
   const [copiado, setCopiado] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
@@ -168,6 +173,7 @@ export default function App() {
     window.mejora.getContacts().then(setContacts)
     window.mejora.getConfig().then(setConfigState)
     window.mejora.getLogSummary().then(setLogSummary)
+    refrescarCarpetas()
 
     window.mejora.onQr(setQr)
     window.mejora.onStatus((s) => {
@@ -265,6 +271,75 @@ export default function App() {
     await window.mejora.stopCampaign()
     setSending(false)
     setPaused(false)
+  }
+
+  // --- Carpetas ---
+
+  async function refrescarCarpetas() {
+    const r = await window.mejora.listarCarpetas()
+    setCarpetas(r.carpetas || [])
+    setCarpetaActivaId(r.activaId || null)
+    setTonos(r.tonos || {})
+  }
+
+  async function cambiarCarpeta(id) {
+    const res = await window.mejora.activarCarpeta(id)
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    // Al cambiar de carpeta cambia todo: lista, mensaje, tono y lo seleccionado
+    setSelectedIds([])
+    setAiReview(null)
+    setAiError('')
+    setProgress(null)
+    setContacts(await window.mejora.getContacts())
+    setConfigState(await window.mejora.getConfig())
+    await refrescarCarpetas()
+  }
+
+  async function crearCarpeta() {
+    const res = await window.mejora.crearCarpeta(formCarpeta)
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    setNuevaCarpetaOpen(false)
+    setFormCarpeta({ nombre: '', tono: 'personal', objetivo: '' })
+    setSelectedIds([])
+    setAiReview(null)
+    setContacts(await window.mejora.getContacts())
+    setConfigState(await window.mejora.getConfig())
+    await refrescarCarpetas()
+  }
+
+  async function borrarCarpeta(id) {
+    const c = carpetas.find((x) => x.id === id)
+    if (!confirm(
+      `Borrar la carpeta "${c?.nombre}"?\n\n` +
+      `Se pierde el historial de sus ${c?.total || 0} contacto(s) en esta carpeta.\n` +
+      'Las personas que estén también en otra carpeta no se borran.\n\nNo se puede deshacer.'
+    )) return
+
+    const res = await window.mejora.borrarCarpeta(id)
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    setSelectedIds([])
+    setContacts(await window.mejora.getContacts())
+    setConfigState(await window.mejora.getConfig())
+    await refrescarCarpetas()
+  }
+
+  async function actualizarCarpeta(cambios) {
+    const res = await window.mejora.actualizarCarpeta({ id: carpetaActivaId, ...cambios })
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+    setConfigState(await window.mejora.getConfig())
+    await refrescarCarpetas()
   }
 
   async function exportar(tipo) {
@@ -582,6 +657,114 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Carpetas — cada uso tiene la suya y no se pisan entre sí */}
+        <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              {carpetas.map((c) => {
+                const activa = c.id === carpetaActivaId
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => !activa && cambiarCarpeta(c.id)}
+                    disabled={sending && !activa}
+                    title={c.objetivo || undefined}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                      activa
+                        ? 'bg-mc-azul text-white border-mc-azul'
+                        : 'bg-white text-mc-tinta border-gray-200 hover:bg-gray-50 disabled:opacity-40'
+                    }`}
+                  >
+                    {c.nombre}
+                    <span className={`ml-2 text-xs ${activa ? 'text-white/70' : 'text-mc-gris'}`}>
+                      {c.total}
+                    </span>
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => setNuevaCarpetaOpen((v) => !v)}
+                className="px-3 py-1.5 rounded-lg border border-dashed border-gray-300 hover:bg-gray-50 text-sm text-mc-gris transition-colors"
+              >
+                + Nueva carpeta
+              </button>
+            </div>
+
+            {config.carpeta && (
+              <div className="flex items-center gap-2 shrink-0">
+                <select
+                  value={config.carpeta.tono}
+                  onChange={(e) => actualizarCarpeta({ tono: e.target.value })}
+                  className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-mc-tinta"
+                  title="Con qué registro escribe y revisa la IA en esta carpeta"
+                >
+                  {Object.entries(tonos).map(([k, t]) => (
+                    <option key={k} value={k}>{t.nombre}</option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-1.5 text-xs text-mc-gris cursor-pointer"
+                  title="Aplica el manual de tono y los buyer personas de Mejora Continua. Dejalo apagado para mensajes personales.">
+                  <input type="checkbox" className="w-3.5 h-3.5 accent-[#1A3D84]"
+                    checked={!!config.carpeta.usarManualMarca}
+                    onChange={(e) => actualizarCarpeta({ usarManualMarca: e.target.checked })} />
+                  Marca MC
+                </label>
+                {carpetas.length > 1 && (
+                  <button
+                    onClick={() => borrarCarpeta(carpetaActivaId)}
+                    disabled={sending}
+                    className="text-xs text-mc-rojo hover:underline disabled:opacity-40"
+                  >
+                    Borrar
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {nuevaCarpetaOpen && (
+            <div className="grid grid-cols-4 gap-2 items-end bg-gray-50 border border-gray-100 rounded-xl p-3">
+              <Field label="Nombre">
+                <input className="w-full mt-1.5 border border-gray-200 rounded-lg p-2 text-sm"
+                  placeholder="Cumple de Aarón"
+                  value={formCarpeta.nombre}
+                  onChange={(e) => setFormCarpeta({ ...formCarpeta, nombre: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && crearCarpeta()} />
+              </Field>
+              <Field label="Registro">
+                <select className="w-full mt-1.5 border border-gray-200 rounded-lg p-2 text-sm"
+                  value={formCarpeta.tono}
+                  onChange={(e) => setFormCarpeta({ ...formCarpeta, tono: e.target.value })}>
+                  {Object.entries(tonos).map(([k, t]) => (
+                    <option key={k} value={k}>{t.nombre}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Para qué es (opcional)">
+                <input className="w-full mt-1.5 border border-gray-200 rounded-lg p-2 text-sm"
+                  placeholder="Invitar a los compañeros del grado"
+                  value={formCarpeta.objetivo}
+                  onChange={(e) => setFormCarpeta({ ...formCarpeta, objetivo: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && crearCarpeta()} />
+              </Field>
+              <button
+                onClick={crearCarpeta}
+                className="px-4 py-2 rounded-lg bg-mc-azul hover:bg-[#152f66] text-white text-sm font-medium transition-colors h-[38px]"
+              >
+                Crear
+              </button>
+            </div>
+          )}
+
+          {config.carpeta && (
+            <p className="text-xs text-mc-gris">
+              Estás en <span className="font-medium text-mc-tinta">{config.carpeta.nombre}</span>
+              {config.carpeta.objetivo ? ` — ${config.carpeta.objetivo}` : ''}
+              . La lista, el mensaje y el tono de abajo son de esta carpeta: las otras no se tocan.
+            </p>
+          )}
+        </section>
 
         {/* Bento grid de métricas */}
         <section className="grid grid-cols-4 gap-4">

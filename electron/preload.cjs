@@ -3,7 +3,14 @@ const { contextBridge, ipcRenderer } = require('electron')
 // API expuesta al renderer. Nada de acceso directo a Node/fs desde React,
 // todo pasa por estos canales controlados.
 contextBridge.exposeInMainWorld('mejora', {
-  // Contactos
+  // Carpetas — una por cada uso (el cumple, los ferreteros, los asociados...)
+  listarCarpetas: () => ipcRenderer.invoke('carpetas:list'),
+  crearCarpeta: (datos) => ipcRenderer.invoke('carpetas:create', datos),
+  activarCarpeta: (id) => ipcRenderer.invoke('carpetas:activar', id),
+  actualizarCarpeta: (datos) => ipcRenderer.invoke('carpetas:update', datos),
+  borrarCarpeta: (id) => ipcRenderer.invoke('carpetas:delete', id),
+
+  // Contactos (siempre los de la carpeta abierta)
   importContacts: (rows) => ipcRenderer.invoke('contacts:import', rows),
   addContactManual: (data) => ipcRenderer.invoke('contacts:addManual', data),
   updateContact: (data) => ipcRenderer.invoke('contacts:update', data),
