@@ -21,6 +21,81 @@ function renderTemplate(template, contact) {
   })
 }
 
+// Emojis que sirven para un mensaje de trabajo. Nada de fiesta: el tono de
+// marca es cálido y directo, no efusivo.
+const EMOJIS = [
+  '👋', '🙂', '😊', '👍', '🙌', '🤝', '💪', '🎯',
+  '✅', '✨', '📌', '📎', '📅', '⏰', '📞', '💬',
+  '📈', '💡', '🔧', '🛠️', '🏪', '🚚', '📦', '🙏'
+]
+
+function EmojiPicker({ onPick }) {
+  const [abierto, setAbierto] = useState(false)
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs text-mc-tinta transition-colors"
+      >
+        🙂 Emojis
+      </button>
+      {abierto && (
+        <div className="mt-1.5 grid grid-cols-8 gap-1 p-2 border border-gray-200 rounded-lg bg-white">
+          {EMOJIS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => onPick(e)}
+              className="text-lg hover:bg-gray-100 rounded p-0.5 leading-none"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Cómo se va a ver el mensaje en el celular del contacto. El fondo y la
+// burbuja verde son los de WhatsApp, no los de la marca, justamente porque
+// esto imita la pantalla del otro — no es una pieza de Mejora Continua.
+function WhatsappMockup({ texto, nombreContacto }) {
+  const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col">
+      <div className="bg-[#075E54] text-white px-3 py-2 flex items-center gap-2">
+        <div className="w-7 h-7 rounded-full bg-white/25 flex items-center justify-center text-xs font-medium">
+          {(nombreContacto || '?').trim().charAt(0).toUpperCase()}
+        </div>
+        <div className="leading-tight min-w-0">
+          <p className="text-xs font-medium truncate">{nombreContacto}</p>
+          <p className="text-[10px] text-white/70">en línea</p>
+        </div>
+      </div>
+
+      <div className="flex-1 p-3 min-h-[150px] bg-[#ECE5DD] flex justify-end items-start">
+        {texto ? (
+          <div className="max-w-[85%] bg-[#DCF8C6] rounded-lg rounded-tr-sm px-2.5 py-1.5 shadow-sm">
+            <p className="text-[13px] text-[#111B21] whitespace-pre-wrap break-words leading-snug">{texto}</p>
+            <p className="text-[10px] text-[#667781] text-right mt-0.5 flex items-center justify-end gap-1">
+              {hora}
+              <span className="text-[#53BDEB] font-bold tracking-tighter">✓✓</span>
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-[#667781] m-auto">Escribí el mensaje y lo vas a ver acá</p>
+        )}
+      </div>
+
+      <p className="text-[10px] text-mc-gris px-2 py-1 bg-gray-50 border-t border-gray-100">
+        Así lo va a ver {nombreContacto}
+      </p>
+    </div>
+  )
+}
+
 // Los tildes de entrega, igual que en WhatsApp: un tilde gris = salió,
 // dos grises = llegó al teléfono, dos azules = lo leyó.
 function EntregaTicks({ contact }) {
@@ -87,6 +162,7 @@ export default function App() {
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({ nombre: '', apellido: '', telefono: '', variable: '' })
   const fileInputRef = useRef(null)
+  const templateRef = useRef(null)
 
   useEffect(() => {
     window.mejora.getContacts().then(setContacts)
@@ -189,6 +265,26 @@ export default function App() {
     await window.mejora.stopCampaign()
     setSending(false)
     setPaused(false)
+  }
+
+  // Mete el emoji justo donde está el cursor, no al final del texto.
+  function insertarEnMensaje(fragmento) {
+    const el = templateRef.current
+    const texto = config.template || ''
+    const desde = el?.selectionStart ?? texto.length
+    const hasta = el?.selectionEnd ?? texto.length
+    const nuevo = texto.slice(0, desde) + fragmento + texto.slice(hasta)
+
+    setConfigState({ ...config, template: nuevo })
+    saveConfig({ template: nuevo })
+
+    // Deja el cursor después del emoji recién puesto
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      const pos = desde + fragmento.length
+      el.setSelectionRange(pos, pos)
+    })
   }
 
   async function validarNumeros(ids) {
@@ -737,21 +833,21 @@ export default function App() {
               Mensaje inicial — tags disponibles: {'{nombre}'} {'{apellido}'} {'{variable}'}
             </label>
             <div className="grid grid-cols-2 gap-3 mt-1.5">
-              <textarea
-                className="w-full border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
-                rows={3}
-                value={config.template}
-                onChange={(e) => setConfigState({ ...config, template: e.target.value })}
-                onBlur={() => saveConfig({ template: config.template })}
-              />
-              <div className="border border-gray-100 bg-gray-50 rounded-lg p-3 flex flex-col">
-                <p className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide mb-1.5">
-                  Vista previa {contacts[0] ? `(con ${contacts[0].nombre})` : '(contacto de prueba)'}
-                </p>
-                <div className="flex-1 bg-white border border-gray-200 rounded-lg p-2.5 text-sm text-mc-tinta whitespace-pre-wrap">
-                  {previewText || <span className="text-mc-gris">El mensaje va a aparecer acá...</span>}
-                </div>
+              <div className="flex flex-col">
+                <textarea
+                  ref={templateRef}
+                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
+                  rows={6}
+                  value={config.template}
+                  onChange={(e) => setConfigState({ ...config, template: e.target.value })}
+                  onBlur={() => saveConfig({ template: config.template })}
+                />
+                <EmojiPicker onPick={insertarEnMensaje} />
               </div>
+              <WhatsappMockup
+                texto={previewText}
+                nombreContacto={contacts[0]?.nombre || 'Juan Pérez'}
+              />
             </div>
             <div className="flex items-center justify-between mt-2">
               <button
