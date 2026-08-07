@@ -35,6 +35,9 @@ const DEFAULT_DATA = {
     lastSentDate: '',
     keywords: ['si', 'sí', 'info', 'quiero', 'dale', 'contame'],
     replyTemplate: 'Genial {nombre}, te paso el link: [LINK_MEJORADIAGNOSTICO]',
+    // Para cuando responden algo que no matchea ninguna keyword: que nadie
+    // quede sin respuesta. Tono del manual — cálido y directo, sin vender.
+    acuseTemplate: 'Gracias por responder {nombre}. Lo leo bien y te contesto en un rato.',
     reportEnabled: true,
     reportPhone: '5493765007805',
     anthropicApiKeyEncrypted: '',
@@ -197,7 +200,7 @@ function describirEvento(e) {
     case 'mensaje_recibido':
       return `respondió ${e.nombre}${e.listado ? '' : ' (no listado)'}: "${e.texto}"`
     case 'auto_respuesta_enviada':
-      return `auto-respuesta a ${e.nombre}`
+      return `le respondiste automáticamente a ${e.nombre}${e.tipo === 'acuse' ? ' (acuse, no dijo ninguna keyword)' : ' (dijo una keyword)'}`
     case 'error_envio':
       return `ERROR enviando a ${e.nombre}: ${e.error}`
     case 'campana_iniciada':
@@ -456,14 +459,36 @@ async function handleIncomingMessage(phone, text) {
 
   const keywords = (cfg.keywords || []).map((k) => k.toLowerCase().trim()).filter(Boolean)
   const matched = keywords.some((k) => text.toLowerCase().includes(k))
+  const destino = contact || db.data.contacts.find((c) => normalizePhone(c.telefono) === phone)
 
-  if (contact && matched && cfg.replyTemplate && sock) {
-    const jid = `${phone}@s.whatsapp.net`
-    const texto = renderTemplate(cfg.replyTemplate, contact)
-    setTimeout(() => {
-      sock?.sendMessage(jid, { text: texto }).catch(() => {})
-      logEvent('auto_respuesta_enviada', { telefono: phone, nombre: contact?.nombre || phone })
-    }, 3000 + Math.random() * 4000)
+  // Nadie que escribe se queda sin respuesta. Si dijo alguna de las keywords
+  // ("dale", "info"...) va la respuesta con el link; si escribió cualquier
+  // otra cosa igual recibe un acuse humano, para que no quede hablando solo.
+  //
+  // Se responde UNA sola vez por contacto (autoRespondido): a partir de ahí
+  // seguís vos a mano. Eso evita el ping-pong automático — dos bots
+  // respondiéndose es exactamente lo que WhatsApp detecta y bloquea.
+  if (destino && sock && !destino.autoRespondido) {
+    const texto = matched && cfg.replyTemplate
+      ? renderTemplate(cfg.replyTemplate, destino)
+      : renderTemplate(cfg.acuseTemplate || DEFAULT_DATA.config.acuseTemplate, destino)
+
+    if (texto.trim()) {
+      destino.autoRespondido = true
+      destino.fechaAutoRespuesta = new Date().toISOString()
+      await db.write()
+
+      const jid = `${phone}@s.whatsapp.net`
+      // La demora es a propósito: contestar en el mismo segundo delata al bot.
+      setTimeout(() => {
+        sock?.sendMessage(jid, { text: texto }).catch(() => {})
+        logEvent('auto_respuesta_enviada', {
+          telefono: phone,
+          nombre: destino.nombre || phone,
+          tipo: matched ? 'con keyword' : 'acuse'
+        })
+      }, 4000 + Math.random() * 6000)
+    }
   }
 }
 

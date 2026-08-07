@@ -935,7 +935,7 @@ export default function App() {
 
           <div>
             <label className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide">
-              Auto-respuesta — usá {'{nombre}'} {'{apellido}'} {'{variable}'}
+              Auto-respuesta si dice una keyword — usá {'{nombre}'} {'{apellido}'} {'{variable}'}
             </label>
             <textarea
               className="w-full mt-1.5 border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
@@ -944,6 +944,22 @@ export default function App() {
               onChange={(e) => setConfigState({ ...config, replyTemplate: e.target.value })}
               onBlur={() => saveConfig({ replyTemplate: config.replyTemplate })}
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide">
+              Si responde cualquier otra cosa — que nadie quede sin respuesta
+            </label>
+            <textarea
+              className="w-full mt-1.5 border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
+              rows={2}
+              value={config.acuseTemplate || ''}
+              onChange={(e) => setConfigState({ ...config, acuseTemplate: e.target.value })}
+              onBlur={() => saveConfig({ acuseTemplate: config.acuseTemplate })}
+            />
+            <p className="text-xs text-mc-gris mt-1">
+              Se manda una sola vez por contacto, entre 4 y 10 segundos después de que te escriben. A partir de ahí seguís vos a mano — dos respuestas automáticas seguidas es justo lo que WhatsApp detecta como bot. Dejalo vacío si no querés que se mande nada.
+            </p>
           </div>
 
           <div className="border-t border-gray-100 pt-4 space-y-4">
