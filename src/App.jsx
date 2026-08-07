@@ -43,6 +43,8 @@ export default function App() {
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({ nombre: '', apellido: '', telefono: '', variable: '' })
   const [apiKeyInput, setApiKeyInput] = useState('')
+  const [resetModalOpen, setResetModalOpen] = useState(false)
+  const [resetConfirmText, setResetConfirmText] = useState('')
   const [aiReview, setAiReview] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
@@ -271,15 +273,19 @@ export default function App() {
     await refrescarContactos()
   }
 
-  async function resetTotalApp() {
-    const texto = prompt(
-      'Esto borra TODOS los contactos, vuelve la configuración a los valores de fábrica (incluida la API key guardada) y limpia el log de actividad.\n\n' +
-      'La sesión de WhatsApp no se cierra sola — para eso usá "Cerrar sesión" arriba.\n\n' +
-      'No se puede deshacer. Escribí RESETEAR para confirmar:'
-    )
-    if (texto !== 'RESETEAR') return
+  // Electron no soporta window.prompt() (tira "prompt() is not supported"),
+  // así que la confirmación por texto se resuelve con un modal propio en vez
+  // del prompt() nativo del navegador.
+  function resetTotalApp() {
+    setResetConfirmText('')
+    setResetModalOpen(true)
+  }
+
+  async function confirmResetTotal() {
+    if (resetConfirmText !== 'RESETEAR') return
 
     const res = await window.mejora.resetTotal()
+    setResetModalOpen(false)
     setSelectedIds([])
     setAiReview(null)
     setApiKeyInput('')
@@ -344,6 +350,46 @@ export default function App() {
           </div>
         )}
 
+        {/* Confirmación de reset total — modal propio porque Electron no soporta window.prompt() */}
+        {resetModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-mc-tinta/40 backdrop-blur-[2px]">
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-xl flex flex-col gap-4 max-w-sm">
+              <p className="font-heading font-medium text-mc-rojo">Reset total de la app</p>
+              <p className="text-sm text-mc-gris">
+                Esto borra TODOS los contactos, vuelve la configuración a los valores de fábrica (incluida la API key guardada) y limpia el log de actividad.
+              </p>
+              <p className="text-sm text-mc-gris">
+                La sesión de WhatsApp no se cierra sola — para eso usá "Cerrar sesión" arriba.
+              </p>
+              <p className="text-sm text-mc-tinta font-medium">
+                No se puede deshacer. Escribí RESETEAR para confirmar:
+              </p>
+              <input
+                autoFocus
+                className="w-full border border-gray-200 rounded-lg p-2.5 text-sm"
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmResetTotal()}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setResetModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmResetTotal}
+                  disabled={resetConfirmText !== 'RESETEAR'}
+                  className="px-4 py-2 rounded-lg bg-mc-rojo hover:bg-[#c00519] text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Confirmar reset
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bento grid de métricas */}
         <section className="grid grid-cols-4 gap-4">
           <StatCard label="Contactos" value={stats.total} accent="azul" />
@@ -372,7 +418,7 @@ export default function App() {
               </button>
               {!sending ? (
                 <button
-                  onClick={startCampaign}
+                  onClick={() => startCampaign()}
                   className="px-4 py-2 rounded-lg bg-mc-azul hover:bg-[#152f66] text-white text-sm font-medium transition-colors"
                 >
                   Iniciar envío
