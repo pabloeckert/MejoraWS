@@ -1039,6 +1039,15 @@ function registerIpcHandlers() {
     if (db.data.config.carpetaActivaId === id) {
       db.data.config.carpetaActivaId = db.data.carpetas[0]?.id || null
     }
+
+    // Igual que al borrar contactos o vaciar una lista: si alguien quedó sin
+    // pertenecer a ninguna carpeta, se va del todo en vez de quedar huérfano.
+    const idsQueQuedaron = carpeta.miembros.map((m) => m.contactoId)
+    for (const cid of idsQueQuedaron) {
+      const enAlguna = db.data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === cid))
+      if (!enAlguna) db.data.contactos = db.data.contactos.filter((c) => c.id !== cid)
+    }
+
     await db.write()
     logEvent('carpeta_eliminada', { nombre: carpeta.nombre, miembros: carpeta.miembros.length })
     emitirContactos()
@@ -1396,19 +1405,22 @@ function registerIpcHandlers() {
   ipcMain.handle('campaign:pause', () => {
     if (!campaignRunning) return { error: 'No hay ningún envío en curso' }
     pauseRequested = true
+    // sentToday/dailyCap son de la carpeta, no de la config global — quedó
+    // referenciando el lugar viejo cuando eso se movió adentro de la carpeta.
+    const cfg = carpetaActiva()?.config || {}
     mainWindow?.webContents.send('campaign:progress', {
       status: 'pausado',
-      enviadosHoy: db.data.config.sentToday,
-      dailyCap: db.data.config.dailyCap
+      enviadosHoy: cfg.sentToday,
+      dailyCap: cfg.dailyCap
     })
-    logEvent('campana_pausada', { enviadosHoy: db.data.config.sentToday })
+    logEvent('campana_pausada', { enviadosHoy: cfg.sentToday })
     return { ok: true }
   })
 
   ipcMain.handle('campaign:resume', () => {
     if (!campaignRunning) return { error: 'No hay ningún envío en curso' }
     pauseRequested = false
-    logEvent('campana_reanudada', { enviadosHoy: db.data.config.sentToday })
+    logEvent('campana_reanudada', { enviadosHoy: carpetaActiva()?.config.sentToday })
     return { ok: true }
   })
 
@@ -1517,9 +1529,13 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
         parsed = JSON.parse(sanitizeJsonStringLiterals(clean))
       }
 
-      db.data.config.variantes = Array.isArray(parsed.variantes) ? parsed.variantes : []
+      // Las variantes son de la carpeta abierta, no de la config global — si
+      // se guardaran en la global, quedarían tapadas por el carpeta.config.variantes
+      // vacío en el próximo configForRenderer() y la rotación nunca las usaría.
+      const variantesGeneradas = Array.isArray(parsed.variantes) ? parsed.variantes : []
+      if (carpeta) carpeta.config.variantes = variantesGeneradas
       await db.write()
-      logEvent('mensaje_revisado_ia', { esClaro: parsed.esClaro, variantesGeneradas: db.data.config.variantes.length })
+      logEvent('mensaje_revisado_ia', { esClaro: parsed.esClaro, variantesGeneradas: variantesGeneradas.length })
 
       return { ok: true, ...parsed }
     } catch (err) {
@@ -1626,6 +1642,14 @@ app.whenReady().then(async () => {
     delete db.data.config.anthropicApiKey
   }
   migrarACarpetas()
+  // Instalación totalmente nueva (nunca tuvo el formato viejo, así que
+  // migrarACarpetas() no crea nada): igual tiene que arrancar con una carpeta,
+  // o la app queda inusable hasta que el usuario cree la primera a mano.
+  if (db.data.carpetas.length === 0) {
+    const primera = nuevaCarpeta('Mi primera carpeta', 'personal')
+    db.data.carpetas.push(primera)
+    db.data.config.carpetaActivaId = primera.id
+  }
   await db.write()
   registerIpcHandlers()
   createWindow()
