@@ -101,6 +101,10 @@ Abajo del todo en el dashboard hay una sección **Actividad** con:
   [console.anthropic.com](https://console.anthropic.com) — cada revisión consume crédito de tu
   cuenta, no es gratis ni viene incluido en ningún plan de Claude.ai.
 
+## MejoraSuite
+
+MejoraWS sigue siendo esta misma app de escritorio independiente, pero además forma parte de **MejoraSuite** junto con [MejoraCRM](https://github.com/pabloeckert/MejoraCRM) (rector) y [MejoraContactos](https://github.com/pabloeckert/MejoraContactos). Embebe a MejoraContactos en una pestaña propia ("Contactos", `WebContentsView`), y expone un bridge HTTP local (`electron/bridge.mjs`, `127.0.0.1:4180`) para que MejoraCRM y MejoraContactos muestren su estado sin salir de su propia app — de solo lectura por ahora, nunca manda mensajes desde afuera sin pasar por la cola/delay/tope diario de acá. Arquitectura completa: [`mejorasuite/` en el repo de MejoraCRM](https://github.com/pabloeckert/MejoraCRM/tree/main/mejorasuite).
+
 ## Notas técnicas
 
 - Storage: `lowdb` (JSON local) en la carpeta de datos de usuario de Electron — no SQLite a
