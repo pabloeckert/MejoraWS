@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Notification, shell, clipboard, safeStorage, dialog } from 'electron'
+import { app, BrowserWindow, WebContentsView, ipcMain, Notification, shell, clipboard, safeStorage, dialog } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +29,29 @@ let LOG_FILE = null
 // existente, solo espeja lo que ya se manda por IPC hacia afuera del proceso.
 let waStatus = 'desconectado'
 let bridge = null
+
+// Fase 2 de MejoraSuite: MejoraWS embebe MejoraContactos (producto público
+// aparte, sigue siendo independiente — ver mejorasuite/ESPECIFICACION.md en
+// el repo de MejoraCRM). Un solo WebContentsView, creado una vez y
+// reusado — se oculta/muestra en vez de destruirse y recrearse, así no
+// se pierde la sesión/estado de MejoraContactos al cambiar de pestaña.
+const MEJORACONTACTOS_URL = 'https://pabloeckert.github.io/MejoraContactos/'
+let contactosView = null
+
+function ensureContactosView() {
+  if (contactosView) return contactosView
+  contactosView = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  contactosView.webContents.loadURL(MEJORACONTACTOS_URL)
+  mainWindow.contentView.addChildView(contactosView)
+  contactosView.setVisible(false)
+  return contactosView
+}
 
 // --- Modelo de datos ---
 //
@@ -1637,6 +1660,26 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
     fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true })
     if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(LOG_FILE, '')
     shell.showItemInFolder(LOG_FILE)
+    return true
+  })
+
+  // Fase 2 de MejoraSuite — embebido de MejoraContactos. `bounds` viene del
+  // renderer (getBoundingClientRect() del slot donde tiene que aparecer),
+  // en las mismas coordenadas CSS de la ventana.
+  ipcMain.handle('contactos:show', (_e, bounds) => {
+    const view = ensureContactosView()
+    view.setBounds(bounds)
+    view.setVisible(true)
+    return true
+  })
+
+  ipcMain.handle('contactos:hide', () => {
+    contactosView?.setVisible(false)
+    return true
+  })
+
+  ipcMain.handle('contactos:updateBounds', (_e, bounds) => {
+    contactosView?.setBounds(bounds)
     return true
   })
 }

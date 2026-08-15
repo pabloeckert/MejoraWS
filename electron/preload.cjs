@@ -50,6 +50,11 @@ contextBridge.exposeInMainWorld('mejora', {
   // IA — revisión de copy y generación de variantes
   reviewTemplateAI: (template) => ipcRenderer.invoke('ai:reviewTemplate', template),
 
+  // Suite — embebido de MejoraContactos (Fase 2 de MejoraSuite)
+  showContactos: (bounds) => ipcRenderer.invoke('contactos:show', bounds),
+  hideContactos: () => ipcRenderer.invoke('contactos:hide'),
+  updateContactosBounds: (bounds) => ipcRenderer.invoke('contactos:updateBounds', bounds),
+
   // Eventos en tiempo real (main -> renderer)
   onQr: (cb) => ipcRenderer.on('wa:qr', (_e, dataUrl) => cb(dataUrl)),
   onStatus: (cb) => ipcRenderer.on('wa:status', (_e, status) => cb(status)),

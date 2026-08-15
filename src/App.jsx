@@ -167,6 +167,11 @@ export default function App() {
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({ nombre: '', apellido: '', telefono: '', variable: '' })
   const fileInputRef = useRef(null)
+  // Fase 2 de MejoraSuite: pestaña "Contactos" embebe MejoraContactos (app
+  // web aparte, ver electron/main.mjs ensureContactosView()) sin salir de
+  // esta ventana.
+  const [vista, setVista] = useState('campanas')
+  const contactosSlotRef = useRef(null)
   const templateRef = useRef(null)
 
   useEffect(() => {
@@ -195,6 +200,42 @@ export default function App() {
 
     return () => window.mejora.removeAllListeners()
   }, [])
+
+  // Fase 2 de MejoraSuite: cuando la pestaña "Contactos" está activa, le
+  // pasamos al proceso principal las coordenadas exactas del slot para que
+  // posicione ahí el WebContentsView de MejoraContactos — y lo ocultamos
+  // (sin destruirlo) al salir de la pestaña, para no perder su estado.
+  useEffect(() => {
+    if (vista !== 'contactos') {
+      window.mejora.hideContactos()
+      return
+    }
+
+    const actualizarBounds = () => {
+      if (!contactosSlotRef.current) return
+      const r = contactosSlotRef.current.getBoundingClientRect()
+      window.mejora.updateContactosBounds({
+        x: Math.round(r.x),
+        y: Math.round(r.y),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+      })
+    }
+
+    const r = contactosSlotRef.current.getBoundingClientRect()
+    window.mejora.showContactos({
+      x: Math.round(r.x),
+      y: Math.round(r.y),
+      width: Math.round(r.width),
+      height: Math.round(r.height),
+    })
+
+    window.addEventListener('resize', actualizarBounds)
+    return () => {
+      window.removeEventListener('resize', actualizarBounds)
+      window.mejora.hideContactos()
+    }
+  }, [vista])
 
   const stats = useMemo(() => {
     const total = contacts.length
@@ -604,6 +645,45 @@ export default function App() {
         </div>
       </header>
 
+      {/* Fase 2 de MejoraSuite: alterna entre la vista de campañas (todo lo
+          que ya existía) y MejoraContactos embebido. */}
+      <div className="border-b border-gray-100 bg-gray-50/50">
+        <div className="max-w-6xl mx-auto px-6 flex gap-1">
+          <button
+            onClick={() => setVista('campanas')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              vista === 'campanas'
+                ? 'border-mc-azul text-mc-azul'
+                : 'border-transparent text-mc-gris hover:text-mc-tinta'
+            }`}
+          >
+            Campañas
+          </button>
+          <button
+            onClick={() => setVista('contactos')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              vista === 'contactos'
+                ? 'border-mc-azul text-mc-azul'
+                : 'border-transparent text-mc-gris hover:text-mc-tinta'
+            }`}
+          >
+            Contactos
+          </button>
+        </div>
+      </div>
+
+      {/* Slot del embebido — sus coordenadas (getBoundingClientRect) son las
+          que recibe el proceso principal para posicionar el WebContentsView
+          de MejoraContactos exactamente acá. Se mantiene montado siempre
+          (aunque oculto vía CSS en vez de desmontado) para que el efecto que
+          calcula bounds tenga un ref estable. */}
+      <div
+        ref={contactosSlotRef}
+        className={vista === 'contactos' ? 'block' : 'hidden'}
+        style={{ height: 'calc(100vh - 130px)' }}
+      />
+
+      {vista === 'campanas' && (
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
         {/* QR — panel flotante, liquid glass acotado: blanco translúcido + blur, sin gradiente */}
         {qr && !conectado && (
@@ -1259,6 +1339,7 @@ export default function App() {
           </pre>
         </section>
       </main>
+      )}
     </div>
   )
 }
