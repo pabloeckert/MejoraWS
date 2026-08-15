@@ -17,6 +17,37 @@ const logger = pino({ level: 'silent' }) // subir a 'debug' si algo falla y hay 
 // por software evita que la ventana quede en blanco al arrancar.
 app.disableHardwareAcceleration()
 
+// Fase 3 de MejoraSuite: protocolo mejoraws:// para que MejoraContactos (o
+// cualquier página) pueda ofrecer un link "Abrir MejoraWS" cuando el bridge
+// no responde (la app no está corriendo o no está en foco). Sin
+// single-instance-lock, cada click abriría una ventana nueva en vez de
+// enfocar la que ya existe — y dos procesos peleando por la misma sesión
+// de WhatsApp (electron/auth) sería un problema real, no cosmético.
+const PROTOCOLO = 'mejoraws'
+const obtuvoLock = app.requestSingleInstanceLock()
+if (!obtuvoLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+// En modo empaquetado alcanza con el nombre; en dev hace falta indicarle a
+// Windows el exe de Electron + el path del proyecto como argumento, si no
+// el registro del protocolo apunta a electron.exe pelado sin saber qué app abrir.
+if (process.platform === 'win32') {
+  if (app.isPackaged) {
+    app.setAsDefaultProtocolClient(PROTOCOLO)
+  } else if (process.argv[1]) {
+    app.setAsDefaultProtocolClient(PROTOCOLO, process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOLO)
+}
+
 let mainWindow = null
 let sock = null
 let db = null
@@ -1681,6 +1712,17 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
   ipcMain.handle('contactos:updateBounds', (_e, bounds) => {
     contactosView?.setBounds(bounds)
     return true
+  })
+
+  // Fase 3 de MejoraSuite — MejoraContactos (web, sin acceso a filesystem)
+  // no puede leer bridge-token.txt del disco como sí puede otra app
+  // Electron. Este handler deja copiar el token a mano una sola vez desde
+  // acá; MejoraContactos lo guarda cifrado en su localStorage (mismo
+  // patrón que ya usa para las API keys de IA, ver api-keys.ts en ese repo).
+  ipcMain.handle('bridge:getToken', () => bridge?.token ?? null)
+  ipcMain.handle('bridge:copyToken', () => {
+    if (bridge?.token) clipboard.writeText(bridge.token)
+    return !!bridge?.token
   })
 }
 

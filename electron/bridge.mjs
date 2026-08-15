@@ -42,6 +42,13 @@ function loadOrCreateToken(userDataDir) {
 function withCommonHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*') // igual exige token; ver nota de seguridad abajo
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Bridge-Token')
+  // Private Network Access (spec de Chromium): una página pública/HTTPS
+  // (MejoraContactos en GitHub Pages, MejoraCRM en Vercel) que le pega a
+  // 127.0.0.1 manda un preflight OPTIONS con
+  // Access-Control-Request-Private-Network: true, y el navegador bloquea
+  // la respuesta real si el server no contesta explícitamente que sí.
+  // Sin esto, el fetch nunca llega a ejecutarse aunque el token sea correcto.
+  res.setHeader('Access-Control-Allow-Private-Network', 'true')
 }
 
 /**

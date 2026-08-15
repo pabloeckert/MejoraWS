@@ -172,6 +172,7 @@ export default function App() {
   // esta ventana.
   const [vista, setVista] = useState('campanas')
   const contactosSlotRef = useRef(null)
+  const [tokenCopiado, setTokenCopiado] = useState(false)
   const templateRef = useRef(null)
 
   useEffect(() => {
@@ -622,6 +623,20 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                window.mejora.copyBridgeToken().then((ok) => {
+                  if (ok) {
+                    setTokenCopiado(true)
+                    setTimeout(() => setTokenCopiado(false), 2000)
+                  }
+                })
+              }}
+              title="Copiar el token de conexión para pegarlo en MejoraContactos (Ajustes → MejoraWS)"
+              className="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-gris transition-colors"
+            >
+              {tokenCopiado ? 'Copiado ✓' : 'Copiar token de conexión'}
+            </button>
             <span className={`inline-flex items-center gap-2 text-sm ${conectado ? 'text-mc-azul' : 'text-mc-gris'}`}>
               <span className={`w-2 h-2 rounded-full ${conectado ? 'bg-mc-azul' : 'bg-gray-300'}`} />
               {conectado ? 'WhatsApp conectado' : 'WhatsApp desconectado'}
