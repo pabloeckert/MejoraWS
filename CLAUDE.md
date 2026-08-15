@@ -21,3 +21,9 @@ Electron + React 19 + Vite + Tailwind v4 + Baileys. Herramienta personal de Pabl
 ### Cuándo hacerlo
 
 Al cierre de cada bloque de trabajo relevante (no hace falta después de cada mensaje suelto), y siempre antes de dar por cerrada la sesión o cuando Pablo pida explícitamente un cierre/informe.
+
+## MejoraSuite — bridge local (2026-08-15)
+
+Este proyecto es parte de una fusión en curso con MejoraCRM (`C:\Github\Negocio\MejoraCRM`, rector) y MejoraContactos (`C:\Github\Negocio\MejoraContactos`). Los tres siguen siendo independientes; MejoraWS queda embebido dentro de los otros dos. Fuente de verdad de la arquitectura completa: `C:\Github\Negocio\MejoraCRM\mejorasuite\ESPECIFICACION.md` (leer ahí antes de proponer cambios de arquitectura acá).
+
+`electron/bridge.mjs` expone `GET /status` y `GET /events` (SSE) en `http://127.0.0.1:4180`, autenticado con un token en `X-Bridge-Token` (generado en `userData/bridge-token.txt`). Es de solo lectura a propósito — **no reescribir la lógica de envío de WhatsApp para exponerla por acá sin releer primero `mejorasuite/DECISIONES.md`** (ya se evaluó y se decidió no tocar Baileys). Un `POST /send` eventual (Fase 1b) tiene que reusar la cola/delay/tope diario existente en `main.mjs`, nunca bypasearla.

@@ -6,6 +6,7 @@ import { JSONFilePreset } from 'lowdb/node'
 import QRCode from 'qrcode'
 import pino from 'pino'
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from 'baileys'
+import { startBridgeServer } from './bridge.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const logger = pino({ level: 'silent' }) // subir a 'debug' si algo falla y hay que ver qué pasa
@@ -23,6 +24,11 @@ let campaignRunning = false
 let stopRequested = false
 let pauseRequested = false
 let LOG_FILE = null
+// Estado de conexión + bridge local — parte de la fusión MejoraSuite, ver
+// electron/bridge.mjs para el detalle. No cambia nada del comportamiento
+// existente, solo espeja lo que ya se manda por IPC hacia afuera del proceso.
+let waStatus = 'desconectado'
+let bridge = null
 
 // --- Modelo de datos ---
 //
@@ -616,14 +622,18 @@ async function connectWhatsApp() {
     }
 
     if (connection === 'open') {
-      mainWindow?.webContents.send('wa:status', 'conectado')
+      waStatus = 'conectado'
+      mainWindow?.webContents.send('wa:status', waStatus)
+      bridge?.broadcastEvent('status', waStatus)
       logEvent('wa_conectado')
     }
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut
-      mainWindow?.webContents.send('wa:status', shouldReconnect ? 'reconectando' : 'desconectado')
+      waStatus = shouldReconnect ? 'reconectando' : 'desconectado'
+      mainWindow?.webContents.send('wa:status', waStatus)
+      bridge?.broadcastEvent('status', waStatus)
       logEvent('wa_desconectado', { motivo: shouldReconnect ? 'reconectando' : 'logout' })
       if (shouldReconnect) {
         connectWhatsApp()
@@ -656,6 +666,7 @@ async function connectWhatsApp() {
       const text = extractText(msg)
       if (!phone || !text) continue
       await handleIncomingMessage(phone, text)
+      bridge?.broadcastEvent('message', { phone, text, recibidoEn: new Date().toISOString() })
     }
   })
 
@@ -1385,7 +1396,9 @@ function registerIpcHandlers() {
       // sesión ya caída, no pasa nada
     }
     sock = null
-    mainWindow?.webContents.send('wa:status', 'desconectado')
+    waStatus = 'desconectado'
+    mainWindow?.webContents.send('wa:status', waStatus)
+    bridge?.broadcastEvent('status', waStatus)
     return true
   })
 
@@ -1653,6 +1666,13 @@ app.whenReady().then(async () => {
   await db.write()
   registerIpcHandlers()
   createWindow()
+  bridge = startBridgeServer(app.getPath('userData'), () => ({
+    connected: waStatus === 'conectado',
+    waStatus,
+    campaignRunning,
+    stopRequested,
+    pauseRequested,
+  }))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
