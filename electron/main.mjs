@@ -1020,6 +1020,27 @@ async function runCampaign(onlyIds = null) {
   await sendCycleReport({ carpeta, motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes })
 }
 
+function handleSend(telefono, carpetaId) {
+  if (!sock) return { error: 'MejoraWS no está conectado a WhatsApp' }
+  if (campaignRunning) return { error: 'Ya hay un envío en curso' }
+
+  const carpeta = carpetaId
+    ? db.data.carpetas.find((c) => c.id === carpetaId)
+    : carpetaActiva()
+  if (!carpeta) return { error: 'Carpeta no encontrada' }
+
+  const telefonoNorm = normalizePhone(telefono)
+  const miembro = carpeta.miembros.find((m) => {
+    const persona = contactoPorId(m.contactoId)
+    return persona && normalizePhone(persona.telefono) === telefonoNorm && m.estado === 'pendiente'
+  })
+  if (!miembro) {
+    return { error: `No se encontró un contacto pendiente con ese teléfono en la carpeta "${carpeta.nombre}"` }
+  }
+
+  runCampaign([miembro.contactoId])
+  return { started: true, carpeta: carpeta.nombre }
+}
 async function sendCycleReport({ carpeta, motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes }) {
   const cfg = db.data.config
   if (!cfg.reportEnabled || !cfg.reportPhone || !sock) return
@@ -1751,13 +1772,13 @@ app.whenReady().then(async () => {
   await db.write()
   registerIpcHandlers()
   createWindow()
-  bridge = startBridgeServer(app.getPath('userData'), () => ({
+   bridge = startBridgeServer(app.getPath('userData'), () => ({
     connected: waStatus === 'conectado',
     waStatus,
     campaignRunning,
     stopRequested,
     pauseRequested,
-  }))
+  }), handleSend)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

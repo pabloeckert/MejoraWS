@@ -4,14 +4,11 @@
 // de su propia app — parte de la fusión MejoraSuite (ver
 // C:\Github\Negocio\MejoraCRM\mejorasuite\ESPECIFICACION.md).
 //
-// Deliberadamente NO expone el envío de mensajes todavía (sin endpoint
-// POST /send) — ver mejorasuite/PENDIENTES.md § Fase 1b. Enviar por acá
-// significaría interponerse en la cola/delay/tope diario que ya vive en
-// main.mjs, y un bug en esa interposición tiene costo real (riesgo de ban
-// de la cuenta de WhatsApp). Primero sale la parte de solo lectura
-// (status + eventos), se prueba, y recién después se construye /send con
-// el mismo cuidado que ya tiene el resto de esta app.
-//
+// Fase 1b: POST /send no manda texto libre ni agrega contactos nuevos —
+// solo dispara un envío a un contacto que YA es miembro "pendiente" de una
+// carpeta existente, llamando a runCampaign([contactoId]) tal cual: mismo
+// template, mismo dailyCap, mismo delay. Nada de esto es una lógica de
+// envío nueva.
 // Solo escucha en 127.0.0.1 (nunca 0.0.0.0) y exige un token compartido
 // por header — generado una vez y guardado en userData, para que otra app
 // del mismo usuario en la misma máquina lo pueda leer sin que quede
@@ -39,6 +36,24 @@ function loadOrCreateToken(userDataDir) {
   return token
 }
 
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = ''
+    req.on('data', (chunk) => {
+      raw += chunk
+      if (raw.length > 4096) req.destroy()
+    })
+    req.on('end', () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {})
+      } catch {
+        reject(new Error('JSON inválido'))
+      }
+    })
+    req.on('error', reject)
+  })
+}
 function withCommonHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*') // igual exige token; ver nota de seguridad abajo
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Bridge-Token')
@@ -57,10 +72,10 @@ function withCommonHeaders(res) {
  * Devuelve `{ token, broadcastEvent }` — `broadcastEvent(tipo, data)` lo
  * usa main.mjs para empujar eventos a los clientes SSE conectados.
  */
-export function startBridgeServer(userDataDir, getState) {
+export function startBridgeServer(userDataDir, getState, handleSend) {
   const token = loadOrCreateToken(userDataDir)
 
-  server = http.createServer((req, res) => {
+    server = http.createServer(async (req, res) => {
     withCommonHeaders(res)
 
     if (req.method === 'OPTIONS') {
@@ -97,7 +112,26 @@ export function startBridgeServer(userDataDir, getState) {
       return
     }
 
-    res.writeHead(404, { 'Content-Type': 'application/json' })
+        if (req.method === 'POST' && req.url === '/send') {
+      let body
+      try {
+        body = await readJsonBody(req)
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'JSON inválido' }))
+        return
+      }
+      if (!body.telefono) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Falta "telefono" en el body' }))
+        return
+      }
+      const result = handleSend(body.telefono, body.carpetaId)
+      res.writeHead(result.error ? 400 : 200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(result))
+      return
+    }
+res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'not found' }))
   })
 
