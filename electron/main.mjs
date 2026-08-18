@@ -1041,6 +1041,66 @@ function handleSend(telefono, carpetaId) {
   runCampaign([miembro.contactoId])
   return { started: true, carpeta: carpeta.nombre }
 }
+
+// Carpeta fija para los envíos de un solo contacto que llegan desde
+// MejoraContactos (Fase 6 de MejoraSuite) — deliberadamente separada de
+// cualquier carpeta de campaña masiva, para no mezclar "un contacto que
+// alguien mandó a mano desde otra app" con una campaña real (ver
+// mejorasuite/DECISIONES.md, entrada 2026-08-17).
+const CARPETA_CONTACTOS_NOMBRE = 'Importados desde MejoraContactos'
+
+function carpetaContactosImportados() {
+  let carpeta = db.data.carpetas.find((c) => c.nombre === CARPETA_CONTACTOS_NOMBRE)
+  if (!carpeta) {
+    carpeta = nuevaCarpeta(CARPETA_CONTACTOS_NOMBRE, 'comercial')
+    carpeta.objetivo = 'Contactos enviados a mano desde MejoraContactos — no es una carpeta de campaña masiva'
+    db.data.carpetas.push(carpeta)
+  }
+  return carpeta
+}
+
+/**
+ * Variante de handleSend para contactos que todavía no son miembros de
+ * ninguna carpeta (el caso normal viniendo de MejoraContactos: esa app no
+ * comparte datos con MejoraWS). Da de alta a la persona y la agrega como
+ * miembro "pendiente" de la carpeta dedicada si hace falta, y después
+ * delega en handleSend tal cual — no duplica ninguna validación ni lógica
+ * de envío nueva.
+ *
+ * Async a propósito: si handleSend corta temprano (ej. WhatsApp
+ * desconectado), nunca llega a runCampaign, que es quien normalmente
+ * persiste con db.write() — sin el await de acá, el contacto/carpeta nuevos
+ * quedarían solo en memoria y se perderían al cerrar la app.
+ */
+async function handleAddAndSend(telefono, nombre) {
+  const telefonoNorm = normalizePhone(telefono)
+  if (!telefonoNorm) return { error: 'Teléfono inválido' }
+
+  const carpeta = carpetaContactosImportados()
+
+  if (!contactoPorId(telefonoNorm)) {
+    db.data.contactos.push({
+      id: telefonoNorm,
+      nombre: nombre || telefonoNorm,
+      apellido: '',
+      telefono: telefonoNorm,
+      variable: '',
+      waValido: null,
+      waMotivo: null,
+      notas: 'Agregado desde MejoraContactos'
+    })
+  }
+
+  if (!carpeta.miembros.some((m) => m.contactoId === telefonoNorm)) {
+    carpeta.miembros.push(nuevoMiembro(telefonoNorm))
+  }
+
+  await db.write()
+  emitirContactos()
+
+  return handleSend(telefonoNorm, carpeta.id)
+}
+
 async function sendCycleReport({ carpeta, motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes }) {
   const cfg = db.data.config
   if (!cfg.reportEnabled || !cfg.reportPhone || !sock) return
@@ -1778,7 +1838,7 @@ app.whenReady().then(async () => {
     campaignRunning,
     stopRequested,
     pauseRequested,
-  }), handleSend)
+  }), handleSend, handleAddAndSend)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

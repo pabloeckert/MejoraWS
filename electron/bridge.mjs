@@ -71,8 +71,14 @@ function withCommonHeaders(res) {
  * estado actual (se llama en cada GET /status, no se cachea acá).
  * Devuelve `{ token, broadcastEvent }` — `broadcastEvent(tipo, data)` lo
  * usa main.mjs para empujar eventos a los clientes SSE conectados.
+ *
+ * `handleAddAndSend` (Fase 6): variante de `handleSend` para contactos que
+ * todavía no son miembros de ninguna carpeta — el caso normal viniendo de
+ * MejoraContactos, que no comparte datos con MejoraWS. Da de alta a la
+ * persona en una carpeta dedicada y delega el envío en `handleSend`, sin
+ * lógica de envío nueva.
  */
-export function startBridgeServer(userDataDir, getState, handleSend) {
+export function startBridgeServer(userDataDir, getState, handleSend, handleAddAndSend) {
   const token = loadOrCreateToken(userDataDir)
 
     server = http.createServer(async (req, res) => {
@@ -127,6 +133,26 @@ export function startBridgeServer(userDataDir, getState, handleSend) {
         return
       }
       const result = handleSend(body.telefono, body.carpetaId)
+      res.writeHead(result.error ? 400 : 200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(result))
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/add-and-send') {
+      let body
+      try {
+        body = await readJsonBody(req)
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'JSON inválido' }))
+        return
+      }
+      if (!body.telefono) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Falta "telefono" en el body' }))
+        return
+      }
+      const result = await handleAddAndSend(body.telefono, body.nombre)
       res.writeHead(result.error ? 400 : 200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(result))
       return
