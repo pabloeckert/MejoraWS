@@ -24,6 +24,10 @@ contextBridge.exposeInMainWorld('mejora', {
   // Reset total de la app
   resetTotal: () => ipcRenderer.invoke('app:resetTotal'),
 
+  // Modo demostración (Fase 7 de MejoraSuite) — activo por default
+  getDemoMode: () => ipcRenderer.invoke('demo:get'),
+  setDemoMode: (value) => ipcRenderer.invoke('demo:set', value),
+
   // Config (plantilla, delays, tope diario, keywords de auto-respuesta)
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (config) => ipcRenderer.invoke('config:set', config),
@@ -63,11 +67,13 @@ contextBridge.exposeInMainWorld('mejora', {
   onStatus: (cb) => ipcRenderer.on('wa:status', (_e, status) => cb(status)),
   onContactsUpdated: (cb) => ipcRenderer.on('contacts:updated', (_e, contacts) => cb(contacts)),
   onCampaignProgress: (cb) => ipcRenderer.on('campaign:progress', (_e, progress) => cb(progress)),
+  onDemoModeChanged: (cb) => ipcRenderer.on('demo:changed', (_e, value) => cb(value)),
 
   removeAllListeners: () => {
     ipcRenderer.removeAllListeners('wa:qr')
     ipcRenderer.removeAllListeners('wa:status')
     ipcRenderer.removeAllListeners('contacts:updated')
     ipcRenderer.removeAllListeners('campaign:progress')
+    ipcRenderer.removeAllListeners('demo:changed')
   }
 })

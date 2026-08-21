@@ -174,11 +174,13 @@ export default function App() {
   const contactosSlotRef = useRef(null)
   const [tokenCopiado, setTokenCopiado] = useState(false)
   const templateRef = useRef(null)
+  const [demoMode, setDemoModeState] = useState(true)
 
   useEffect(() => {
     window.mejora.getContacts().then(setContacts)
     window.mejora.getConfig().then(setConfigState)
     window.mejora.getLogSummary().then(setLogSummary)
+    window.mejora.getDemoMode().then(setDemoModeState)
     refrescarCarpetas()
 
     window.mejora.onQr(setQr)
@@ -198,9 +200,24 @@ export default function App() {
       }
       window.mejora.getLogSummary().then(setLogSummary)
     })
+    window.mejora.onDemoModeChanged((value) => {
+      setDemoModeState(value)
+      refrescarCarpetas()
+    })
 
     return () => window.mejora.removeAllListeners()
   }, [])
+
+  const toggleDemoMode = () => {
+    window.mejora.setDemoMode(!demoMode).then((res) => {
+      if (res?.error) {
+        alert(res.error)
+        return
+      }
+      setDemoModeState(res.demoMode)
+      window.mejora.getContacts().then(setContacts)
+    })
+  }
 
   // Fase 2 de MejoraSuite: cuando la pestaña "Contactos" está activa, le
   // pasamos al proceso principal las coordenadas exactas del slot para que
@@ -623,6 +640,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={toggleDemoMode}
+              title={demoMode ? 'Modo demostración activo — apagalo para trabajar con tus contactos y campañas reales' : 'Prender modo demostración'}
+              className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                demoMode
+                  ? 'border-mc-amarillo bg-mc-amarillo/10 text-mc-tinta'
+                  : 'border-gray-200 hover:bg-gray-50 text-mc-gris'
+              }`}
+            >
+              ✨ {demoMode ? 'Modo demostración' : 'Prender demo'}
+            </button>
             <button
               onClick={() => {
                 window.mejora.copyBridgeToken().then((ok) => {

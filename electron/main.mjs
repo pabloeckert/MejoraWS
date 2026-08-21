@@ -55,6 +55,16 @@ let campaignRunning = false
 let stopRequested = false
 let pauseRequested = false
 let LOG_FILE = null
+
+// Modo demostración (Fase 7 de MejoraSuite, ver mejorasuite/DECISIONES.md).
+// Activo por default: una instalación nueva muestra una carpeta y contactos
+// de ejemplo en vez de una base vacía. Nunca toca el archivo real
+// (data.json) ni Baileys — es una db paralela en memoria que se descarta al
+// cerrar la app. getDb() es lo que leen TODOS los handlers de IPC en vez de
+// `db` directo, salvo el bootstrap inicial en app.whenReady() que siempre
+// opera sobre los datos reales.
+let demoMode = true
+let demoDb = null
 // Estado de conexión + bridge local — parte de la fusión MejoraSuite, ver
 // electron/bridge.mjs para el detalle. No cambia nada del comportamiento
 // existente, solo espeja lo que ya se manda por IPC hacia afuera del proceso.
@@ -188,12 +198,12 @@ function nuevaCarpeta(nombre, tono = 'personal') {
 // --- Acceso a la carpeta abierta ---
 
 function carpetaActiva() {
-  const id = db.data.config.carpetaActivaId
-  return db.data.carpetas.find((c) => c.id === id) || db.data.carpetas[0] || null
+  const id = getDb().data.config.carpetaActivaId
+  return getDb().data.carpetas.find((c) => c.id === id) || getDb().data.carpetas[0] || null
 }
 
 function contactoPorId(id) {
-  return db.data.contactos.find((c) => c.id === id)
+  return getDb().data.contactos.find((c) => c.id === id)
 }
 
 // Une la persona con lo que le pasó en ESTA carpeta. La UI trabaja con estas
@@ -215,7 +225,7 @@ function emitirContactos() {
 // miembro (su estado acá) y el contacto (quién es), que viven separados.
 function buscarEnCarpetaPorTelefono(carpeta, phone) {
   if (!carpeta) return {}
-  const contacto = db.data.contactos.find((c) => normalizePhone(c.telefono) === phone)
+  const contacto = getDb().data.contactos.find((c) => normalizePhone(c.telefono) === phone)
   if (!contacto) return {}
   const miembro = carpeta.miembros.find((m) => m.contactoId === contacto.id)
   return { contacto, miembro }
@@ -350,6 +360,42 @@ const DEFAULT_DATA = {
   }
 }
 
+// Contactos y carpeta de ejemplo para el modo demostración — números y
+// nombres ficticios, ninguno real. Distintos estados de miembro (pendiente/
+// enviado/respondió) para que la UI de campaña tenga algo variado que
+// mostrar, no una lista plana de "pendiente" en todos.
+function buildDemoData() {
+  const contactos = [
+    { id: '5493764000001', nombre: 'Juan', apellido: 'Pérez', telefono: '5493764000001', variable: 'Ferretería El Tornillo', waValido: true, waMotivo: null, notas: 'Contacto de ejemplo' },
+    { id: '5493764000002', nombre: 'María', apellido: 'López', telefono: '5493764000002', variable: 'Almacén Doña Rosa', waValido: true, waMotivo: null, notas: 'Contacto de ejemplo' },
+    { id: '5493764000003', nombre: 'Carlos', apellido: 'Gómez', telefono: '5493764000003', variable: 'Kiosco 24hs', waValido: true, waMotivo: null, notas: 'Contacto de ejemplo' },
+    { id: '5493764000004', nombre: 'Ana', apellido: 'Martínez', telefono: '5493764000004', variable: 'Panadería La Espiga', waValido: true, waMotivo: null, notas: 'Contacto de ejemplo' },
+  ]
+  const carpeta = nuevaCarpeta('Demo — Prospección comercial', 'comercial')
+  carpeta.objetivo = 'Carpeta de ejemplo para recorrer la app en modo demostración'
+  carpeta.miembros = contactos.map((c) => nuevoMiembro(c.id))
+  carpeta.miembros[0].estado = 'respondio_interesado'
+  carpeta.miembros[1].estado = 'enviado'
+  carpeta.miembros[1].fechaEnvio = new Date().toISOString()
+  return {
+    contactos,
+    carpetas: [carpeta],
+    config: { ...DEFAULT_DATA.config, carpetaActivaId: carpeta.id }
+  }
+}
+
+/**
+ * Fuente de datos activa: la real (persistida en data.json) o una paralela
+ * en memoria que nunca se guarda a disco (write() es un no-op). Todos los
+ * handlers de IPC leen/escriben a través de esto — así el modo demo no
+ * necesita duplicar lógica en cada uno, solo redirige dónde vive el dato.
+ */
+function getDb() {
+  if (!demoMode) return db
+  if (!demoDb) demoDb = { data: buildDemoData(), write: async () => {} }
+  return demoDb
+}
+
 // La API key de Anthropic nunca se guarda ni viaja en texto plano: se cifra
 // con safeStorage (DPAPI en Windows) y solo se desencripta en memoria al
 // momento de pegarla en el header de la request a la API.
@@ -362,7 +408,7 @@ function encryptApiKey(plainKey) {
 // delays) mezclada con la global (tu número para el informe). De la API key
 // solo sabe si hay una guardada — nunca el valor ni el blob cifrado.
 function configForRenderer() {
-  const { anthropicApiKeyEncrypted, tonosPropios, ...global } = db.data.config
+  const { anthropicApiKeyEncrypted, tonosPropios, ...global } = getDb().data.config
   const carpeta = carpetaActiva()
   return {
     ...global,
@@ -373,7 +419,7 @@ function configForRenderer() {
 }
 
 function getDecryptedApiKey() {
-  const encrypted = db.data.config.anthropicApiKeyEncrypted
+  const encrypted = getDb().data.config.anthropicApiKeyEncrypted
   if (!encrypted) return ''
   if (!safeStorage.isEncryptionAvailable()) return ''
   try {
@@ -742,7 +788,7 @@ async function connectWhatsApp() {
       // El mensaje puede pertenecer a cualquier carpeta, no solo a la abierta.
       let carpeta = null
       let miembro = null
-      for (const c of db.data.carpetas) {
+      for (const c of getDb().data.carpetas) {
         const m = c.miembros.find((x) => x.msgId === msgId)
         if (m) { carpeta = c; miembro = m; break }
       }
@@ -759,7 +805,7 @@ async function connectWhatsApp() {
       if (status >= 3 && !miembro.fechaLlego) miembro.fechaLlego = ahora
       if (status >= 4 && !miembro.fechaLeido) miembro.fechaLeido = ahora
 
-      await db.write()
+      await getDb().write()
       const persona = contactoPorId(miembro.contactoId)
       logEvent('mensaje_confirmado_whatsapp', {
         carpeta: carpeta.nombre,
@@ -781,11 +827,11 @@ async function handleIncomingMessage(phone, text) {
   // más reciente, que es la que tiene en la cabeza cuando te contesta.
   let carpeta = null
   let miembro = null
-  let persona = db.data.contactos.find((c) => normalizePhone(c.telefono) === phone)
+  let persona = getDb().data.contactos.find((c) => normalizePhone(c.telefono) === phone)
 
   if (persona) {
     let ultimoEnvio = null
-    for (const c of db.data.carpetas) {
+    for (const c of getDb().data.carpetas) {
       const m = c.miembros.find((x) => x.contactoId === persona.id)
       if (!m) continue
       const cuando = m.fechaEnvio || ''
@@ -813,7 +859,7 @@ async function handleIncomingMessage(phone, text) {
         waMotivo: null,
         notas: ''
       }
-      db.data.contactos.push(persona)
+      getDb().data.contactos.push(persona)
     }
     miembro = nuevoMiembro(persona.id)
     miembro.estado = 'respondio_no_listado'
@@ -825,7 +871,7 @@ async function handleIncomingMessage(phone, text) {
   miembro.respuesta = text
   miembro.fechaRespuesta = now
 
-  await db.write()
+  await getDb().write()
   emitirContactos()
   logEvent('mensaje_recibido', {
     carpeta: carpeta.nombre,
@@ -862,7 +908,7 @@ async function handleIncomingMessage(phone, text) {
     if (texto.trim()) {
       miembro.autoRespondido = true
       miembro.fechaAutoRespuesta = new Date().toISOString()
-      await db.write()
+      await getDb().write()
 
       const jid = `${phone}@s.whatsapp.net`
       // La demora es a propósito: contestar en el mismo segundo delata al bot.
@@ -880,6 +926,12 @@ async function handleIncomingMessage(phone, text) {
 }
 
 async function runCampaign(onlyIds = null) {
+  // Red de seguridad extra, no la única: handleSend/handleAddAndSend y el
+  // IPC campaign:start ya cortan antes de llegar acá, pero esta es la
+  // función que de verdad le habla a Baileys — nunca debe ejecutar un envío
+  // real mientras el modo demo está activo, sin importar por dónde se
+  // llegue a llamarla.
+  if (demoMode) return
   const carpeta = carpetaActiva()
   if (!carpeta) return
 
@@ -944,7 +996,7 @@ async function runCampaign(onlyIds = null) {
     if (persona.waValido === false) {
       miembro.estado = 'error'
       miembro.error = persona.waMotivo || 'El número no tiene WhatsApp'
-      await db.write()
+      await getDb().write()
       continue
     }
 
@@ -999,7 +1051,7 @@ async function runCampaign(onlyIds = null) {
       })
     }
 
-    await db.write()
+    await getDb().write()
     emitirContactos()
     mainWindow?.webContents.send('campaign:progress', {
       status: 'enviando',
@@ -1021,11 +1073,12 @@ async function runCampaign(onlyIds = null) {
 }
 
 function handleSend(telefono, carpetaId) {
+  if (demoMode) return { error: 'Estás en modo demostración — apagalo (botón arriba) para poder enviar mensajes reales.' }
   if (!sock) return { error: 'MejoraWS no está conectado a WhatsApp' }
   if (campaignRunning) return { error: 'Ya hay un envío en curso' }
 
   const carpeta = carpetaId
-    ? db.data.carpetas.find((c) => c.id === carpetaId)
+    ? getDb().data.carpetas.find((c) => c.id === carpetaId)
     : carpetaActiva()
   if (!carpeta) return { error: 'Carpeta no encontrada' }
 
@@ -1050,11 +1103,11 @@ function handleSend(telefono, carpetaId) {
 const CARPETA_CONTACTOS_NOMBRE = 'Importados desde MejoraContactos'
 
 function carpetaContactosImportados() {
-  let carpeta = db.data.carpetas.find((c) => c.nombre === CARPETA_CONTACTOS_NOMBRE)
+  let carpeta = getDb().data.carpetas.find((c) => c.nombre === CARPETA_CONTACTOS_NOMBRE)
   if (!carpeta) {
     carpeta = nuevaCarpeta(CARPETA_CONTACTOS_NOMBRE, 'comercial')
     carpeta.objetivo = 'Contactos enviados a mano desde MejoraContactos — no es una carpeta de campaña masiva'
-    db.data.carpetas.push(carpeta)
+    getDb().data.carpetas.push(carpeta)
   }
   return carpeta
 }
@@ -1069,17 +1122,18 @@ function carpetaContactosImportados() {
  *
  * Async a propósito: si handleSend corta temprano (ej. WhatsApp
  * desconectado), nunca llega a runCampaign, que es quien normalmente
- * persiste con db.write() — sin el await de acá, el contacto/carpeta nuevos
+ * persiste con getDb().write() — sin el await de acá, el contacto/carpeta nuevos
  * quedarían solo en memoria y se perderían al cerrar la app.
  */
 async function handleAddAndSend(telefono, nombre) {
+  if (demoMode) return { error: 'Estás en modo demostración — apagalo para poder enviar mensajes reales.' }
   const telefonoNorm = normalizePhone(telefono)
   if (!telefonoNorm) return { error: 'Teléfono inválido' }
 
   const carpeta = carpetaContactosImportados()
 
   if (!contactoPorId(telefonoNorm)) {
-    db.data.contactos.push({
+    getDb().data.contactos.push({
       id: telefonoNorm,
       nombre: nombre || telefonoNorm,
       apellido: '',
@@ -1095,14 +1149,14 @@ async function handleAddAndSend(telefono, nombre) {
     carpeta.miembros.push(nuevoMiembro(telefonoNorm))
   }
 
-  await db.write()
+  await getDb().write()
   emitirContactos()
 
   return handleSend(telefonoNorm, carpeta.id)
 }
 
 async function sendCycleReport({ carpeta, motivoFin, enviadosCorrida, erroresCorrida, pendientesRestantes }) {
-  const cfg = db.data.config
+  const cfg = getDb().data.config
   if (!cfg.reportEnabled || !cfg.reportPhone || !sock) return
 
   const jid = `${normalizePhone(cfg.reportPhone)}@s.whatsapp.net`
@@ -1125,23 +1179,23 @@ function registerIpcHandlers() {
   // --- Carpetas ---
 
   ipcMain.handle('carpetas:list', () => ({
-    carpetas: db.data.carpetas.map(resumenCarpeta),
+    carpetas: getDb().data.carpetas.map(resumenCarpeta),
     activaId: carpetaActiva()?.id || null,
-    tonos: { ...TONOS, ...(db.data.config.tonosPropios || {}) }
+    tonos: { ...TONOS, ...(getDb().data.config.tonosPropios || {}) }
   }))
 
   ipcMain.handle('carpetas:create', async (_e, { nombre, tono, objetivo }) => {
     const limpio = (nombre || '').trim()
     if (!limpio) return { error: 'Poné un nombre para la carpeta' }
-    if (db.data.carpetas.some((c) => c.nombre.toLowerCase() === limpio.toLowerCase())) {
+    if (getDb().data.carpetas.some((c) => c.nombre.toLowerCase() === limpio.toLowerCase())) {
       return { error: 'Ya tenés una carpeta con ese nombre' }
     }
 
     const carpeta = nuevaCarpeta(limpio, tono || 'personal')
     carpeta.objetivo = (objetivo || '').trim()
-    db.data.carpetas.push(carpeta)
-    db.data.config.carpetaActivaId = carpeta.id
-    await db.write()
+    getDb().data.carpetas.push(carpeta)
+    getDb().data.config.carpetaActivaId = carpeta.id
+    await getDb().write()
     logEvent('carpeta_creada', { nombre: carpeta.nombre, tono: carpeta.tono })
     emitirContactos()
     return { ok: true, id: carpeta.id }
@@ -1149,19 +1203,19 @@ function registerIpcHandlers() {
 
   ipcMain.handle('carpetas:activar', async (_e, id) => {
     if (campaignRunning) return { error: 'Hay un envío en curso. Detenelo antes de cambiar de carpeta.' }
-    if (!db.data.carpetas.some((c) => c.id === id)) return { error: 'Esa carpeta no existe' }
-    db.data.config.carpetaActivaId = id
-    await db.write()
+    if (!getDb().data.carpetas.some((c) => c.id === id)) return { error: 'Esa carpeta no existe' }
+    getDb().data.config.carpetaActivaId = id
+    await getDb().write()
     emitirContactos()
     return { ok: true }
   })
 
   ipcMain.handle('carpetas:update', async (_e, { id, nombre, tono, objetivo, usarManualMarca }) => {
-    const carpeta = db.data.carpetas.find((c) => c.id === id)
+    const carpeta = getDb().data.carpetas.find((c) => c.id === id)
     if (!carpeta) return { error: 'Esa carpeta no existe' }
 
     if (typeof nombre === 'string' && nombre.trim()) {
-      const repetido = db.data.carpetas.some(
+      const repetido = getDb().data.carpetas.some(
         (c) => c.id !== id && c.nombre.toLowerCase() === nombre.trim().toLowerCase()
       )
       if (repetido) return { error: 'Ya tenés una carpeta con ese nombre' }
@@ -1171,30 +1225,30 @@ function registerIpcHandlers() {
     if (typeof objetivo === 'string') carpeta.objetivo = objetivo
     if (typeof usarManualMarca === 'boolean') carpeta.usarManualMarca = usarManualMarca
 
-    await db.write()
+    await getDb().write()
     return { ok: true }
   })
 
   ipcMain.handle('carpetas:delete', async (_e, id) => {
     if (campaignRunning) return { error: 'Hay un envío en curso. Detenelo primero.' }
-    const carpeta = db.data.carpetas.find((c) => c.id === id)
+    const carpeta = getDb().data.carpetas.find((c) => c.id === id)
     if (!carpeta) return { error: 'Esa carpeta no existe' }
-    if (db.data.carpetas.length === 1) return { error: 'Es la única carpeta que tenés: no se puede borrar' }
+    if (getDb().data.carpetas.length === 1) return { error: 'Es la única carpeta que tenés: no se puede borrar' }
 
-    db.data.carpetas = db.data.carpetas.filter((c) => c.id !== id)
-    if (db.data.config.carpetaActivaId === id) {
-      db.data.config.carpetaActivaId = db.data.carpetas[0]?.id || null
+    getDb().data.carpetas = getDb().data.carpetas.filter((c) => c.id !== id)
+    if (getDb().data.config.carpetaActivaId === id) {
+      getDb().data.config.carpetaActivaId = getDb().data.carpetas[0]?.id || null
     }
 
     // Igual que al borrar contactos o vaciar una lista: si alguien quedó sin
     // pertenecer a ninguna carpeta, se va del todo en vez de quedar huérfano.
     const idsQueQuedaron = carpeta.miembros.map((m) => m.contactoId)
     for (const cid of idsQueQuedaron) {
-      const enAlguna = db.data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === cid))
-      if (!enAlguna) db.data.contactos = db.data.contactos.filter((c) => c.id !== cid)
+      const enAlguna = getDb().data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === cid))
+      if (!enAlguna) getDb().data.contactos = getDb().data.contactos.filter((c) => c.id !== cid)
     }
 
-    await db.write()
+    await getDb().write()
     logEvent('carpeta_eliminada', { nombre: carpeta.nombre, miembros: carpeta.miembros.length })
     emitirContactos()
     return { ok: true }
@@ -1229,7 +1283,7 @@ function registerIpcHandlers() {
       // La persona se guarda una sola vez. Si ya la tenías de otra carpeta, se
       // reusa: mantiene su validación de WhatsApp y sus notas.
       if (!contactoPorId(telefono)) {
-        db.data.contactos.push({
+        getDb().data.contactos.push({
           id: telefono,
           nombre: (nameKey ? row[nameKey] : '') || telefono,
           apellido: (lastNameKey ? row[lastNameKey] : '') || '',
@@ -1246,7 +1300,7 @@ function registerIpcHandlers() {
       added++
     }
 
-    await db.write()
+    await getDb().write()
     emitirContactos()
     logEvent('contactos_importados', {
       carpeta: carpeta.nombre,
@@ -1268,7 +1322,7 @@ function registerIpcHandlers() {
     if (!nuevoTelefono) return { error: 'Teléfono inválido' }
 
     if (nuevoTelefono !== persona.telefono) {
-      const enUso = db.data.contactos.some((c) => c.id !== persona.id && normalizePhone(c.telefono) === nuevoTelefono)
+      const enUso = getDb().data.contactos.some((c) => c.id !== persona.id && normalizePhone(c.telefono) === nuevoTelefono)
       if (enUso) return { error: 'Ese teléfono ya lo tiene otro contacto' }
     }
 
@@ -1284,14 +1338,14 @@ function registerIpcHandlers() {
     if (idViejo !== nuevoTelefono) {
       persona.waValido = null // el número es otro: la validación anterior ya no vale
       persona.waMotivo = null
-      for (const c of db.data.carpetas) {
+      for (const c of getDb().data.carpetas) {
         for (const m of c.miembros) {
           if (m.contactoId === idViejo) m.contactoId = nuevoTelefono
         }
       }
     }
 
-    await db.write()
+    await getDb().write()
     emitirContactos()
     logEvent('contacto_editado', { telefono: nuevoTelefono, nombre: persona.nombre })
     return { ok: true }
@@ -1308,11 +1362,11 @@ function registerIpcHandlers() {
 
     // Si la persona no quedó en ninguna carpeta, se va del todo.
     for (const id of ids) {
-      const enAlguna = db.data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === id))
-      if (!enAlguna) db.data.contactos = db.data.contactos.filter((c) => c.id !== id)
+      const enAlguna = getDb().data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === id))
+      if (!enAlguna) getDb().data.contactos = getDb().data.contactos.filter((c) => c.id !== id)
     }
 
-    await db.write()
+    await getDb().write()
     emitirContactos()
     logEvent('contactos_eliminados', { carpeta: carpeta.nombre, cantidad: eliminados })
     return { ok: true, eliminados }
@@ -1324,7 +1378,7 @@ function registerIpcHandlers() {
     for (const m of carpeta.miembros) {
       if (ids.includes(m.contactoId)) m.incluido = incluido
     }
-    await db.write()
+    await getDb().write()
     emitirContactos()
     return { ok: true }
   })
@@ -1338,7 +1392,7 @@ function registerIpcHandlers() {
         if (estado === 'pendiente') m.error = null
       }
     }
-    await db.write()
+    await getDb().write()
     emitirContactos()
     logEvent('contactos_estado_cambiado', { carpeta: carpeta.nombre, cantidad: ids.length, estado })
     return { ok: true }
@@ -1354,7 +1408,7 @@ function registerIpcHandlers() {
     // se validan los de la carpeta abierta.
     const carpeta = carpetaActiva()
     const objetivo = Array.isArray(ids) && ids.length
-      ? db.data.contactos.filter((c) => ids.includes(c.id))
+      ? getDb().data.contactos.filter((c) => ids.includes(c.id))
       : (carpeta ? carpeta.miembros.map((m) => contactoPorId(m.contactoId)).filter(Boolean) : [])
 
     let conWhatsapp = 0
@@ -1400,7 +1454,7 @@ function registerIpcHandlers() {
       await sleep(300 + Math.random() * 400)
     }
 
-    await db.write()
+    await getDb().write()
     emitirContactos()
     logEvent('contactos_validados', {
       revisados: objetivo.length,
@@ -1422,26 +1476,26 @@ function registerIpcHandlers() {
     carpeta.miembros = []
 
     for (const id of eran) {
-      const enAlguna = db.data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === id))
-      if (!enAlguna) db.data.contactos = db.data.contactos.filter((c) => c.id !== id)
+      const enAlguna = getDb().data.carpetas.some((c) => c.miembros.some((m) => m.contactoId === id))
+      if (!enAlguna) getDb().data.contactos = getDb().data.contactos.filter((c) => c.id !== id)
     }
 
-    await db.write()
+    await getDb().write()
     emitirContactos()
     logEvent('contactos_vaciados', { carpeta: carpeta.nombre, cantidadAnterior })
     return { ok: true }
   })
 
   ipcMain.handle('app:resetTotal', async () => {
-    db.data.contactos = []
-    db.data.carpetas = []
-    db.data.config = { ...DEFAULT_DATA.config }
+    getDb().data.contactos = []
+    getDb().data.carpetas = []
+    getDb().data.config = { ...DEFAULT_DATA.config }
 
     // Siempre tiene que quedar una carpeta para que la app sea usable
     const primera = nuevaCarpeta('Mi primera carpeta', 'personal')
-    db.data.carpetas.push(primera)
-    db.data.config.carpetaActivaId = primera.id
-    await db.write()
+    getDb().data.carpetas.push(primera)
+    getDb().data.config.carpetaActivaId = primera.id
+    await getDb().write()
 
     try {
       fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true })
@@ -1467,7 +1521,7 @@ function registerIpcHandlers() {
     }
 
     if (!contactoPorId(telefono)) {
-      db.data.contactos.push({
+      getDb().data.contactos.push({
         id: telefono,
         nombre: data.nombre?.trim() || telefono,
         apellido: data.apellido?.trim() || '',
@@ -1479,10 +1533,20 @@ function registerIpcHandlers() {
       })
     }
     carpeta.miembros.push(nuevoMiembro(telefono))
-    await db.write()
+    await getDb().write()
     emitirContactos()
     logEvent('contacto_agregado_manual', { carpeta: carpeta.nombre, telefono, nombre: data.nombre })
     return { ok: true }
+  })
+
+  ipcMain.handle('demo:get', () => demoMode)
+
+  ipcMain.handle('demo:set', async (_e, value) => {
+    if (campaignRunning) return { error: 'Hay un envío en curso. Detenelo antes de cambiar de modo.' }
+    demoMode = !!value
+    emitirContactos()
+    mainWindow?.webContents.send('demo:changed', demoMode)
+    return { ok: true, demoMode }
   })
 
   ipcMain.handle('config:get', () => configForRenderer())
@@ -1507,15 +1571,15 @@ function registerIpcHandlers() {
         // y el contador de enviados del día se perdería.
         if (carpeta) carpeta.config[k] = v
       } else {
-        db.data.config[k] = v
+        getDb().data.config[k] = v
       }
     }
 
     if (typeof anthropicApiKey === 'string' && anthropicApiKey.trim()) {
       const encrypted = encryptApiKey(anthropicApiKey.trim())
-      if (encrypted) db.data.config.anthropicApiKeyEncrypted = encrypted
+      if (encrypted) getDb().data.config.anthropicApiKeyEncrypted = encrypted
     }
-    await db.write()
+    await getDb().write()
     return configForRenderer()
   })
 
@@ -1538,6 +1602,7 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('campaign:start', async (_e, onlyIds) => {
+    if (demoMode) return { error: 'Estás en modo demostración — apagalo (botón arriba) para poder enviar mensajes reales.' }
     if (!sock) return { error: 'Conectá WhatsApp primero' }
     if (campaignRunning) return { error: 'Ya está enviando' }
     runCampaign(Array.isArray(onlyIds) && onlyIds.length ? onlyIds : null)
@@ -1580,7 +1645,7 @@ function registerIpcHandlers() {
     if (!template?.trim()) return { error: 'Escribí un mensaje primero.' }
 
     const carpeta = carpetaActiva()
-    const tonos = { ...TONOS, ...(db.data.config.tonosPropios || {}) }
+    const tonos = { ...TONOS, ...(getDb().data.config.tonosPropios || {}) }
     const tono = tonos[carpeta?.tono] || TONOS.personal
 
     // El manual de marca SOLO se aplica donde corresponde. Para el cumpleaños
@@ -1682,7 +1747,7 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
       // vacío en el próximo configForRenderer() y la rotación nunca las usaría.
       const variantesGeneradas = Array.isArray(parsed.variantes) ? parsed.variantes : []
       if (carpeta) carpeta.config.variantes = variantesGeneradas
-      await db.write()
+      await getDb().write()
       logEvent('mensaje_revisado_ia', { esClaro: parsed.esClaro, variantesGeneradas: variantesGeneradas.length })
 
       return { ok: true, ...parsed }
@@ -1726,7 +1791,7 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
       // Exporta TODAS las carpetas: una fila por persona y carpeta, para que
       // en Excel puedas filtrar por carpeta o ver el recorrido de alguien.
       const filas = []
-      for (const carp of db.data.carpetas) {
+      for (const carp of getDb().data.carpetas) {
         for (const m of carp.miembros) {
           const p = contactoPorId(m.contactoId) || {}
           filas.push({ ...p, ...m, carpetaNombre: carp.nombre, carpetaTono: carp.tono })
@@ -1838,6 +1903,7 @@ app.whenReady().then(async () => {
     campaignRunning,
     stopRequested,
     pauseRequested,
+    demoMode,
   }), handleSend, handleAddAndSend)
 
   app.on('activate', () => {
