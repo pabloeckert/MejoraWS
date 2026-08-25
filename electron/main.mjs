@@ -24,14 +24,37 @@ app.disableHardwareAcceleration()
 // enfocar la que ya existe — y dos procesos peleando por la misma sesión
 // de WhatsApp (electron/auth) sería un problema real, no cosmético.
 const PROTOCOLO = 'mejoraws'
+
+// El launcher de MejoraSuite abre `mejoraws://open?demo=true|false` para
+// forzar el modo demostración al mismo tiempo que en las otras dos
+// herramientas (Fase 7). Sin esto, cada producto quedaría con su propio
+// valor suelto en localStorage/data.json sin nada que los sincronice.
+function extraerDemoDeArgv(argv) {
+  const url = (argv || []).find((a) => a.startsWith(`${PROTOCOLO}://`))
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (!parsed.searchParams.has('demo')) return null
+    return parsed.searchParams.get('demo') === 'true'
+  } catch {
+    return null
+  }
+}
+
 const obtuvoLock = app.requestSingleInstanceLock()
 if (!obtuvoLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_e, argv) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
+    }
+    const demoParam = extraerDemoDeArgv(argv)
+    if (demoParam !== null && demoParam !== demoMode) {
+      demoMode = demoParam
+      emitirContactos()
+      mainWindow?.webContents.send('demo:changed', demoMode)
     }
   })
 }
@@ -1873,6 +1896,12 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
 }
 
 app.whenReady().then(async () => {
+  // Si el primer lanzamiento ya viene de mejoraws://open?demo=..., aplica
+  // el valor antes de crear la ventana (evita el parpadeo de arrancar con
+  // el default y cambiar un instante después).
+  const demoParamInicial = extraerDemoDeArgv(process.argv)
+  if (demoParamInicial !== null) demoMode = demoParamInicial
+
   LOG_FILE = path.join(app.getPath('userData'), 'logs', 'actividad.jsonl')
   db = await JSONFilePreset(path.join(app.getPath('userData'), 'data.json'), DEFAULT_DATA)
   // Si venís de una versión anterior, esto rellena los campos nuevos de
