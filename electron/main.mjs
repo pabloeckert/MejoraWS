@@ -376,7 +376,7 @@ const DEFAULT_DATA = {
   carpetas: [],
   config: {
     reportEnabled: true,
-    reportPhone: '5493765007805',
+    reportPhone: '',
     anthropicApiKeyEncrypted: '',
     carpetaActivaId: null,
     tonosPropios: {}
