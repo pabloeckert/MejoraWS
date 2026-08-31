@@ -6,3 +6,5 @@ dist-electron
 
 # respaldo local, no es codigo fuente
 mejora-contacto.zip
+
+.claude/settings.local.json
