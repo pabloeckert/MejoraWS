@@ -103,16 +103,24 @@ Abajo del todo en el dashboard hay una sección **Actividad** con:
 
 ## MejoraSuite
 
-MejoraWS sigue siendo esta misma app de escritorio independiente, pero además forma parte de **MejoraSuite** junto con [MejoraCRM](https://github.com/pabloeckert/MejoraCRM) (rector) y [MejoraContactos](https://github.com/pabloeckert/MejoraContactos). Embebe a MejoraContactos en una pestaña propia ("Contactos", `WebContentsView`), y expone un bridge HTTP local (`electron/bridge.mjs`, `127.0.0.1:4180`) para que MejoraCRM y MejoraContactos muestren su estado sin salir de su propia app — de solo lectura por ahora, nunca manda mensajes desde afuera sin pasar por la cola/delay/tope diario de acá. Arquitectura completa: [`mejorasuite/` en el repo de MejoraCRM](https://github.com/pabloeckert/MejoraCRM/tree/main/mejorasuite).
+MejoraWS sigue siendo esta misma app de escritorio independiente, pero además forma parte de **MejoraSuite** junto con [MejoraCRM](https://github.com/pabloeckert/MejoraCRM) (rector) y [MejoraContactos](https://github.com/pabloeckert/MejoraContactos). Embebe a MejoraContactos en una pestaña propia ("Contactos", `WebContentsView`), y expone un bridge HTTP local (`electron/bridge.mjs`, `127.0.0.1:4180`) para que MejoraCRM y MejoraContactos muestren su estado sin salir de su propia app y disparen un envío puntual (`POST /send`, `POST /add-and-send`) — pero siempre pasando por `runCampaign`, el mismo camino con delay random y tope diario que usa cualquier otro envío, nunca una ruta de envío nueva. Arquitectura completa: [`mejorasuite/` en el repo de MejoraCRM](https://github.com/pabloeckert/MejoraCRM/tree/main/mejorasuite).
 
 ## Notas técnicas
 
 - Storage: `lowdb` (JSON local) en la carpeta de datos de usuario de Electron — no SQLite a
   propósito, para no lidiar con compilación de módulos nativos.
+- Riesgo conocido: `xlsx` (SheetJS), usado en `src/App.jsx` para importar listas de contactos
+  en Excel, tiene vulnerabilidades sin fix disponible (prototype pollution, ReDoS —
+  [GHSA-4r6h-8v6p-xvw6](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)). Riesgo acotado porque
+  el archivo lo elige y confía el propio usuario (su lista de contactos), no un tercero — pero si
+  algún día se acepta importar archivos de origen no confiable, hay que migrar antes a otra
+  librería (`exceljs` es la alternativa mantenida más directa).
 - WhatsApp: `baileys` (fork mantenido por WhiskeySockets). Es una librería no oficial que cambia
   seguido — si algo rompe después de un rato sin actualizar, lo primero es mirar el
   [repo de Baileys](https://github.com/WhiskeySockets/Baileys) por cambios de API antes de asumir
   que es un bug del proyecto.
-- Esto no lo pude correr ni testear acá (necesita un WhatsApp real y una ventana de escritorio,
-  cosa que este entorno no tiene) — corré `npm run dev` y si algo tira error de import/versión,
-  pegámelo en el chat y lo arreglamos.
+- Tests: `npm test` corre la suite de Vitest sobre `electron/pure.mjs` (normalización de teléfono,
+  render de plantillas, delay random, gate de tope diario, export a CSV, etc.) — la lógica de
+  Electron/Baileys en sí (`electron/main.mjs`) no se puede testear en este entorno porque necesita
+  un WhatsApp real y una ventana de escritorio; corré `npm run dev` y si algo tira error de
+  import/versión, pegámelo en el chat y lo arreglamos.

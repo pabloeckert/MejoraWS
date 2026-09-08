@@ -46,7 +46,7 @@ const DEFAULT_DATA = {
     keywords: ['si', 'sí', 'info', 'quiero', 'dale', 'contame'],
     replyTemplate: 'Genial {nombre}, te paso el link: [LINK_MEJORADIAGNOSTICO]',
     reportEnabled: true,
-    reportPhone: '5493765007805',
+    reportPhone: '5491100000000',
     anthropicApiKey: '',
     variantes: []
   }
@@ -468,7 +468,7 @@ Frame en t=3s: se ve el textarea y la vista previa desplegados con todo el texto
 Unterminated string in JSON at position 219 (line 3 column 198)
 ```
 
-Frame en t=6s: se ve la sección de configuración completa — DELAY MÍN (SEG) 20, DELAY MÁX (SEG) 90, TOPE DIARIO 50, KEYWORDS PARA AUTO-RESPUESTA "si, sí, info, quiero, dale, contame", AUTO-RESPUESTA vacía, "Informe al terminar cada ciclo" tildado, TU NÚMERO PARA EL INFORME 5493765007805.
+Frame en t=6s: se ve la sección de configuración completa — DELAY MÍN (SEG) 20, DELAY MÁX (SEG) 90, TOPE DIARIO 50, KEYWORDS PARA AUTO-RESPUESTA "si, sí, info, quiero, dale, contame", AUTO-RESPUESTA vacía, "Informe al terminar cada ciclo" tildado, TU NÚMERO PARA EL INFORME 5491100000000.
 
 Frame en t=24s: la app scrolleada arriba, con el header de marca (lockup Mejora Continua), "MejoraContacto / Uso personal — lista chica, gente que ya te conoce", indicador "WhatsApp desconectado" y botón "Conectar".
 
@@ -550,7 +550,7 @@ Commit: `c38733f fix: sanitize unescaped newlines in AI JSON response before par
 
 ---
 
-en pocas palabras nada anda apretas conectar y no hace nada, apretas enviar mensaje  no envia nada, pones revisar ia y no hace nada pones borrar todo y no hace nada pones reset total de la app y no hace nada.  MI consejo para vos, limpia todo borra todo, empeza de vuelta con la experiencia que ya tenes y de manera automatica hace 10 pruebas con este numero 5493765007805 que es el mio .  yo te voy a creer si veo los mensajes en mi telefono y te respondo y me respondes.  se entienede,  asi es una maqueta que no funciona mas que un afiche un meme estaticos .. una bosta,  para elgo te pase  estas herramienttas /marketing:brand-review  /optimo-de-uso  /anthropic-skills:optimo-de-uso  /mejora-continua-brand  /anthropic-skills:mejora-continua-brand  /master-vision  /anthropic-skills:master-vision  No pares hasta que estes seguro que funciona de punta a punta con 10 test definidos,
+en pocas palabras nada anda apretas conectar y no hace nada, apretas enviar mensaje  no envia nada, pones revisar ia y no hace nada pones borrar todo y no hace nada pones reset total de la app y no hace nada.  MI consejo para vos, limpia todo borra todo, empeza de vuelta con la experiencia que ya tenes y de manera automatica hace 10 pruebas con este numero 5491100000000 que es el mio .  yo te voy a creer si veo los mensajes en mi telefono y te respondo y me respondes.  se entienede,  asi es una maqueta que no funciona mas que un afiche un meme estaticos .. una bosta,  para elgo te pase  estas herramienttas /marketing:brand-review  /optimo-de-uso  /anthropic-skills:optimo-de-uso  /mejora-continua-brand  /anthropic-skills:mejora-continua-brand  /master-vision  /anthropic-skills:master-vision  No pares hasta que estes seguro que funciona de punta a punta con 10 test definidos,
 
 ---
 
@@ -834,14 +834,14 @@ Se relanza la app. Ahora la ventana **sí pinta**. Se verifica por captura de pa
 
 Se clickea "Conectar": la app pasa a "WhatsApp conectado" **sin pedir QR** (la sesión ya estaba revinculada).
 
-Se agrega un contacto de prueba con el número 5493765007805, se cambia el mensaje a un texto de test, y se ejecuta "Iniciar envío". Resultado en pantalla: estado "Enviado", "Enviando... 1/50 hoy".
+Se agrega un contacto de prueba con el número 5491100000000, se cambia el mensaje a un texto de test, y se ejecuta "Iniciar envío". Resultado en pantalla: estado "Enviado", "Enviando... 1/50 hoy".
 
 Log de actividad tras el envío:
 
 ```json
 {"ts":"2026-08-07T01:06:47.934Z","type":"campana_iniciada","pendientes":1,"soloSeleccionados":false}
-{"ts":"2026-08-07T01:06:49.881Z","type":"mensaje_enviado","telefono":"5493765007805","nombre":"pABLO tEST","variante":1}
-{"ts":"2026-08-07T01:06:50.649Z","type":"mensaje_confirmado_whatsapp","telefono":"5493765007805","nombre":"pABLO tEST","status":2}
+{"ts":"2026-08-07T01:06:49.881Z","type":"mensaje_enviado","telefono":"5491100000000","nombre":"pABLO tEST","variante":1}
+{"ts":"2026-08-07T01:06:50.649Z","type":"mensaje_confirmado_whatsapp","telefono":"5491100000000","nombre":"pABLO tEST","status":2}
 {"ts":"2026-08-07T01:07:01.538Z","type":"campana_detenida","enviadosHoy":1}
 {"ts":"2026-08-07T01:07:01.566Z","type":"informe_enviado","motivoFin":"completado","enviadosCorrida":1,"erroresCorrida":0}
 ```
@@ -1437,11 +1437,11 @@ OK - sin guard SI rompe: (intermediate value) is not iterable
 ```
 === VALIDACION ===
 
-✓  Numero real bien formado -> 5493765007805 tiene WhatsApp
+✓  Numero real bien formado -> 5491100000000 tiene WhatsApp
 ✓  Gontek (de tu lista) -> 5493755422026 tiene WhatsApp
 ✗  Cslogistica (de tu lista) -> 549375515437777 NO tiene WhatsApp
 ✗  Distribuidora Parana (de tu lista) -> 549375540717 NO tiene WhatsApp
-✓  Con espacios y guiones -> 5493765007805 tiene WhatsApp
+✓  Con espacios y guiones -> 5491100000000 tiene WhatsApp
 ⚠  Muy corto
    "1234" -> 4 digitos: mal escrito
 ⚠  ID de grupo (basura)
@@ -1732,7 +1732,7 @@ Columnas de actividad: Fecha y hora, Qué pasó, Tipo, Contacto, Teléfono, Deta
 ```
 === CSV GENERADO ===
 [BOM]Nombre;Teléfono;Estado;Entrega;Enviado;Leído;Qué respondió;Le respondimos;Tiene WhatsApp;Error
-Ferretería Ñandú;5493765007805;enviado;Leído;7/8/2026, 10:00:00;7/8/2026, 10:05:00;"Dale; mandame info";Sí;Sí;
+Ferretería Ñandú;5491100000000;enviado;Leído;7/8/2026, 10:00:00;7/8/2026, 10:05:00;"Dale; mandame info";Sí;Sí;
 "Casa ""El Tornillo""";5493751422853;respondio;Llegó al teléfono;7/8/2026, 10:01:00;;"Hola
 te respondo mañana";No;Sin verificar;
 Sin datos;549375540717;error;;;;;No;No;El número no tiene WhatsApp
@@ -2405,7 +2405,7 @@ const DEFAULT_DATA = {
   carpetas: [],
   config: {
     reportEnabled: true,
-    reportPhone: '5493765007805',
+    reportPhone: '5491100000000',
     anthropicApiKeyEncrypted: '',
     carpetaActivaId: null,
     tonosPropios: {}
