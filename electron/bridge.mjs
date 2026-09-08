@@ -25,6 +25,18 @@ const HOST = '127.0.0.1'
 let server = null
 const sseClients = new Set()
 
+// Comparación en tiempo constante -- con !== un atacante local podría medir
+// microsegundos de diferencia byte a byte y adivinar el token de a poco.
+// Impacto real bajo (solo escucha en 127.0.0.1), pero timingSafeEqual no
+// cuesta nada y cierra el vector por completo.
+function safeTokenEquals(provided, expected) {
+  if (typeof provided !== 'string') return false
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
+}
+
 function loadOrCreateToken(userDataDir) {
   const tokenFile = path.join(userDataDir, 'bridge-token.txt')
   if (fs.existsSync(tokenFile)) {
@@ -94,7 +106,7 @@ export function startBridgeServer(userDataDir, getState, handleSend, handleAddAn
     // "*" no expone nada a otras máquinas — el token es la barrera real
     // contra otro proceso local no autorizado leyendo el estado.
     const providedToken = req.headers['x-bridge-token']
-    if (providedToken !== token) {
+    if (!safeTokenEquals(providedToken, token)) {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'token inválido o faltante (header X-Bridge-Token)' }))
       return
