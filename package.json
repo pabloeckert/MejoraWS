@@ -12,7 +12,8 @@
     "dev:electron": "wait-on http://localhost:5173 && electron .",
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "build": "vite build",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "test": "vitest run"
   },
   "dependencies": {
     "baileys": "7.0.0-rc14",
@@ -31,6 +32,7 @@
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.2.0",
+    "vitest": "^5.0.0",
     "wait-on": "^9.1.0",
     "xlsx": "^0.18.5"
   },
@@ -44,7 +46,9 @@
     "protocols": [
       {
         "name": "MejoraWS",
-        "schemes": ["mejoraws"]
+        "schemes": [
+          "mejoraws"
+        ]
       }
     ],
     "win": {

@@ -7,6 +7,10 @@ import QRCode from 'qrcode'
 import pino from 'pino'
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from 'baileys'
 import { startBridgeServer } from './bridge.mjs'
+import {
+  normalizePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
+  randomDelayMs, extractText, renderTemplate, canSendMore
+} from './pure.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const logger = pino({ level: 'silent' }) // subir a 'debug' si algo falla y hay que ver qué pasa
@@ -497,75 +501,8 @@ const DELIVERY_LABELS = {
   5: 'leído'
 }
 
-function normalizePhone(p) {
-  return (p || '').toString().replace(/\D/g, '')
-}
-
-// --- Exportación a CSV ---
-// Excel en español espera punto y coma como separador, no coma. Y sin el BOM
-// del principio se come los acentos y las ñ.
-function toCsv(filas, columnas) {
-  const escapar = (v) => {
-    if (v === null || v === undefined) return ''
-    const s = String(v)
-    return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-  }
-  const cabecera = columnas.map((c) => escapar(c.titulo)).join(';')
-  const cuerpo = filas.map((f) => columnas.map((c) => escapar(c.valor(f))).join(';'))
-  return '﻿' + [cabecera, ...cuerpo].join('\r\n')
-}
-
-function fechaLegible(iso) {
-  return iso ? new Date(iso).toLocaleString('es-AR') : ''
-}
-
-function etapaEntrega(c) {
-  if (c.entregaStatus >= 4) return 'Leído'
-  if (c.entregaStatus === 3) return 'Llegó al teléfono'
-  if (c.entregaStatus === 2) return 'Salió'
-  return c.estado === 'enviado' ? 'Sin confirmar' : ''
-}
-
-// Busca la primera columna del CSV/Excel cuyo nombre matchea alguno de los
-// candidatos (en orden de prioridad) y que además tiene un valor no vacío
-// en esa fila. Así "Whatsapp_Format", "Comercio", "Teléfono", etc. se
-// reconocen sin que el archivo tenga que usar los nombres exactos.
-function findFieldKey(row, candidates) {
-  const keys = Object.keys(row || {})
-  for (const cand of candidates) {
-    const found = keys.find((k) => k.trim().toLowerCase().includes(cand))
-    if (found && String(row[found]).trim()) return found
-  }
-  return null
-}
-
-function randomDelayMs(min, max) {
-  const a = Math.max(1, Number(min) || 20)
-  const b = Math.max(a, Number(max) || 90)
-  return (a + Math.random() * (b - a)) * 1000
-}
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function extractText(msg) {
-  return (
-    msg.message?.conversation ||
-    msg.message?.extendedTextMessage?.text ||
-    msg.message?.imageMessage?.caption ||
-    ''
-  )
-}
-
-// Reemplaza cualquier {campo} presente en el texto por el valor de ese
-// campo en el contacto (nombre, apellido, variable, o lo que tenga). Si el
-// contacto no tiene ese campo, lo deja vacío en vez de romper el mensaje.
-function renderTemplate(template, contact) {
-  return (template || '').replace(/\{(\w+)\}/g, (match, key) => {
-    const value = contact?.[key]
-    return value !== undefined && value !== null && value !== '' ? String(value) : ''
-  })
 }
 
 // --- Log de actividad ---
@@ -1023,10 +960,23 @@ async function runCampaign(onlyIds = null) {
       continue
     }
 
-    if (cfg.sentToday >= cfg.dailyCap) {
+    if (!canSendMore(cfg.sentToday, cfg.dailyCap)) {
       mainWindow?.webContents.send('campaign:progress', { status: 'tope_diario_alcanzado' })
       logEvent('tope_diario_alcanzado', { enviadosHoy: cfg.sentToday })
       motivoFin = 'tope diario alcanzado'
+      break
+    }
+
+    // Red de seguridad contra el escenario de la auditoria pre-beta: si la
+    // conexion ya no esta activa (Baileys se cayo a mitad de la corrida),
+    // no sigas intentando enviar -- eso marcaba en cadena "error" a TODOS
+    // los contactos restantes (mensaje que nunca llego a intentarse de
+    // verdad, indistinguible de un numero invalido). Cortar acá deja el
+    // resto en 'pendiente' para retomar solo con "Reanudar" al reconectar,
+    // en vez de tener que ir a mano contacto por contacto.
+    if (waStatus !== 'conectado' || !sock) {
+      motivoFin = 'conexión perdida'
+      logEvent('conexion_perdida_durante_envio', { enviadosHoy: cfg.sentToday, restantes: carpeta.miembros.filter((m) => m.estado === 'pendiente').length })
       break
     }
 
@@ -1063,6 +1013,14 @@ async function runCampaign(onlyIds = null) {
         variante: variantIndex + 1
       })
     } catch (err) {
+      // Si la conexion se cayo justo durante este intento, no es que el
+      // numero esté mal -- el mensaje nunca llego a salir de verdad. Cortar
+      // acá en vez de marcar 'error' (mismo criterio que el check de arriba).
+      if (waStatus !== 'conectado' || !sock) {
+        motivoFin = 'conexión perdida'
+        logEvent('conexion_perdida_durante_envio', { enviadosHoy: cfg.sentToday, error: String(err?.message || err) })
+        break
+      }
       miembro.estado = 'error'
       miembro.error = String(err?.message || err)
       erroresCorrida++
