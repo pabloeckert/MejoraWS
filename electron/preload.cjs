@@ -62,6 +62,10 @@ contextBridge.exposeInMainWorld('mejora', {
   // Suite — token del bridge, para pegar a mano en MejoraContactos (Fase 3)
   copyBridgeToken: () => ipcRenderer.invoke('bridge:copyToken'),
 
+  // Suite — API central de contactos (Fase 4)
+  obtenerContactos: (tag) => ipcRenderer.invoke('contactos:obtener', tag),
+  reportarInteraccion: (payload) => ipcRenderer.invoke('contactos:reportar', payload),
+
   // Eventos en tiempo real (main -> renderer)
   onQr: (cb) => ipcRenderer.on('wa:qr', (_e, dataUrl) => cb(dataUrl)),
   onStatus: (cb) => ipcRenderer.on('wa:status', (_e, status) => cb(status)),

@@ -1851,6 +1851,49 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
     if (bridge?.token) clipboard.writeText(bridge.token)
     return !!bridge?.token
   })
+
+  // Suite — API central de contactos (Fase 4)
+  ipcMain.handle('contactos:obtener', async (_e, tag) => {
+    const url = new URL(process.env.CONTACTOS_API_URL || 'https://tzatuvxatsduuslxqdtm.supabase.co/functions/v1/contactos-api')
+    url.searchParams.set('tamano', '2000')
+    if (tag) url.searchParams.set('tag', tag)
+    const key = process.env.CONTACTOS_API_KEY || '66005e1e7b99040265523d6be7cbbe75468da7fbe58fa6c60aed74b917dee46f'
+    const res = await fetch(url.toString(), {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': key,
+        'Authorization': `Bearer ${key}`
+      }
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+    return await res.json()
+  })
+
+  ipcMain.handle('contactos:reportar', async (_e, payload) => {
+    const url = process.env.CONTACTOS_API_URL || 'https://tzatuvxatsduuslxqdtm.supabase.co/functions/v1/contactos-api'
+    const key = process.env.CONTACTOS_API_KEY || '66005e1e7b99040265523d6be7cbbe75468da7fbe58fa6c60aed74b917dee46f'
+    const tel = payload?.numero || payload?.telefono || (Array.isArray(payload?.whatsapp) ? payload.whatsapp[0] : payload?.whatsapp)
+    const estado = payload?.estado_respuesta || payload?.estado || 'registrado'
+    const detalleMensaje = payload?.mensaje ? ` - ${payload.mensaje}` : ''
+    const nota = payload?.nota_referencia || `[MejoraWS] Interacción: ${estado}${detalleMensaje}`
+    const body = { nota_referencia: nota }
+    if (payload?.persona_id) body.persona_id = payload.persona_id
+    if (payload?.nombre) body.nombre = payload.nombre
+    if (tel) body.telefono = tel
+    if (payload?.tag) body.tag = payload.tag
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': key,
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify(body)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+    return await res.json()
+  })
 }
 
 app.whenReady().then(async () => {

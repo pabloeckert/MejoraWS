@@ -8,3 +8,5 @@ dist-electron
 mejora-contacto.zip
 
 .claude/settings.local.json
+.env
+.env.local
