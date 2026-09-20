@@ -779,6 +779,47 @@ async function connectWhatsApp() {
   })
 }
 
+async function reportarRespuestaAContactosApi({ phone, nombre, text, estado = 'respondio', carpeta = 'General', persona_id = null }) {
+  try {
+    const url = process.env.CONTACTOS_API_URL || 'https://tzatuvxatsduuslxqdtm.supabase.co/functions/v1/contactos-api'
+    const key = process.env.CONTACTOS_API_KEY || '66005e1e7b99040265523d6be7cbbe75468da7fbe58fa6c60aed74b917dee46f'
+    
+    const body = {
+      source: 'MejoraWS',
+      telefono: phone,
+      whatsapp: [phone],
+      nombre: nombre || phone,
+      tag: `whatsapp_${(carpeta || 'general').toLowerCase().replace(/\s+/g, '_')}`,
+      nota_referencia: `[MejoraWS] Respondió en carpeta '${carpeta}': "${text ? text.slice(0, 250) : ''}"`
+    }
+    if (persona_id) body.persona_id = persona_id
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': key,
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify(body)
+    })
+
+    if (!res.ok) {
+      const errTxt = await res.text()
+      logEvent('reporte_contactos_error', { phone, status: res.status, error: errTxt })
+      return null
+    }
+
+    const data = await res.json()
+    logEvent('reporte_contactos_exito', { phone, persona_id: data.persona_id, creado: data.creado })
+    return data
+  } catch (err) {
+    // Fail-soft: no bloquear la app ante fallo de red
+    logEvent('reporte_contactos_excepcion', { phone, error: err.message })
+    return null
+  }
+}
+
 async function handleIncomingMessage(phone, text) {
   const now = new Date().toISOString()
 
@@ -840,6 +881,16 @@ async function handleIncomingMessage(phone, text) {
     texto: text.slice(0, 140),
     listado: miembro.estado !== 'respondio_no_listado'
   })
+
+  // Sincronización automática a contactos-api (Cierre de fuga WhatsApp -> CRM)
+  reportarRespuestaAContactosApi({
+    phone,
+    nombre: persona.nombre || phone,
+    text,
+    estado: miembro.estado,
+    carpeta: carpeta.nombre,
+    persona_id: persona.persona_id || null
+  }).catch((err) => console.warn('[MejoraWS] Error en sync contactos-api:', err))
 
   new Notification({
     title: `Respondió ${persona.nombre || phone}`,
