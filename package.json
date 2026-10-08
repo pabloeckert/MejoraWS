@@ -8,6 +8,8 @@
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
+    "server": "node src/server.mjs",
+    "start": "node src/server.mjs",
     "dev:renderer": "vite",
     "dev:electron": "wait-on http://localhost:5173 && electron .",
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
