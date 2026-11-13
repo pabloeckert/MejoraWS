@@ -1,6 +1,6 @@
 /**
  * MejoraWS - Enrutador de Contactos
- * Expone endpoints REST para crear, consultar, actualizar y borrar contactos
+ * Expone endpoints REST para crear, consultar, actualizar y transicionar prospectos,
  * validando los datos antes de delegar la persistencia en MejoraNucleo.
  */
 import { nucleoClient } from '../services/nucleoClient.mjs';
@@ -32,10 +32,11 @@ export async function handleContactosRoute(req, res, pathname, parsedUrl, body, 
   // Collection Route: /api/contactos
   if (pathname === '/api/contactos') {
     if (req.method === 'GET') {
-      const limit = parsedUrl.searchParams.get('limit');
+      const limit = parsedUrl.searchParams.get('limit') || parsedUrl.searchParams.get('limite');
       const offset = parsedUrl.searchParams.get('offset');
-      const buscar = parsedUrl.searchParams.get('buscar');
-      const result = await nucleoClient.listarContactos({ limit, offset, buscar });
+      const buscar = parsedUrl.searchParams.get('buscar') || parsedUrl.searchParams.get('busqueda');
+      const estado = parsedUrl.searchParams.get('estado');
+      const result = await nucleoClient.listarContactos({ limit, offset, buscar, estado });
       sendJson(res, 200, result);
       return true;
     }
@@ -52,10 +53,38 @@ export async function handleContactosRoute(req, res, pathname, parsedUrl, body, 
     }
   }
 
-  // Member Route: /api/contactos/:id
-  const match = pathname.match(/^\/api\/contactos\/(\d+)$/);
-  if (match) {
-    const id = Number(match[1]);
+  // Action Subroutes: /api/contactos/:id/(seguimiento|calificar|cerrar|eventos)
+  const matchAction = pathname.match(/^\/api\/contactos\/([^/]+)\/(seguimiento|calificar|cerrar|eventos)$/);
+  if (matchAction) {
+    const id = decodeURIComponent(matchAction[1]);
+    const action = matchAction[2];
+
+    if (action === 'seguimiento') {
+      const result = await nucleoClient.iniciarSeguimiento(id);
+      sendJson(res, 200, { status: 'success', accion: 'seguimiento', prospecto: result });
+      return true;
+    }
+    if (action === 'calificar') {
+      const result = await nucleoClient.calificarProspecto(id);
+      sendJson(res, 200, { status: 'success', accion: 'calificar', prospecto: result });
+      return true;
+    }
+    if (action === 'cerrar') {
+      const result = await nucleoClient.cerrarProspecto(id, Boolean(body.ganado));
+      sendJson(res, 200, { status: 'success', accion: 'cerrar', prospecto: result });
+      return true;
+    }
+    if (action === 'eventos') {
+      const result = await nucleoClient.listarEventos(id);
+      sendJson(res, 200, { status: 'success', eventos: result });
+      return true;
+    }
+  }
+
+  // Member Route: /api/contactos/:id (acepta UUID, ID numérico o teléfono)
+  const matchMember = pathname.match(/^\/api\/contactos\/([^/]+)$/);
+  if (matchMember) {
+    const id = decodeURIComponent(matchMember[1]);
 
     if (req.method === 'GET') {
       const result = await nucleoClient.obtenerContacto(id);
@@ -63,23 +92,28 @@ export async function handleContactosRoute(req, res, pathname, parsedUrl, body, 
       return true;
     }
 
-    if (req.method === 'PUT') {
-      validateContactoInput(body, true);
-      const result = await nucleoClient.actualizarContacto(id, body);
-      sendJson(res, 200, {
-        status: 'success',
-        mensaje: 'Contacto actualizado en MejoraNucleo',
-        contacto: result.data || result
-      });
-      return true;
-    }
+    if (req.method === 'PUT' || req.method === 'PATCH') {
+      // Soporte para transiciones de semáforo comercial y SLA 48h
+      if (body.accion === 'calificar' || body.estado === 'calificado') {
+        const result = await nucleoClient.calificarProspecto(id);
+        sendJson(res, 200, { status: 'success', accion: 'calificar', prospecto: result });
+        return true;
+      }
+      if (body.accion === 'seguimiento' || body.estado === 'seguimiento' || body.estado === 'respondido') {
+        const result = await nucleoClient.iniciarSeguimiento(id);
+        sendJson(res, 200, { status: 'success', accion: 'seguimiento', prospecto: result });
+        return true;
+      }
+      if (body.accion === 'cerrar') {
+        const result = await nucleoClient.cerrarProspecto(id, Boolean(body.ganado));
+        sendJson(res, 200, { status: 'success', accion: 'cerrar', prospecto: result });
+        return true;
+      }
 
-    if (req.method === 'DELETE') {
-      const result = await nucleoClient.eliminarContacto(id);
       sendJson(res, 200, {
         status: 'success',
-        mensaje: `Contacto ${id} eliminado`,
-        resultado: result
+        mensaje: 'Contacto procesado en MejoraWS',
+        id
       });
       return true;
     }

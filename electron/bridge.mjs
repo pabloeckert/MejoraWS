@@ -19,7 +19,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const PORT = 4180
+const PORT = Number(process.env.BRIDGE_PORT) || 4180
 const HOST = '127.0.0.1'
 
 let server = null

@@ -9,7 +9,9 @@ import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaile
 import { startBridgeServer } from './bridge.mjs'
 import {
   normalizePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
-  randomDelayMs, extractText, renderTemplate, canSendMore
+  randomDelayMs, gaussianRandomDelayMs, calculateTypingDurationMs,
+  extractText, parseSpintax, renderTemplate, canSendMore,
+  clasificarRespuesta, calculateSafetyLevel
 } from './pure.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -651,12 +653,17 @@ function createWindow() {
     }
   })
 
-  if (!app.isPackaged) {
-    mainWindow.loadURL('http://localhost:5173')
+  const distPath = path.join(__dirname, '../dist/index.html')
+  if (!app.isPackaged && !process.env.ELECTRON_SERVE_DIST && process.env.NODE_ENV !== 'production') {
+    mainWindow.loadURL('http://localhost:5173').catch(() => {
+      if (fs.existsSync(distPath)) mainWindow.loadFile(distPath)
+    })
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    mainWindow.loadFile(distPath)
   }
 }
+
+let socketWatchdogInterval = null
 
 async function connectWhatsApp() {
   const authDir = path.join(app.getPath('userData'), 'auth')
@@ -686,9 +693,25 @@ async function connectWhatsApp() {
       mainWindow?.webContents.send('wa:status', waStatus)
       bridge?.broadcastEvent('status', waStatus)
       logEvent('wa_conectado')
+
+      // Watchdog activo contra Deadlock / Deaf Session en Baileys
+      if (socketWatchdogInterval) clearInterval(socketWatchdogInterval)
+      socketWatchdogInterval = setInterval(async () => {
+        if (waStatus === 'conectado' && sock) {
+          try {
+            await sock.sendPresenceUpdate('available')
+          } catch (err) {
+            logger.warn({ err }, '[Watchdog] Socket sordo detectado en heartbeat')
+          }
+        }
+      }, 120000)
     }
 
     if (connection === 'close') {
+      if (socketWatchdogInterval) {
+        clearInterval(socketWatchdogInterval)
+        socketWatchdogInterval = null
+      }
       const statusCode = lastDisconnect?.error?.output?.statusCode
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut
       waStatus = shouldReconnect ? 'reconectando' : 'desconectado'
@@ -865,12 +888,23 @@ async function handleIncomingMessage(phone, text) {
     miembro = nuevoMiembro(persona.id)
     miembro.estado = 'respondio_no_listado'
     carpeta.miembros.push(miembro)
+  }
+
+  const intencion = clasificarRespuesta(text)
+  if (intencion === 'baja') {
+    miembro.estado = 'baja'
+    miembro.incluido = false
+  } else if (intencion === 'postergacion') {
+    miembro.estado = 'postergado'
   } else {
-    miembro.estado = 'respondio'
+    if (miembro.estado !== 'respondio_no_listado') {
+      miembro.estado = 'respondio'
+    }
   }
 
   miembro.respuesta = text
   miembro.fechaRespuesta = now
+  miembro.intencion = intencion
 
   await getDb().write()
   emitirContactos()
@@ -879,6 +913,7 @@ async function handleIncomingMessage(phone, text) {
     telefono: phone,
     nombre: persona.nombre || phone,
     texto: text.slice(0, 140),
+    intencion,
     listado: miembro.estado !== 'respondio_no_listado'
   })
 
@@ -892,29 +927,29 @@ async function handleIncomingMessage(phone, text) {
     persona_id: persona.persona_id || null
   }).catch((err) => console.warn('[MejoraWS] Error en sync contactos-api:', err))
 
+  // Cada carpeta tiene sus propias keywords y sus propias respuestas
+  const cfg = carpeta.config
+  const keywords = (cfg.keywords || []).map((k) => k.toLowerCase().trim()).filter(Boolean)
+  const matched = keywords.some((k) => text.toLowerCase().includes(k))
+
   new Notification({
     title: `Respondió ${persona.nombre || phone}`,
     body: text.slice(0, 140)
   }).show()
 
-  // Cada carpeta tiene sus propias keywords y sus propias respuestas: al
-  // cumpleaños se contesta distinto que a un contacto comercial.
-  const cfg = carpeta.config
-  const keywords = (cfg.keywords || []).map((k) => k.toLowerCase().trim()).filter(Boolean)
-  const matched = keywords.some((k) => text.toLowerCase().includes(k))
   const datos = { ...persona, ...miembro }
 
-  // Nadie que escribe se queda sin respuesta. Si dijo alguna de las keywords
-  // ("dale", "info"...) va la respuesta con el link; si escribió cualquier
-  // otra cosa igual recibe un acuse humano, para que no quede hablando solo.
-  //
-  // Se responde UNA sola vez por persona y por carpeta: a partir de ahí seguís
-  // vos a mano. Eso evita el ping-pong automático — dos bots respondiéndose es
-  // exactamente lo que WhatsApp detecta y bloquea.
   if (sock && !miembro.autoRespondido) {
-    const texto = matched && cfg.replyTemplate
-      ? renderTemplate(cfg.replyTemplate, datos)
-      : renderTemplate(cfg.acuseTemplate, datos)
+    let texto = ''
+    if (intencion === 'baja') {
+      texto = 'Entendido, disculpas por la molestia. Ya quedás dado de baja de nuestra lista.'
+    } else if (intencion === 'postergacion') {
+      texto = 'Perfecto, gracias por avisar. Te contacto más adelante. ¡Que tengas buen día!'
+    } else {
+      texto = matched && cfg.replyTemplate
+        ? renderTemplate(cfg.replyTemplate, datos)
+        : renderTemplate(cfg.acuseTemplate, datos)
+    }
 
     if (texto.trim()) {
       miembro.autoRespondido = true
@@ -922,16 +957,28 @@ async function handleIncomingMessage(phone, text) {
       await getDb().write()
 
       const jid = `${phone}@s.whatsapp.net`
-      // La demora es a propósito: contestar en el mismo segundo delata al bot.
-      setTimeout(() => {
-        sock?.sendMessage(jid, { text: texto }).catch(() => {})
-        logEvent('auto_respuesta_enviada', {
-          carpeta: carpeta.nombre,
-          telefono: phone,
-          nombre: persona.nombre || phone,
-          tipo: matched ? 'con keyword' : 'acuse'
-        })
-      }, 4000 + Math.random() * 6000)
+      const delayAntesDeTipear = 3000 + Math.random() * 4000
+      setTimeout(async () => {
+        try {
+          if (!sock || waStatus !== 'conectado') return
+          await sock.presenceSubscribe(jid).catch(() => {})
+          await sleep(800 + Math.random() * 600)
+          const typingDuration = calculateTypingDurationMs(texto.length)
+          await sock.sendPresenceUpdate('composing', jid).catch(() => {})
+          await sleep(typingDuration)
+          await sock.sendPresenceUpdate('paused', jid).catch(() => {})
+          await sleep(300 + Math.random() * 400)
+          await sock.sendMessage(jid, { text: texto })
+          logEvent('auto_respuesta_enviada', {
+            carpeta: carpeta.nombre,
+            telefono: phone,
+            nombre: persona.nombre || phone,
+            tipo: intencion !== 'desconocido' ? intencion : (matched ? 'con keyword' : 'acuse')
+          })
+        } catch (err) {
+          logger.warn({ err }, 'Error al enviar auto-respuesta con presencia humana')
+        }
+      }, delayAntesDeTipear)
     }
   }
 }
@@ -1036,7 +1083,8 @@ async function runCampaign(onlyIds = null) {
     // por IA); si no hay, usa siempre la plantilla base.
     const variantes = cfg.variantes && cfg.variantes.length ? cfg.variantes : [cfg.template]
     const variantIndex = Math.floor(indiceEnvio / 5) % variantes.length
-    const texto = renderTemplate(variantes[variantIndex], contact)
+    let texto = renderTemplate(variantes[variantIndex], contact)
+    texto = parseSpintax(texto)
 
     if (!texto.trim()) {
       motivoFin = 'no hay mensaje escrito en esta carpeta'
@@ -1044,6 +1092,19 @@ async function runCampaign(onlyIds = null) {
     }
 
     try {
+      // Heurística Anti-Ban 2026: simulación de apertura de chat y presencia humana
+      await sock.presenceSubscribe(jid).catch(() => {})
+      await sleep(1000 + Math.random() * 800)
+
+      // Indicador "composing" (escribiendo...) proporcional a la longitud del texto
+      await sock.sendPresenceUpdate('composing', jid).catch(() => {})
+      const typingTime = calculateTypingDurationMs(texto.length)
+      await sleep(typingTime)
+
+      // Breve pausa humana de revisión previa al clic de envío
+      await sock.sendPresenceUpdate('paused', jid).catch(() => {})
+      await sleep(400 + Math.random() * 400)
+
       const sentMsg = await sock.sendMessage(jid, { text: texto })
       miembro.estado = 'enviado'
       miembro.fechaEnvio = new Date().toISOString()
@@ -1093,7 +1154,7 @@ async function runCampaign(onlyIds = null) {
       totalVariantes: variantes.length
     })
 
-    await sleep(randomDelayMs(cfg.delayMin, cfg.delayMax))
+    await sleep(gaussianRandomDelayMs(cfg.delayMin, cfg.delayMax))
   }
 
   campaignRunning = false

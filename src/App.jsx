@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
-import { ESTADOS, CONTACTO_PRUEBA, renderTemplate, EMOJIS } from './constants'
+import { ESTADOS, CONTACTO_PRUEBA, renderTemplate, parseSpintax, calculateSafetyLevel, EMOJIS } from './constants'
 import { EmojiPicker } from './components/EmojiPicker'
 import { WhatsappMockup } from './components/WhatsappMockup'
 import { EntregaTicks } from './components/EntregaTicks'
@@ -38,12 +38,6 @@ export default function App() {
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({ nombre: '', apellido: '', telefono: '', variable: '' })
   const fileInputRef = useRef(null)
-  // Fase 2 de MejoraSuite: pestaña "Contactos" embebe MejoraContactos (app
-  // web aparte, ver electron/main.mjs ensureContactosView()) sin salir de
-  // esta ventana.
-  const [vista, setVista] = useState('campanas')
-  const contactosSlotRef = useRef(null)
-  const [tokenCopiado, setTokenCopiado] = useState(false)
   const templateRef = useRef(null)
   const [demoMode, setDemoModeState] = useState(true)
 
@@ -90,42 +84,6 @@ export default function App() {
     })
   }
 
-  // Fase 2 de MejoraSuite: cuando la pestaña "Contactos" está activa, le
-  // pasamos al proceso principal las coordenadas exactas del slot para que
-  // posicione ahí el WebContentsView de MejoraContactos — y lo ocultamos
-  // (sin destruirlo) al salir de la pestaña, para no perder su estado.
-  useEffect(() => {
-    if (vista !== 'contactos') {
-      window.mejora.hideContactos()
-      return
-    }
-
-    const actualizarBounds = () => {
-      if (!contactosSlotRef.current) return
-      const r = contactosSlotRef.current.getBoundingClientRect()
-      window.mejora.updateContactosBounds({
-        x: Math.round(r.x),
-        y: Math.round(r.y),
-        width: Math.round(r.width),
-        height: Math.round(r.height),
-      })
-    }
-
-    const r = contactosSlotRef.current.getBoundingClientRect()
-    window.mejora.showContactos({
-      x: Math.round(r.x),
-      y: Math.round(r.y),
-      width: Math.round(r.width),
-      height: Math.round(r.height),
-    })
-
-    window.addEventListener('resize', actualizarBounds)
-    return () => {
-      window.removeEventListener('resize', actualizarBounds)
-      window.mejora.hideContactos()
-    }
-  }, [vista])
-
   const stats = useMemo(() => {
     const total = contacts.length
     const pendientes = contacts.filter((c) => c.estado === 'pendiente').length
@@ -134,10 +92,25 @@ export default function App() {
     return { total, pendientes, respondieron, enviados }
   }, [contacts])
 
+  const [spintaxTick, setSpintaxTick] = useState(0)
+
+  const safety = useMemo(() => {
+    return calculateSafetyLevel(
+      config?.sentToday ?? progress?.enviadosHoy,
+      config?.dailyCap ?? progress?.dailyCap,
+      config?.delayMin
+    )
+  }, [config?.sentToday, config?.dailyCap, config?.delayMin, progress?.enviadosHoy, progress?.dailyCap])
+
   const previewText = useMemo(() => {
     if (!config) return ''
     return renderTemplate(config.template, contacts[0] || CONTACTO_PRUEBA)
   }, [config?.template, contacts])
+
+  const spintaxPreview = useMemo(() => {
+    if (!previewText) return ''
+    return parseSpintax(previewText)
+  }, [previewText, spintaxTick])
 
   const filteredContacts = useMemo(() => {
     return contacts.filter((c) => {
@@ -151,7 +124,7 @@ export default function App() {
     })
   }, [contacts, searchTerm, filtroEstado])
 
-  function handleFile(e) {
+  async function handleFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
     const isCsv = file.name.toLowerCase().endsWith('.csv')
@@ -159,13 +132,42 @@ export default function App() {
     if (isCsv) {
       Papa.parse(file, { header: true, skipEmptyLines: true, complete: (res) => importRows(res.data) })
     } else {
-      const reader = new FileReader()
-      reader.onload = (evt) => {
-        const wb = XLSX.read(evt.target.result, { type: 'binary' })
-        const sheet = wb.Sheets[wb.SheetNames[0]]
-        importRows(XLSX.utils.sheet_to_json(sheet))
+      try {
+        const buffer = await file.arrayBuffer()
+        const workbook = new ExcelJS.Workbook()
+        await workbook.xlsx.load(buffer)
+        const worksheet = workbook.worksheets[0]
+        if (worksheet) {
+          const rows = []
+          const headers = []
+          worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) {
+              row.eachCell((cell, colNumber) => {
+                headers[colNumber] = String(cell.value || '').trim()
+              })
+            } else {
+              const rowData = {}
+              row.eachCell((cell, colNumber) => {
+                const header = headers[colNumber]
+                if (header) {
+                  let val = cell.value
+                  if (val && typeof val === 'object') {
+                    val = val.result !== undefined ? val.result : (val.text !== undefined ? val.text : String(val))
+                  }
+                  rowData[header] = val
+                }
+              })
+              if (Object.keys(rowData).length > 0) {
+                rows.push(rowData)
+              }
+            }
+          })
+          importRows(rows)
+        }
+      } catch (err) {
+        console.error('Error al procesar archivo Excel:', err)
+        alert('No se pudo leer el archivo Excel. Asegurate de que sea un archivo .xlsx válido.')
       }
-      reader.readAsBinaryString(file)
     }
     e.target.value = ''
   }
@@ -522,20 +524,22 @@ export default function App() {
             >
               ✨ {demoMode ? 'Modo demostración' : 'Prender demo'}
             </button>
-            <button
-              onClick={() => {
-                window.mejora.copyBridgeToken().then((ok) => {
-                  if (ok) {
-                    setTokenCopiado(true)
-                    setTimeout(() => setTokenCopiado(false), 2000)
-                  }
-                })
-              }}
-              title="Copiar el token de conexión para pegarlo en MejoraContactos (Ajustes → MejoraWS)"
-              className="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-gris transition-colors"
+
+            {/* Safety Gauge Pill */}
+            <div
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border cursor-help transition-all ${
+                safety.level === 'verde'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : safety.level === 'amarillo'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                  : 'bg-rose-50 text-rose-800 border-rose-200'
+              }`}
+              title={`${safety.mensaje} • Enviados hoy: ${config?.sentToday || 0}/${config?.dailyCap || 40} • Delay mín: ${config?.delayMin || 20}s`}
             >
-              {tokenCopiado ? 'Copiado ✓' : 'Copiar token de conexión'}
-            </button>
+              <span className="font-semibold">{safety.badge}</span>
+              <span className="text-[10px] opacity-75 font-mono">({safety.score}/100)</span>
+            </div>
+
             <span className={`inline-flex items-center gap-2 text-sm ${conectado ? 'text-mc-azul' : 'text-mc-gris'}`}>
               <span className={`w-2 h-2 rounded-full ${conectado ? 'bg-mc-azul' : 'bg-gray-300'}`} />
               {conectado ? 'WhatsApp conectado' : 'WhatsApp desconectado'}
@@ -559,45 +563,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Fase 2 de MejoraSuite: alterna entre la vista de campañas (todo lo
-          que ya existía) y MejoraContactos embebido. */}
-      <div className="border-b border-gray-100 bg-gray-50/50">
-        <div className="max-w-6xl mx-auto px-6 flex gap-1">
-          <button
-            onClick={() => setVista('campanas')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              vista === 'campanas'
-                ? 'border-mc-azul text-mc-azul'
-                : 'border-transparent text-mc-gris hover:text-mc-tinta'
-            }`}
-          >
-            Campañas
-          </button>
-          <button
-            onClick={() => setVista('contactos')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              vista === 'contactos'
-                ? 'border-mc-azul text-mc-azul'
-                : 'border-transparent text-mc-gris hover:text-mc-tinta'
-            }`}
-          >
-            Contactos
-          </button>
-        </div>
-      </div>
-
-      {/* Slot del embebido — sus coordenadas (getBoundingClientRect) son las
-          que recibe el proceso principal para posicionar el WebContentsView
-          de MejoraContactos exactamente acá. Se mantiene montado siempre
-          (aunque oculto vía CSS en vez de desmontado) para que el efecto que
-          calcula bounds tenga un ref estable. */}
-      <div
-        ref={contactosSlotRef}
-        className={vista === 'contactos' ? 'block' : 'hidden'}
-        style={{ height: 'calc(100vh - 130px)' }}
-      />
-
-      {vista === 'campanas' && (
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
         {/* QR — panel flotante, liquid glass acotado: blanco translúcido + blur, sin gradiente */}
         {qr && !conectado && (
@@ -768,65 +733,195 @@ export default function App() {
           <StatCard label="Respondieron" value={stats.respondieron} accent="amarillo" />
         </section>
 
-        {/* Contactos */}
+        {/* Mensaje de la Campaña & Centro de Mando de Envío (K.I.S.S.) */}
+        <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6 space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h2 className="font-heading font-medium text-mc-tinta text-lg">Mensaje de la Campaña</h2>
+              <p className="text-xs text-mc-gris mt-0.5">
+                Redactá el mensaje o probá variaciones. Podés usar tags: <code className="bg-gray-100 text-mc-tinta px-1 py-0.5 rounded text-[11px] font-mono">{'{nombre}'}</code> <code className="bg-gray-100 text-mc-tinta px-1 py-0.5 rounded text-[11px] font-mono">{'{apellido}'}</code> <code className="bg-gray-100 text-mc-tinta px-1 py-0.5 rounded text-[11px] font-mono">{'{variable}'}</code>
+              </p>
+            </div>
+            {config.carpeta && (
+              <span className="text-xs bg-blue-50 text-mc-azul px-3 py-1 rounded-full font-medium border border-blue-100">
+                Carpeta: {config.carpeta.nombre} • Tono: {tonos[config.carpeta.tono]?.nombre || 'Personal'}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col space-y-2">
+              <label className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide">
+                Plantilla del Mensaje
+              </label>
+              <textarea
+                ref={templateRef}
+                className="w-full border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul resize-none"
+                rows={7}
+                placeholder="Hola {nombre}, te escribo para contarte..."
+                value={config.template}
+                onChange={(e) => setConfigState({ ...config, template: e.target.value })}
+                onBlur={() => saveConfig({ template: config.template })}
+              />
+              <div className="flex items-center justify-between">
+                <EmojiPicker onPick={insertarEnMensaje} />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={reviewWithAI}
+                    disabled={aiLoading}
+                    className="px-3 py-1.5 rounded-lg border border-mc-azul text-mc-azul hover:bg-blue-50 text-xs font-medium transition-colors disabled:opacity-50"
+                  >
+                    {aiLoading ? 'Revisando...' : '✨ Revisar con IA'}
+                  </button>
+                  {config.variantes?.length > 0 && (
+                    <span className="text-xs text-mc-gris">{config.variantes.length} variantes</span>
+                  )}
+                </div>
+              </div>
+
+              {aiError && <p className="text-xs text-mc-rojo mt-1">{aiError}</p>}
+              {aiReview && (
+                <div className="mt-2 border border-gray-100 bg-gray-50 rounded-xl p-3 space-y-2 text-xs">
+                  <p className={aiReview.esClaro ? 'text-mc-azul font-semibold' : 'text-mc-rojo font-semibold'}>
+                    {aiReview.esClaro ? '✓ Se entiende bien' : '✗ No queda del todo claro'}
+                  </p>
+                  <p className="text-mc-tinta">{aiReview.feedback}</p>
+                  <div className="bg-white border border-gray-200 rounded p-2">
+                    <p className="font-semibold text-mc-gris mb-1">Versión sugerida:</p>
+                    <p className="text-mc-tinta whitespace-pre-wrap">{aiReview.versionMejorada}</p>
+                  </div>
+                  <button
+                    onClick={usarVersionMejorada}
+                    className="px-2.5 py-1 rounded bg-mc-azul hover:bg-[#152f66] text-white font-medium"
+                  >
+                    Usar versión sugerida
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col space-y-2">
+              <label className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide">
+                Vista Previa en WhatsApp (en vivo)
+              </label>
+              <WhatsappMockup
+                texto={spintaxPreview || previewText}
+                nombreContacto={contacts[0]?.nombre || 'Juan Pérez'}
+              />
+              <div className="flex items-center justify-between px-1 pt-0.5">
+                <span className="text-[11px] text-mc-gris">
+                  Sintaxis Spintax: <code className="bg-gray-100 text-mc-tinta px-1 py-0.5 rounded text-[10px]">{'{Hola|Buen día|Buenas}'}</code>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSpintaxTick((t) => t + 1)}
+                  className="px-2.5 py-1 rounded-md border border-gray-200 bg-white hover:bg-gray-50 text-[11px] font-medium text-mc-tinta shadow-2xs transition-colors inline-flex items-center gap-1"
+                  title="Generar una variación aleatoria respetando las opciones Spintax y los tags"
+                >
+                  🎲 Probar variante Spintax
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Barra de Disparo Principal (Primary Action K.I.S.S.) */}
+          <div className="border-t border-gray-100 pt-4 flex items-center justify-between gap-4 flex-wrap bg-gray-50/70 -mx-6 -mb-6 p-4 rounded-b-2xl">
+            <div className="flex items-center gap-3">
+              {!sending ? (
+                <button
+                  onClick={() => startCampaign()}
+                  disabled={!conectado || stats.pendientes === 0}
+                  className="px-6 py-2.5 rounded-xl bg-mc-azul hover:bg-[#152f66] text-white text-sm font-medium transition-all shadow-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={!conectado ? 'Conectá WhatsApp arriba a la derecha primero' : stats.pendientes === 0 ? 'No hay contactos pendientes en esta lista' : 'Comenzar el despacho seguro'}
+                >
+                  <span>▶</span>
+                  <span>Iniciar envío ({stats.pendientes} pendientes)</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {!paused ? (
+                    <button
+                      onClick={pauseCampaign}
+                      className="px-4 py-2.5 rounded-xl border border-mc-amarillo bg-yellow-50 hover:bg-yellow-100 text-mc-tinta text-sm font-medium transition-colors flex items-center gap-1.5"
+                      title="Frena el envío sin perder lo ya mandado. Podés corregir el mensaje y reanudar."
+                    >
+                      <span>⏸</span> Pausar
+                    </button>
+                  ) : (
+                    <button
+                      onClick={resumeCampaign}
+                      className="px-4 py-2.5 rounded-xl bg-mc-amarillo hover:bg-[#e0b910] text-mc-tinta text-sm font-medium transition-colors flex items-center gap-1.5"
+                    >
+                      <span>▶</span> Reanudar
+                    </button>
+                  )}
+                  <button
+                    onClick={stopCampaign}
+                    className="px-4 py-2.5 rounded-xl bg-mc-rojo hover:bg-[#c00519] text-white text-sm font-medium transition-colors flex items-center gap-1.5"
+                  >
+                    <span>⏹</span> Detener
+                  </button>
+                </div>
+              )}
+
+              {progress && (
+                <span className="text-xs text-mc-tinta font-medium">
+                  {progress.status === 'enviando' && `Enviando... ${progress.enviadosHoy}/${progress.dailyCap} hoy`}
+                  {progress.status === 'pausado' && `Pausado (${progress.enviadosHoy}/${progress.dailyCap})`}
+                  {progress.status === 'tope_diario_alcanzado' && 'Tope diario alcanzado'}
+                  {progress.status === 'detenido' && 'Envío detenido'}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-mc-gris font-medium">
+                Cadencia: {config.delayMin}–{config.delayMax}s • Tope: {config.sentToday || 0}/{config.dailyCap} hoy
+              </span>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                safety.level === 'verde'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : safety.level === 'amarillo'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}>
+                {safety.badge} ({safety.score}/100)
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Contactos & Monitoreo en Vivo */}
         <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-heading font-medium text-mc-tinta">Contactos</h2>
+            <div>
+              <h2 className="font-heading font-medium text-mc-tinta text-lg">Contactos & Monitoreo</h2>
+              <p className="text-xs text-mc-gris mt-0.5">
+                Seguí en tiempo real las entregas, lecturas y respuestas de tus contactos.
+              </p>
+            </div>
             <div className="flex gap-2">
               <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} className="hidden" />
               <button
                 onClick={() => setManualOpen((v) => !v)}
-                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors"
+                className="px-3.5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors"
               >
                 + Agregar contacto
               </button>
               <button
                 onClick={() => fileInputRef.current.click()}
-                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors"
+                className="px-3.5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors"
               >
-                Importar CSV/Excel
+                Importar Excel/CSV
               </button>
               <button
                 onClick={() => validarNumeros(null)}
                 disabled={validando || sending || contacts.length === 0}
-                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Le pregunta a WhatsApp qué números existen de verdad"
+                className="px-3.5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Le pregunta a WhatsApp qué números existen de verdad antes de enviar"
               >
                 {validando ? 'Validando...' : 'Validar números'}
               </button>
-              {!sending ? (
-                <button
-                  onClick={() => startCampaign()}
-                  className="px-4 py-2 rounded-lg bg-mc-azul hover:bg-[#152f66] text-white text-sm font-medium transition-colors"
-                >
-                  Iniciar envío
-                </button>
-              ) : (
-                <>
-                  {!paused ? (
-                    <button
-                      onClick={pauseCampaign}
-                      className="px-4 py-2 rounded-lg border border-mc-amarillo bg-yellow-50 hover:bg-yellow-100 text-mc-tinta text-sm font-medium transition-colors"
-                      title="Frena el envío sin perder lo ya mandado. Podés corregir el mensaje y seguir."
-                    >
-                      Pausar
-                    </button>
-                  ) : (
-                    <button
-                      onClick={resumeCampaign}
-                      className="px-4 py-2 rounded-lg bg-mc-amarillo hover:bg-[#e0b910] text-mc-tinta text-sm font-medium transition-colors"
-                    >
-                      Reanudar
-                    </button>
-                  )}
-                  <button
-                    onClick={stopCampaign}
-                    className="px-4 py-2 rounded-lg bg-mc-rojo hover:bg-[#c00519] text-white text-sm font-medium transition-colors"
-                  >
-                    Detener
-                  </button>
-                </>
-              )}
             </div>
           </div>
 
@@ -1014,106 +1109,61 @@ export default function App() {
           </div>
         </section>
 
-        {/* Configuración */}
+        {/* Ajustes de Envío & Anti-Ban */}
         <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6 space-y-5">
-          <h2 className="font-heading font-medium text-mc-tinta">Configuración</h2>
-
-          <div>
-            <label className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide">
-              Mensaje inicial — tags disponibles: {'{nombre}'} {'{apellido}'} {'{variable}'}
-            </label>
-            <div className="grid grid-cols-2 gap-3 mt-1.5">
-              <div className="flex flex-col">
-                <textarea
-                  ref={templateRef}
-                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-mc-tinta focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
-                  rows={6}
-                  value={config.template}
-                  onChange={(e) => setConfigState({ ...config, template: e.target.value })}
-                  onBlur={() => saveConfig({ template: config.template })}
-                />
-                <EmojiPicker onPick={insertarEnMensaje} />
-              </div>
-              <WhatsappMockup
-                texto={previewText}
-                nombreContacto={contacts[0]?.nombre || 'Juan Pérez'}
-              />
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-heading font-medium text-mc-tinta text-lg">Ajustes de Envío & Anti-Ban</h2>
+              <p className="text-xs text-mc-gris mt-0.5">
+                Parámetros de seguridad operativa, cadencia gaussiana y reglas de auto-respuesta.
+              </p>
             </div>
-            <div className="flex items-center justify-between mt-2">
-              <button
-                onClick={reviewWithAI}
-                disabled={aiLoading}
-                className="px-3 py-1.5 rounded-lg border border-mc-azul text-mc-azul hover:bg-blue-50 text-xs font-medium transition-colors disabled:opacity-50"
-              >
-                {aiLoading ? 'Revisando...' : '✨ Revisar con IA'}
-              </button>
-              {config.variantes?.length > 0 && (
-                <span className="text-xs text-mc-gris">{config.variantes.length} variantes activas — rotan cada 5 envíos</span>
-              )}
-            </div>
-
-            {aiError && <p className="text-xs text-mc-rojo mt-2">{aiError}</p>}
-
-            {aiReview && (
-              <div className="mt-3 border border-gray-100 bg-gray-50 rounded-xl p-4 space-y-3">
-                <p className="text-xs">
-                  <span className={aiReview.esClaro ? 'text-mc-azul font-semibold' : 'text-mc-rojo font-semibold'}>
-                    {aiReview.esClaro ? '✓ Se entiende bien' : '✗ No queda del todo claro'}
-                  </span>
-                </p>
-                <p className="text-sm text-mc-tinta">{aiReview.feedback}</p>
-
-                {aiReview.correcciones?.length > 0 && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide mb-2">
-                      Ortografía y redacción — {aiReview.correcciones.length} {aiReview.correcciones.length === 1 ? 'corrección' : 'correcciones'}
-                    </p>
-                    <ul className="space-y-1.5">
-                      {aiReview.correcciones.map((c, i) => (
-                        <li key={i} className="text-xs text-mc-tinta">
-                          <span className="text-mc-rojo line-through">{c.original}</span>
-                          {' → '}
-                          <span className="text-mc-azul font-medium">{c.corregido}</span>
-                          <span className="text-mc-gris"> — {c.motivo}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="bg-white border border-gray-200 rounded-lg p-3">
-                  <p className="text-xs font-support font-semibold text-mc-gris uppercase tracking-wide mb-1">Versión sugerida</p>
-                  <p className="text-sm text-mc-tinta whitespace-pre-wrap">{aiReview.versionMejorada}</p>
-                </div>
-                <button
-                  onClick={usarVersionMejorada}
-                  className="px-3 py-1.5 rounded-lg bg-mc-azul hover:bg-[#152f66] text-white text-xs font-medium transition-colors"
-                >
-                  Usar esta versión
-                </button>
-              </div>
-            )}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Field label="Delay mín (seg)">
-              <input type="number" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
-                value={config.delayMin}
-                onChange={(e) => setConfigState({ ...config, delayMin: Number(e.target.value) })}
-                onBlur={() => saveConfig({ delayMin: config.delayMin })} />
-            </Field>
-            <Field label="Delay máx (seg)">
-              <input type="number" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
-                value={config.delayMax}
-                onChange={(e) => setConfigState({ ...config, delayMax: Number(e.target.value) })}
-                onBlur={() => saveConfig({ delayMax: config.delayMax })} />
-            </Field>
-            <Field label="Tope diario">
-              <input type="number" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul"
-                value={config.dailyCap}
-                onChange={(e) => setConfigState({ ...config, dailyCap: Number(e.target.value) })}
-                onBlur={() => saveConfig({ dailyCap: config.dailyCap })} />
-            </Field>
+          {/* Panel de Protección Anti-Ban & Cadencia */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-support font-semibold text-mc-tinta uppercase tracking-wide">
+                  Protección Anti-Ban & Cadencia Gaussiana (Meta 2026)
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                  safety.level === 'verde'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : safety.level === 'amarillo'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  {safety.badge} ({safety.score}/100)
+                </span>
+              </div>
+              <span className="text-xs text-mc-gris font-medium">
+                {config.sentToday || 0} / {config.dailyCap} enviados hoy
+              </span>
+            </div>
+
+            <p className="text-xs text-mc-gris leading-relaxed">{safety.mensaje}</p>
+
+            <div className="grid grid-cols-3 gap-4 pt-1">
+              <Field label="Delay mín (seg)">
+                <input type="number" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul bg-white"
+                  value={config.delayMin}
+                  onChange={(e) => setConfigState({ ...config, delayMin: Number(e.target.value) })}
+                  onBlur={() => saveConfig({ delayMin: config.delayMin })} />
+              </Field>
+              <Field label="Delay máx (seg)">
+                <input type="number" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul bg-white"
+                  value={config.delayMax}
+                  onChange={(e) => setConfigState({ ...config, delayMax: Number(e.target.value) })}
+                  onBlur={() => saveConfig({ delayMax: config.delayMax })} />
+              </Field>
+              <Field label="Tope diario">
+                <input type="number" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-mc-azul/30 focus:border-mc-azul bg-white"
+                  value={config.dailyCap}
+                  onChange={(e) => setConfigState({ ...config, dailyCap: Number(e.target.value) })}
+                  onBlur={() => saveConfig({ dailyCap: config.dailyCap })} />
+              </Field>
+            </div>
           </div>
 
           <Field label="Keywords para auto-respuesta (separadas por coma)">
@@ -1253,7 +1303,6 @@ export default function App() {
           </pre>
         </section>
       </main>
-      )}
     </div>
   )
 }

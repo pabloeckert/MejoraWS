@@ -7,7 +7,7 @@ import { nucleoClient } from './services/nucleoClient.mjs';
 import { handleContactosRoute } from './routes/contactosRouter.mjs';
 import { handleUsuariosRoute } from './routes/usuariosRouter.mjs';
 
-const PORT = Number(process.env.WS_PORT || process.env.PORT) || 4180;
+const PORT = Number(process.env.WS_PORT || process.env.PORT) || 4181;
 const HOST = process.env.WS_HOST || '127.0.0.1';
 
 function sendJson(res, statusCode, data) {

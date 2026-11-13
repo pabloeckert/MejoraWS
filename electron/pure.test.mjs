@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
-  randomDelayMs, extractText, renderTemplate, canSendMore
+  randomDelayMs, extractText, renderTemplate, canSendMore,
+  parseSpintax, gaussianRandomDelayMs, calculateTypingDurationMs,
+  clasificarRespuesta, calculateSafetyLevel
 } from './pure.mjs'
 
 describe('normalizePhone', () => {
@@ -35,7 +37,7 @@ describe('canSendMore (gate del tope diario)', () => {
   })
 })
 
-describe('randomDelayMs', () => {
+describe('randomDelayMs (uniforme)', () => {
   it('devuelve un valor dentro del rango pedido (en ms)', () => {
     for (let i = 0; i < 50; i++) {
       const ms = randomDelayMs(20, 90)
@@ -50,7 +52,6 @@ describe('randomDelayMs', () => {
   })
   it('nunca deja que max quede por debajo de min (config invertida)', () => {
     const ms = randomDelayMs(90, 20)
-    // min efectivo pasa a ser 90 también como max, así que el delay es fijo en 90s
     expect(ms).toBe(90 * 1000)
   })
   it('nunca devuelve menos de 1 segundo aunque min sea 0 o negativo', () => {
@@ -59,10 +60,64 @@ describe('randomDelayMs', () => {
   })
 })
 
+describe('gaussianRandomDelayMs (Jitter Estocástico Gaussiano)', () => {
+  it('se mantiene estrictamente dentro de los límites [min, max]', () => {
+    for (let i = 0; i < 100; i++) {
+      const ms = gaussianRandomDelayMs(25, 85)
+      expect(ms).toBeGreaterThanOrEqual(25 * 1000)
+      expect(ms).toBeLessThanOrEqual(85 * 1000)
+    }
+  })
+  it('retorna el valor fijo si min y max son iguales', () => {
+    const ms = gaussianRandomDelayMs(45, 45)
+    expect(ms).toBe(45 * 1000)
+  })
+})
+
+describe('calculateTypingDurationMs (Emulación de Tipeo Humano)', () => {
+  it('acota la duración mínima a 2000ms', () => {
+    expect(calculateTypingDurationMs(5)).toBeGreaterThanOrEqual(2000)
+    expect(calculateTypingDurationMs(0)).toBe(2000)
+  })
+  it('acota la duración máxima a 7000ms', () => {
+    expect(calculateTypingDurationMs(500)).toBe(7000)
+  })
+  it('crece proporcionalmente con la longitud del mensaje', () => {
+    const d1 = calculateTypingDurationMs(30)
+    const d2 = calculateTypingDurationMs(120)
+    expect(d2).toBeGreaterThan(d1)
+  })
+})
+
+describe('parseSpintax (Anti-Hash Matching)', () => {
+  it('resuelve una opción simple entre alternativas', () => {
+    const template = '{Hola|Buen día|Buenas}'
+    const resultado = parseSpintax(template)
+    expect(['Hola', 'Buen día', 'Buenas']).toContain(resultado)
+  })
+  it('resuelve múltiples bloques Spintax en un mismo texto', () => {
+    const template = '{Hola|Buenas}, {cómo estás|todo bien}?'
+    const resultado = parseSpintax(template)
+    expect(resultado).toMatch(/^(Hola|Buenas), (cómo estás|todo bien)\?$/)
+  })
+  it('soporta spintax anidado', () => {
+    const template = '{Hola|{Muy buenos días|Buenas}} estimado'
+    const resultado = parseSpintax(template)
+    expect(['Hola estimado', 'Muy buenos días estimado', 'Buenas estimado']).toContain(resultado)
+  })
+  it('no modifica cadenas sin spintax', () => {
+    expect(parseSpintax('Mensaje plano directo')).toBe('Mensaje plano directo')
+  })
+})
+
 describe('renderTemplate', () => {
   it('reemplaza placeholders presentes en el contacto', () => {
     const out = renderTemplate('Hola {nombre}, de {empresa}', { nombre: 'Juan', empresa: 'Acme' })
     expect(out).toBe('Hola Juan, de Acme')
+  })
+  it('resuelve spintax y variables de forma combinada', () => {
+    const out = renderTemplate('{Hola|Buen día} {nombre}!', { nombre: 'Roberto' })
+    expect(['Hola Roberto!', 'Buen día Roberto!']).toContain(out)
   })
   it('deja vacío un placeholder sin valor en el contacto, sin romper el mensaje', () => {
     const out = renderTemplate('Hola {nombre}, tel {telefono}', { nombre: 'Juan' })
@@ -75,10 +130,49 @@ describe('renderTemplate', () => {
   it('no toca el texto si no hay placeholders', () => {
     expect(renderTemplate('Mensaje fijo sin variables', {})).toBe('Mensaje fijo sin variables')
   })
-  it('no confunde texto con llaves literales que no son campos válidos', () => {
-    // \w+ no matchea espacios, así que "{no es campo}" no se reemplaza
-    const out = renderTemplate('Precio: {no es campo}', {})
-    expect(out).toBe('Precio: {no es campo}')
+})
+
+describe('clasificarRespuesta (Clasificador Tri-Banda)', () => {
+  it('detecta intención de interés inmediato', () => {
+    expect(clasificarRespuesta('Dale, pasame la info')).toBe('interes_inmediato')
+    expect(clasificarRespuesta('Sí, me interesa')).toBe('interes_inmediato')
+    expect(clasificarRespuesta('Quiero saber más')).toBe('interes_inmediato')
+    expect(clasificarRespuesta('¿Cuándo podés pasar?')).toBe('interes_inmediato')
+  })
+  it('detecta intención de postergación para re-agenda', () => {
+    expect(clasificarRespuesta('Ahora no puedo, estoy complicado')).toBe('postergacion')
+    expect(clasificarRespuesta('Escribime la semana que viene')).toBe('postergacion')
+    expect(clasificarRespuesta('Más adelante lo vemos')).toBe('postergacion')
+  })
+  it('detecta solicitudes de baja o negativa estricta', () => {
+    expect(clasificarRespuesta('No me interesa, gracias')).toBe('baja')
+    expect(clasificarRespuesta('Por favor dar de baja mi número')).toBe('baja')
+    expect(clasificarRespuesta('¿Quién sos? No me escribas más')).toBe('baja')
+  })
+  it('devuelve desconocido si el texto no encaja en ninguna categoría', () => {
+    expect(clasificarRespuesta('asdfghjkl')).toBe('desconocido')
+    expect(clasificarRespuesta('')).toBe('desconocido')
+    expect(clasificarRespuesta(null)).toBe('desconocido')
+  })
+})
+
+describe('calculateSafetyLevel (Medidor de Seguridad en Vivo)', () => {
+  it('marca verde si el volumen y delays son óptimos', () => {
+    const res = calculateSafetyLevel(10, 40, 30)
+    expect(res.level).toBe('verde')
+    expect(res.score).toBeGreaterThan(80)
+  })
+  it('marca amarillo al superar el 75% del tope diario o delay menor a 25s', () => {
+    const res1 = calculateSafetyLevel(32, 40, 30)
+    expect(res1.level).toBe('amarillo')
+    const res2 = calculateSafetyLevel(10, 40, 20)
+    expect(res2.level).toBe('amarillo')
+  })
+  it('marca rojo si se alcanzó el tope diario o delay es menor a 15s', () => {
+    const res1 = calculateSafetyLevel(40, 40, 30)
+    expect(res1.level).toBe('rojo')
+    const res2 = calculateSafetyLevel(5, 40, 10)
+    expect(res2.level).toBe('rojo')
   })
 })
 
@@ -119,7 +213,7 @@ describe('etapaEntrega', () => {
 
 describe('findFieldKey', () => {
   it('encuentra la columna por nombre parcial, sin importar mayúsculas', () => {
-    const row = { Nombre_Completo: 'Juan', Whatsapp_Format: '5493765407805' }
+    const row = { Nombre_Completo: 'Juan', Whatsapp_Format: '5493764507805' }
     expect(findFieldKey(row, ['whatsapp', 'telefono'])).toBe('Whatsapp_Format')
   })
   it('respeta el orden de prioridad de los candidatos', () => {
@@ -127,7 +221,7 @@ describe('findFieldKey', () => {
     expect(findFieldKey(row, ['whatsapp', 'telefono'])).toBe('Whatsapp')
   })
   it('ignora columnas que matchean el nombre pero están vacías', () => {
-    const row = { Whatsapp: '', Telefono: '5493765407805' }
+    const row = { Whatsapp: '', Telefono: '5493764507805' }
     expect(findFieldKey(row, ['whatsapp', 'telefono'])).toBe('Telefono')
   })
   it('devuelve null si ninguna columna matchea', () => {

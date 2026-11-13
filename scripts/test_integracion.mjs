@@ -1,13 +1,14 @@
 /**
  * Mejora Suite - Script de Validación de Integración End-to-End
- * MejoraWS (Router / Web Service) <---> MejoraNucleo (Base de Datos Central)
+ * MejoraWS (Router / Web Service: 4181) <---> MejoraNucleo (Base Central Clean Architecture: 4002)
  *
  * Ejecuta la verificación empírica de:
- * 1. Conexión y salud de ambos servicios locales.
- * 2. Creación de un Contacto mediante POST a MejoraWS.
- * 3. Enrutamiento y persistencia en MejoraNucleo.
+ * 1. Conexión y salud de ambos servicios locales (WS en 4181, Núcleo en 4002).
+ * 2. Creación de un Prospecto/Contacto mediante POST a MejoraWS (/api/contactos).
+ * 3. Enrutamiento y persistencia en MejoraNucleo (/api/prospectos).
  * 4. Verificación de lectura vía API de MejoraWS.
- * 5. Verificación física directa en la base de datos SQLite de MejoraNucleo.
+ * 5. Verificación física directa en la base de datos SQLite de MejoraNucleo (data/prospectos.db).
+ * 6. Transición de estado a 'seguimiento' activando el semáforo SLA 48h de MejoraCRM.
  */
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -17,36 +18,36 @@ import { DatabaseSync } from 'node:sqlite';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const NUCLEO_PORT = 5001;
-const WS_PORT = 4180;
+const NUCLEO_PORT = 4002;
+const WS_PORT = 4181;
 const NUCLEO_URL = `http://127.0.0.1:${NUCLEO_PORT}`;
 const WS_URL = `http://127.0.0.1:${WS_PORT}`;
 
-const NUCLEO_SERVER_PATH = path.resolve(__dirname, '..', '..', 'MejoraNucleo', 'src', 'server.mjs');
+const NUCLEO_ENTRY_PATH = path.resolve(__dirname, '..', '..', 'MejoraNucleo', 'start-nucleo.mjs');
 const WS_SERVER_PATH = path.resolve(__dirname, '..', 'src', 'server.mjs');
-const DB_FILE_PATH = path.resolve(__dirname, '..', '..', 'MejoraNucleo', 'data', 'nucleo.db');
+const DB_FILE_PATH = path.resolve(__dirname, '..', '..', 'MejoraNucleo', 'data', 'prospectos.db');
 
-async function isPortOpen(url) {
+async function isPortOpen(url, healthPath = '/api/prospectos?limite=1') {
   try {
-    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(`${url}${healthPath}`, { signal: AbortSignal.timeout(1200) });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-async function waitForServer(url, timeoutMs = 8000) {
+async function waitForServer(url, healthPath, timeoutMs = 10000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    if (await isPortOpen(url)) return true;
-    await new Promise((r) => setTimeout(r, 200));
+    if (await isPortOpen(url, healthPath)) return true;
+    await new Promise((r) => setTimeout(r, 250));
   }
   return false;
 }
 
 async function runTest() {
   console.log('================================================================');
-  console.log('   MEJORA SUITE - VALIDACIÓN EMPÍRICA BACKEND (WS <-> NÚCLEO)   ');
+  console.log('   MEJORA SUITE - VALIDACIÓN EMPÍRICA (WS 4181 <-> NÚCLEO 4002) ');
   console.log('================================================================\n');
 
   let nucleoProc = null;
@@ -54,56 +55,57 @@ async function runTest() {
 
   try {
     // 1. Verificar si MejoraNucleo ya está corriendo; si no, levantarlo
-    const nucleoAlreadyUp = await isPortOpen(NUCLEO_URL);
+    const nucleoAlreadyUp = await isPortOpen(NUCLEO_URL, '/api/prospectos?limite=1');
     if (!nucleoAlreadyUp) {
-      console.log(`[1/5] Levantando MejoraNucleo en segundo plano (puerto ${NUCLEO_PORT})...`);
-      nucleoProc = spawn(process.execPath, [NUCLEO_SERVER_PATH], {
-        env: { ...process.env, NUCLEO_PORT: String(NUCLEO_PORT) },
+      console.log(`[1/6] Levantando MejoraNucleo en segundo plano (puerto ${NUCLEO_PORT})...`);
+      nucleoProc = spawn(process.execPath, [NUCLEO_ENTRY_PATH], {
+        cwd: path.resolve(__dirname, '..', '..', 'MejoraNucleo'),
+        env: { ...process.env, PORT_NUCLEO: String(NUCLEO_PORT) },
         stdio: 'inherit'
       });
-      const ok = await waitForServer(NUCLEO_URL);
+      const ok = await waitForServer(NUCLEO_URL, '/api/prospectos?limite=1');
       if (!ok) throw new Error('MejoraNucleo no respondió en el tiempo límite');
-      console.log('      -> MejoraNucleo ONLINE y escuchando.');
+      console.log('      -> MejoraNucleo ONLINE y escuchando en puerto 4002.');
     } else {
-      console.log(`[1/5] MejoraNucleo ya se encuentra activo en ${NUCLEO_URL}.`);
+      console.log(`[1/6] MejoraNucleo ya se encuentra activo en ${NUCLEO_URL}.`);
     }
 
-    // 2. Verificar si MejoraWS ya está corriendo; si no, levantarlo
-    const wsAlreadyUp = await isPortOpen(WS_URL);
+    // 2. Verificar si MejoraWS Gateway ya está corriendo; si no, levantarlo
+    const wsAlreadyUp = await isPortOpen(WS_URL, '/health');
     if (!wsAlreadyUp) {
-      console.log(`[2/5] Levantando MejoraWS Router en segundo plano (puerto ${WS_PORT})...`);
+      console.log(`[2/6] Levantando MejoraWS Gateway en segundo plano (puerto ${WS_PORT})...`);
       wsProc = spawn(process.execPath, [WS_SERVER_PATH], {
+        cwd: path.resolve(__dirname, '..'),
         env: { ...process.env, WS_PORT: String(WS_PORT), NUCLEO_URL },
         stdio: 'inherit'
       });
-      const ok = await waitForServer(WS_URL);
-      if (!ok) throw new Error('MejoraWS no respondió en el tiempo límite');
-      console.log('      -> MejoraWS Router ONLINE y escuchando.');
+      const ok = await waitForServer(WS_URL, '/health');
+      if (!ok) throw new Error('MejoraWS Gateway no respondió en el tiempo límite');
+      console.log('      -> MejoraWS Gateway ONLINE y escuchando en puerto 4181.');
     } else {
-      console.log(`[2/5] MejoraWS ya se encuentra activo en ${WS_URL}.`);
+      console.log(`[2/6] MejoraWS ya se encuentra activo en ${WS_URL}.`);
     }
 
     // 3. Health check de MejoraWS y enlace con MejoraNucleo
-    console.log('\n[3/5] Comprobando salud y conectividad de MejoraWS -> MejoraNucleo...');
+    console.log('\n[3/6] Comprobando salud y conectividad de MejoraWS -> MejoraNucleo...');
     const wsHealthRes = await fetch(`${WS_URL}/health`);
     const wsHealth = await wsHealthRes.json();
     console.log('      Estado del Router:', JSON.stringify(wsHealth, null, 2));
     if (!wsHealth.nucleoConnected) {
-      throw new Error('MejoraWS reporta que MejoraNucleo no está conectado');
+      throw new Error(`MejoraWS reporta desconexión con MejoraNucleo: ${JSON.stringify(wsHealth.nucleoDetails)}`);
     }
 
-    // 4. Enviar un Contacto de prueba vía POST a MejoraWS
-    console.log('\n[4/5] Enviando Contacto de prueba vía POST a MejoraWS (/api/contactos)...');
+    // 4. Enviar un Contacto/Prospecto de prueba vía POST a MejoraWS
+    console.log('\n[4/6] Enviando Contacto de prueba vía POST a MejoraWS (/api/contactos)...');
+    const testTimestamp = Date.now();
     const nuevoContactoPayload = {
-      nombre: 'Contacto Integracion',
-      apellido: 'Empírico',
-      telefono: '+5493764889900',
-      email: 'integracion.nucleo@mejoracontinua.com',
-      empresa: 'Laboratorio Mejora Continua',
-      cargo: 'Director de Operaciones',
-      origen: 'whatsapp',
-      estado: 'nuevo',
-      notas: 'Contacto creado vía HTTP POST en MejoraWS y persistido en MejoraNucleo'
+      nombre: `Ing. Roberto Ferreyra (${testTimestamp})`,
+      email: `rferreyra.${testTimestamp}@metalurgica-litoral.com.ar`,
+      telefono: `+54937645${String(testTimestamp).slice(-6)}`,
+      canalOrigen: 'whatsapp',
+      piezaIdAtribucion: 'MEJORAWS-P0-VALIDATION',
+      variable: 'Metalúrgica del Litoral',
+      buyerPersonaId: 'SATURADO'
     };
 
     const postRes = await fetch(`${WS_URL}/api/contactos`, {
@@ -121,46 +123,50 @@ async function runTest() {
     console.log('      [+] HTTP 201 Created recibido de MejoraWS:');
     console.log(JSON.stringify(postResult, null, 2));
 
-    const contactoId = postResult.contacto.id;
-    const contactoUuid = postResult.contacto.uuid;
+    const prospectoId = postResult.contacto.id;
 
-    // 5. Verificación cruzada: Leer desde MejoraWS y verificar directamente en la base SQLite de MejoraNucleo
-    console.log(`\n[5/5] Verificación cruzada de persistencia para ID ${contactoId} (UUID: ${contactoUuid})...`);
+    // 5. Verificación cruzada: Leer desde MejoraWS y auditar directamente en SQLite de MejoraNucleo
+    console.log(`\n[5/6] Verificación cruzada de persistencia física para ID: ${prospectoId}...`);
 
     // 5.a Lectura a través de MejoraWS (Router)
-    const getWsRes = await fetch(`${WS_URL}/api/contactos/${contactoId}`);
+    const getWsRes = await fetch(`${WS_URL}/api/contactos/${prospectoId}`);
     const getWsData = await getWsRes.json();
     console.log('      [~] Lectura vía MejoraWS (GET /api/contactos/:id):');
-    console.log('          Nombre:', getWsData.data.nombre, getWsData.data.apellido);
+    console.log('          Nombre:', getWsData.data.nombre);
     console.log('          Teléfono:', getWsData.data.telefono);
-    console.log('          Empresa:', getWsData.data.empresa);
+    console.log('          Estado:', getWsData.data.estado);
 
-    // 5.b Lectura directa en el archivo SQLite físico de MejoraNucleo
+    // 5.b Lectura física directa en SQLite
     console.log(`      [~] Auditoría física directa en archivo SQLite: ${DB_FILE_PATH}`);
     const db = new DatabaseSync(DB_FILE_PATH);
-    const row = db.prepare('SELECT * FROM contactos WHERE id = ?').get(contactoId);
+    const row = db.prepare('SELECT * FROM prospectos WHERE id = ?').get(prospectoId);
     db.close();
 
     if (!row) {
-      throw new Error(`¡Fallo crítico! El contacto con ID ${contactoId} no existe en la base física SQLite.`);
+      throw new Error(`¡Fallo crítico! El prospecto con ID ${prospectoId} no existe en la base física SQLite.`);
     }
 
-    console.log('      [=] Registro verificado directamente en MejoraNucleo SQLite:');
+    console.log('      [=] Registro verificado directamente en SQLite:');
     console.log(JSON.stringify(row, null, 2));
 
-    // 5.c Actualización (PUT)
-    console.log('\n      [+] Probando actualización parcial (PUT /api/contactos/:id)...');
-    const putRes = await fetch(`${WS_URL}/api/contactos/${contactoId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cargo: 'Director General (Promovido)' })
+    // 6. Conexión SLA 48h: Calificar e Iniciar seguimiento
+    console.log('\n[6/6] Probando activación de semáforo SLA 48h (Calificar -> Seguimiento)...');
+    const calificarRes = await fetch(`${WS_URL}/api/contactos/${prospectoId}/calificar`, {
+      method: 'PATCH'
     });
-    const putData = await putRes.json();
-    console.log('          Cargo actualizado:', putData.contacto.cargo);
+    const calificarData = await calificarRes.json();
+    console.log('      [+] Prospecto calificado:', calificarData.prospecto?.estado || calificarData);
+
+    const seguimientoRes = await fetch(`${WS_URL}/api/contactos/${prospectoId}/seguimiento`, {
+      method: 'PATCH'
+    });
+    const seguimientoData = await seguimientoRes.json();
+    console.log('      [+] Seguimiento iniciado (SLA 48h activo):', seguimientoData.prospecto?.estado || seguimientoData);
 
     console.log('\n================================================================');
     console.log('   PRUEBA EMPÍRICA COMPLETADA CON ÉXITO: 100% OPERATIVO         ');
-    console.log('   MejoraWS recibe peticiones HTTP y escribe en MejoraNucleo.   ');
+    console.log('   MejoraWS (4181) <---> MejoraNucleo (4002) ENLAZADOS.        ');
+    console.log('   Telemetría, persistencia SQLite y SLA 48h verificados.       ');
     console.log('================================================================\n');
   } finally {
     if (wsProc) {

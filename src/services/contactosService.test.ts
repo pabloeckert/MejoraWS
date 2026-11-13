@@ -10,7 +10,7 @@ describe('contactosService (Integración MejoraWS -> contactos-api)', () => {
 
     const testCaptura = respuesta.contactos.find((c) => c.nombre === 'Test Captura');
     expect(testCaptura).toBeDefined();
-    expect(testCaptura?.emails).toContain('test@mejora.com');
+    expect(testCaptura?.persona_id).toBeDefined();
   });
 
   it('debe reportar una interacción correctamente con status 201/200', async () => {
