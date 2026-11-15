@@ -8,7 +8,7 @@ import pino from 'pino'
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from 'baileys'
 import { startBridgeServer } from './bridge.mjs'
 import {
-  normalizePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
+  normalizePhone, formatToJid, samePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
   randomDelayMs, gaussianRandomDelayMs, calculateTypingDurationMs,
   extractText, parseSpintax, renderTemplate, canSendMore,
   clasificarRespuesta, calculateSafetyLevel
@@ -254,7 +254,7 @@ function emitirContactos() {
 // miembro (su estado acá) y el contacto (quién es), que viven separados.
 function buscarEnCarpetaPorTelefono(carpeta, phone) {
   if (!carpeta) return {}
-  const contacto = getDb().data.contactos.find((c) => normalizePhone(c.telefono) === phone)
+  const contacto = getDb().data.contactos.find((c) => samePhone(c.telefono, phone))
   if (!contacto) return {}
   const miembro = carpeta.miembros.find((m) => m.contactoId === contacto.id)
   return { contacto, miembro }
@@ -856,7 +856,7 @@ async function handleIncomingMessage(phone, text) {
   // más reciente, que es la que tiene en la cabeza cuando te contesta.
   let carpeta = null
   let miembro = null
-  let persona = getDb().data.contactos.find((c) => normalizePhone(c.telefono) === phone)
+  let persona = getDb().data.contactos.find((c) => samePhone(c.telefono, phone))
 
   if (persona) {
     let ultimoEnvio = null
@@ -1083,7 +1083,7 @@ async function runCampaign(onlyIds = null) {
       break
     }
 
-    const jid = `${normalizePhone(persona.telefono)}@s.whatsapp.net`
+    const jid = formatToJid(persona.telefono)
     // Cada 5 envíos rota a la siguiente variante (si hay variantes generadas
     // por IA); si no hay, usa siempre la plantilla base.
     const variantes = cfg.variantes && cfg.variantes.length ? cfg.variantes : [cfg.template]
@@ -1183,7 +1183,7 @@ function handleSend(telefono, carpetaId) {
   const telefonoNorm = normalizePhone(telefono)
   const miembro = carpeta.miembros.find((m) => {
     const persona = contactoPorId(m.contactoId)
-    return persona && normalizePhone(persona.telefono) === telefonoNorm && m.estado === 'pendiente'
+    return persona && samePhone(persona.telefono, telefonoNorm) && m.estado === 'pendiente'
   })
   if (!miembro) {
     return { error: `No se encontró un contacto pendiente con ese teléfono en la carpeta "${carpeta.nombre}"` }
@@ -1257,7 +1257,7 @@ async function sendCycleReport({ carpeta, motivoFin, enviadosCorrida, erroresCor
   const cfg = getDb().data.config
   if (!cfg.reportEnabled || !cfg.reportPhone || !sock) return
 
-  const jid = `${normalizePhone(cfg.reportPhone)}@s.whatsapp.net`
+  const jid = formatToJid(cfg.reportPhone)
   const texto = `📋 MejoraContacto — "${carpeta.nombre}" terminó (${motivoFin})
 
 Enviados en esta corrida: ${enviadosCorrida}

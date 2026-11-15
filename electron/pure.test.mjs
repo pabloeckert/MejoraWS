@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
-  normalizePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
+  normalizePhone, formatToJid, samePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
   randomDelayMs, extractText, renderTemplate, canSendMore,
   parseSpintax, gaussianRandomDelayMs, calculateTypingDurationMs,
   clasificarRespuesta, calculateSafetyLevel
 } from './pure.mjs'
 
-describe('normalizePhone', () => {
-  it('deja solo dígitos', () => {
+describe('normalizePhone & formatToJid & samePhone', () => {
+  it('deja solo dígitos en normalizePhone', () => {
     expect(normalizePhone('+54 9 3765-40 78 05')).toBe('5493765407805')
   })
   it('maneja null/undefined sin explotar', () => {
@@ -19,6 +19,18 @@ describe('normalizePhone', () => {
   })
   it('devuelve vacío si no hay ningún dígito', () => {
     expect(normalizePhone('sin numero')).toBe('')
+  })
+  it('formatToJid antepone 549 para números argentinos de 10 dígitos (ej: 3764358152 y 3765007805)', () => {
+    expect(formatToJid('3764358152')).toBe('5493764358152@s.whatsapp.net')
+    expect(formatToJid('3765007805')).toBe('5493765007805@s.whatsapp.net')
+    expect(formatToJid('+54 9 376 435-8152')).toBe('5493764358152@s.whatsapp.net')
+    expect(formatToJid('543764358152')).toBe('5493764358152@s.whatsapp.net')
+    expect(formatToJid('5493764358152@s.whatsapp.net')).toBe('5493764358152@s.whatsapp.net')
+  })
+  it('samePhone compara correctamente números con o sin prefijo internacional', () => {
+    expect(samePhone('3764358152', '5493764358152')).toBe(true)
+    expect(samePhone('+54 9 3765-00-7805', '3765007805')).toBe(true)
+    expect(samePhone('3764358152', '3765007805')).toBe(false)
   })
 })
 

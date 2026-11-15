@@ -7,6 +7,28 @@ export function normalizePhone(p) {
   return (p || '').toString().replace(/\D/g, '')
 }
 
+export function formatToJid(p) {
+  const norm = normalizePhone(p)
+  if (!norm) return ''
+  if (norm.endsWith('@s.whatsapp.net')) return norm
+  // Prefijo argentino 549 si viene con código de área local (ej. 376... -> 549376...)
+  if (norm.length === 10 && !norm.startsWith('54')) {
+    return `549${norm}@s.whatsapp.net`
+  }
+  // Si viene con 54 pero sin el 9 móvil argentino (ej. 543764358152 -> 12 dígitos)
+  if (norm.length === 12 && norm.startsWith('54') && !norm.startsWith('549')) {
+    return `549${norm.slice(2)}@s.whatsapp.net`
+  }
+  return `${norm}@s.whatsapp.net`
+}
+
+export function samePhone(a, b) {
+  if (!a || !b) return false
+  const jidA = formatToJid(a)
+  const jidB = formatToJid(b)
+  return Boolean(jidA && jidB && jidA === jidB)
+}
+
 // --- Exportación a CSV ---
 // Excel en español espera punto y coma como separador, no coma. Y sin el BOM
 // del principio se come los acentos y las ñ.
