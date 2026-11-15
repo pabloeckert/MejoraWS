@@ -11,7 +11,7 @@ describe('contactosService (Integración MejoraWS -> contactos-api)', () => {
     const testCaptura = respuesta.contactos.find((c) => c.nombre === 'Test Captura');
     expect(testCaptura).toBeDefined();
     expect(testCaptura?.persona_id).toBeDefined();
-  });
+  }, 15000);
 
   it('debe reportar una interacción correctamente con status 201/200', async () => {
     const resultado = await reportarInteraccion({
@@ -23,5 +23,5 @@ describe('contactosService (Integración MejoraWS -> contactos-api)', () => {
 
     expect(resultado).toBeDefined();
     expect(resultado.persona_id).toBeDefined();
-  });
+  }, 15000);
 });

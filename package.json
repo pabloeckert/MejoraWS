@@ -7,15 +7,28 @@
   "author": "Pablo - Mejora Continua",
   "license": "UNLICENSED",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "server": "node src/server.mjs",
     "start": "node src/server.mjs",
     "dev:renderer": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "dev:electron": "wait-on http://localhost:5176 && electron .",
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:api": "npm --workspace=@mejoraws/orchestrator-api run dev",
+    "dev:worker": "npm --workspace=@mejoraws/orchestrator-worker run dev",
+    "dev:dashboard": "npm --workspace=@mejoraws/dashboard-ui run dev",
+    "dev:prd": "concurrently \"npm run dev:api\" \"npm run dev:dashboard\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
     "build": "vite build",
+    "build:prd": "npm --workspace=@mejoraws/shared run build && npm --workspace=@mejoraws/orchestrator-api run build && npm --workspace=@mejoraws/orchestrator-worker run build && npm --workspace=@mejoraws/dashboard-ui run build",
     "dist": "npm run build && electron-builder",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:prd": "vitest run packages/ apps/ scripts/test_prd_v1_acceptance.test.ts"
   },
   "dependencies": {
     "baileys": "7.0.0-rc14",

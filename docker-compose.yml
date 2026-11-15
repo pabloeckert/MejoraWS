@@ -1,0 +1,181 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Base de Datos Relacional Principal (PostgreSQL 16)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: mejoraws_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-mejoraws}
+      TZ: ${TZ:-America/Argentina/Buenos_Aires}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./database/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - whatsapp_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 2. Motor de Colas y Caché de Deduplicación (Redis 7)
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: mejoraws_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - whatsapp_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 3. Motor de Transporte WhatsApp (Evolution API v2)
+  # ----------------------------------------------------------------------------
+  evolution-api:
+    image: atendai/evolution-api:v2.1.2
+    container_name: mejoraws_evolution
+    restart: unless-stopped
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: http://evolution-api:8080
+      CORS_ORIGIN: "*"
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-evo_internal_secret_key_2026}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_secure_pass_2026}@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_v2
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      REDIS_ENABLED: "true"
+      REDIS_URI: redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/1
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/1
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_URL: http://orchestrator-api:3000/api/v1/webhooks/evolution
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "true"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
+      WEBHOOK_EVENTS_MESSAGES_UPDATE: "true"
+      WEBHOOK_EVENTS_CONNECTION_UPDATE: "true"
+      WEBHOOK_EVENTS_CONTACTS_SET: "true"
+      WEBHOOK_EVENTS_CONTACTS_UPSERT: "true"
+      QRCODE_LIMIT: 30
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - whatsapp_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # 4. API Privada y Orquestador de Negocio (Fastify + TypeScript)
+  # ----------------------------------------------------------------------------
+  orchestrator-api:
+    build:
+      context: .
+      dockerfile: apps/orchestrator-api/Dockerfile
+    container_name: mejoraws_orchestrator_api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    networks:
+      - whatsapp_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      evolution-api:
+        condition: service_started
+
+  # ----------------------------------------------------------------------------
+  # 5. Consumidor Exclusivo de Colas y Programador Smart Drip (BullMQ + TypeScript)
+  # ----------------------------------------------------------------------------
+  orchestrator-worker:
+    build:
+      context: .
+      dockerfile: apps/orchestrator-worker/Dockerfile
+    container_name: mejoraws_orchestrator_worker
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - whatsapp_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      evolution-api:
+        condition: service_started
+
+  # ----------------------------------------------------------------------------
+  # 6. Dashboard Web Operativo (React + Vite + Tailwind CSS behind Nginx)
+  # ----------------------------------------------------------------------------
+  dashboard-ui:
+    build:
+      context: .
+      dockerfile: apps/dashboard-ui/Dockerfile
+    container_name: mejoraws_dashboard_ui
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-5176}:80"
+    networks:
+      - whatsapp_net
+    depends_on:
+      - orchestrator-api
+
+  # ----------------------------------------------------------------------------
+  # 7. Túnel Seguro Cloudflare (Opcional - solo si se configura token en .env)
+  # ----------------------------------------------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mejoraws_tunnel
+    restart: unless-stopped
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - whatsapp_net
+    profiles:
+      - tunnel
+    depends_on:
+      - orchestrator-api
+
+# ------------------------------------------------------------------------------
+# Volúmenes Persistentes y Red Aislada
+# ------------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    name: mejoraws_postgres_data
+  redis_data:
+    name: mejoraws_redis_data
+  evolution_instances:
+    name: mejoraws_evolution_instances
+
+networks:
+  whatsapp_net:
+    name: mejoraws_whatsapp_net
+    driver: bridge

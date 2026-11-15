@@ -653,9 +653,14 @@ function createWindow() {
     }
   })
 
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
+    mainWindow.focus()
+  })
+
   const distPath = path.join(__dirname, '../dist/index.html')
   if (!app.isPackaged && !process.env.ELECTRON_SERVE_DIST && process.env.NODE_ENV !== 'production') {
-    mainWindow.loadURL('http://localhost:5173').catch(() => {
+    mainWindow.loadURL('http://localhost:5176').catch(() => {
       if (fs.existsSync(distPath)) mainWindow.loadFile(distPath)
     })
   } else {
