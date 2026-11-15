@@ -47,6 +47,7 @@ export default function App() {
   const [directRawText, setDirectRawText] = useState('')
   const [directRecipients, setDirectRecipients] = useState([])
   const [directMessage, setDirectMessage] = useState('')
+  const [spintaxPreviews, setSpintaxPreviews] = useState([])
   const [directSending, setDirectSending] = useState(false)
   const [directFolderName, setDirectFolderName] = useState('')
   const [directFileName, setDirectFileName] = useState('')
@@ -645,6 +646,20 @@ export default function App() {
     setContacts(await window.mejora.getContacts())
   }
 
+  function testDirectSpintax() {
+    if (!directMessage.trim()) return
+    const samples = []
+    const contactSample = {
+      nombre: directRecipients[0]?.nombre || 'Juan',
+      variable: directRecipients[0]?.variable || 'Asesoría'
+    }
+    for (let i = 0; i < 3; i++) {
+      const rendered = renderTemplate(directMessage, contactSample)
+      samples.push(parseSpintax(rendered))
+    }
+    setSpintaxPreviews(samples)
+  }
+
   if (!config) return null
 
   const conectado = status === 'conectado'
@@ -920,11 +935,11 @@ export default function App() {
 
               {/* Mensaje a enviar */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <label className="text-xs font-medium text-mc-tinta">
                     Mensaje a enviar:
                   </label>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setDirectMessage((m) => m + ' {nombre}')}
@@ -934,13 +949,68 @@ export default function App() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setDirectMessage((m) => m + ' {variable}')}
+                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-[11px] text-mc-gris font-mono cursor-pointer"
+                    >
+                      {'{variable}'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setDirectMessage((m) => m + ' {Hola|Buen día}')}
                       className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-[11px] text-mc-gris font-mono cursor-pointer"
                     >
                       {'{Hola|Buen día}'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={testDirectSpintax}
+                      disabled={!directMessage.trim()}
+                      className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-semibold transition-colors disabled:opacity-40 cursor-pointer"
+                      title="Genera 3 ejemplos aleatorios combinando Spintax y variables"
+                    >
+                      🎲 Probar Spintax
+                    </button>
                   </div>
                 </div>
+
+                {/* Accesos rápidos de plantillas */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-mc-gris font-medium">Plantillas:</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDirectMessage(
+                        '{Hola|Buen día} {nombre}, ¿cómo estás? Te escribo de Mejora Continua para acercarte información sobre {variable}. ¿Tendrás 5 minutos para conversar?'
+                      )
+                    }
+                    className="px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-medium transition-colors cursor-pointer"
+                  >
+                    💼 Comercial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDirectMessage(
+                        '¡Hola {nombre}! Quería saber si tuviste oportunidad de revisar la propuesta que te compartí. Cualquier consulta avisame por acá.'
+                      )
+                    }
+                    className="px-2 py-0.5 rounded bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-medium transition-colors cursor-pointer"
+                  >
+                    🤝 Seguimiento
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDirectMessage(
+                        '{Estimado/a|Hola} {nombre}, te compartimos las novedades de la semana. ¡Que tengas un excelente día!'
+                      )
+                    }
+                    className="px-2 py-0.5 rounded bg-violet-50 hover:bg-violet-100 text-violet-800 text-[11px] font-medium transition-colors cursor-pointer"
+                  >
+                    📢 Novedades
+                  </button>
+                </div>
+
                 <textarea
                   rows={3}
                   value={directMessage}
@@ -948,6 +1018,20 @@ export default function App() {
                   placeholder="¡Hola {nombre}! Te comparto la información solicitada..."
                   className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
                 />
+
+                {/* Previsualizador de Spintax */}
+                {spintaxPreviews.length > 0 && (
+                  <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-100 space-y-1 text-xs">
+                    <span className="font-semibold text-emerald-900 text-[11px]">
+                      Muestras aleatorias generadas:
+                    </span>
+                    {spintaxPreviews.map((s, idx) => (
+                      <p key={idx} className="text-emerald-800 text-[11px] italic pl-2 border-l-2 border-emerald-300">
+                        "{s}"
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Nombre opcional de la carpeta generada */}
@@ -964,18 +1048,30 @@ export default function App() {
                 />
               </div>
 
-              {/* Advertencias de estado */}
+              {/* Advertencias de estado con acción en 1-clic */}
               {demoMode && (
-                <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
-                  <span>⚠️</span>
-                  <span>
-                    El <strong>Modo Demostración</strong> está activo. Apagalo arriba a la derecha si querés que los mensajes salgan de verdad a WhatsApp.
-                  </span>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚠️</span>
+                    <span>
+                      El <strong>Modo Demostración</strong> está activo (los mensajes no saldrían físicamente a WhatsApp).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await window.mejora.setDemoMode(false)
+                      setDemoModeState(false)
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors shrink-0 cursor-pointer shadow-sm"
+                  >
+                    Desactivar Demo Ahora
+                  </button>
                 </div>
               )}
               {!conectado && (
-                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-                  <span>⚠️</span>
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                  <span className="text-base">⚠️</span>
                   <span>WhatsApp está desconectado. Hacé clic en "Conectar" arriba a la derecha primero.</span>
                 </div>
               )}

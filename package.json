@@ -28,6 +28,7 @@
     "build:prd": "npm --workspace=@mejoraws/shared run build && npm --workspace=@mejoraws/orchestrator-api run build && npm --workspace=@mejoraws/orchestrator-worker run build && npm --workspace=@mejoraws/dashboard-ui run build",
     "dist": "npm run build && electron-builder",
     "test": "vitest run",
+    "doctor": "node scripts/doctor.mjs",
     "test:prd": "vitest run packages/ apps/ scripts/test_prd_v1_acceptance.test.ts"
   },
   "dependencies": {

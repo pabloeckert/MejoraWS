@@ -183,11 +183,17 @@ export class OutboundMessageProcessor {
         contact.push_name ||
         contact.phone_number ||
         '';
+      const customVariable =
+        (contact.metadata?.variable as string) ||
+        (contact.metadata?.empresa as string) ||
+        '';
       const templated = renderTemplate(job.payload.body || '', {
         nombre: contactDisplayName,
         name: contactDisplayName,
         telefono: contact.phone_number,
         phone: contact.phone_number,
+        variable: customVariable,
+        empresa: customVariable,
       });
       const renderedText = parseSpintax(templated);
 
