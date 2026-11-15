@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatToJid } from '@mejoraws/shared';
+import { formatToJid, parseRecipientsText } from '@mejoraws/shared';
 import {
   DashboardApiClient,
   contactsToCsv,
@@ -489,6 +489,24 @@ export default function App() {
       ),
     [parsedTargetPhones.length, schedDateTime, schedUrgent]
   );
+
+  const handleSchedFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = parseRecipientsText(text);
+      if (parsed.length > 0) {
+        const phones = parsed.map((p) => p.telefono).join(', ');
+        setSchedPhonesInput(phones);
+        showNotice(`Importados ${parsed.length} destinatario(s) del archivo ${file.name}`);
+      } else {
+        showNotice('No se encontraron teléfonos válidos en el archivo', 'error');
+      }
+    } catch (err) {
+      showNotice('Error al leer el archivo: ' + (err.message || 'desconocido'), 'error');
+    }
+  };
 
   const handleScheduleSubmit = async (sendImmediately = false) => {
     if (!parsedTargetPhones.length) {
@@ -1225,9 +1243,20 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Destinatarios (separados por coma o salto de línea)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-300">
+                    Destinatarios (separados por coma o salto de línea)
+                  </label>
+                  <label className="text-xs text-sky-400 hover:text-sky-300 cursor-pointer flex items-center gap-1">
+                    <span>📁 Importar desde archivo (.csv, .txt)</span>
+                    <input
+                      type="file"
+                      accept=".csv,.txt"
+                      className="hidden"
+                      onChange={handleSchedFileImport}
+                    />
+                  </label>
+                </div>
                 <textarea
                   rows={2}
                   value={schedPhonesInput}

@@ -61,3 +61,73 @@ export function calculateSafetyLevel(sentToday, dailyCap, minDelaySec) {
   }
   return { level: 'verde', score: 95, badge: '🟢 Seguro', mensaje: 'Parámetros óptimos. Comportamiento 100% humanizado.' }
 }
+
+export function normalizePhone(p) {
+  return (p || '').toString().replace(/\D/g, '')
+}
+
+export function formatToJid(p) {
+  const norm = normalizePhone(p)
+  if (!norm) return ''
+  if (norm.endsWith('@s.whatsapp.net')) return norm
+  if (norm.length === 10 && !norm.startsWith('54')) {
+    return `549${norm}@s.whatsapp.net`
+  }
+  if (norm.length === 12 && norm.startsWith('54') && !norm.startsWith('549')) {
+    return `549${norm.slice(2)}@s.whatsapp.net`
+  }
+  return `${norm}@s.whatsapp.net`
+}
+
+export function parseRecipientsText(rawText) {
+  if (!rawText || typeof rawText !== 'string') return []
+  const lines = rawText.split(/\r?\n/)
+  const recipients = []
+  const seenPhones = new Set()
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    if (/[;,\t]/.test(trimmed)) {
+      const parts = trimmed.split(/[;,\t]/).map((p) => p.trim()).filter(Boolean)
+      if (parts.length > 0) {
+        if (parts.every((p) => normalizePhone(p).length >= 7)) {
+          for (const p of parts) {
+            const norm = normalizePhone(p)
+            if (norm && !seenPhones.has(norm)) {
+              seenPhones.add(norm)
+              recipients.push({ telefono: p, nombre: '', variable: '' })
+            }
+          }
+          continue
+        }
+
+        const phoneIndex = parts.findIndex((p) => normalizePhone(p).length >= 7)
+        if (phoneIndex !== -1) {
+          const telefono = parts[phoneIndex]
+          const telNorm = normalizePhone(telefono)
+          if (telNorm && !seenPhones.has(telNorm)) {
+            seenPhones.add(telNorm)
+            const otherParts = parts.filter((_, idx) => idx !== phoneIndex)
+            const nombre = otherParts[0] || ''
+            const variable = otherParts.slice(1).join(' ') || ''
+            recipients.push({ telefono, nombre, variable })
+          }
+          continue
+        }
+      }
+    }
+
+    const words = trimmed.split(/[\s,;]+/).map((w) => w.trim()).filter(Boolean)
+    for (const w of words) {
+      const norm = normalizePhone(w)
+      if (norm.length >= 7 && !seenPhones.has(norm)) {
+        seenPhones.add(norm)
+        recipients.push({ telefono: w, nombre: '', variable: '' })
+      }
+    }
+  }
+
+  return recipients
+}

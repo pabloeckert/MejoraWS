@@ -8,7 +8,7 @@ import pino from 'pino'
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from 'baileys'
 import { startBridgeServer } from './bridge.mjs'
 import {
-  normalizePhone, formatToJid, samePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
+  normalizePhone, formatToJid, samePhone, parseRecipientsText, toCsv, fechaLegible, etapaEntrega, findFieldKey,
   randomDelayMs, gaussianRandomDelayMs, calculateTypingDurationMs,
   extractText, parseSpintax, renderTemplate, canSendMore,
   clasificarRespuesta, calculateSafetyLevel
@@ -1697,6 +1697,87 @@ function registerIpcHandlers() {
     mainWindow?.webContents.send('wa:status', waStatus)
     bridge?.broadcastEvent('status', waStatus)
     return true
+  })
+
+  ipcMain.handle('recipients:parse', (_e, rawText) => {
+    return parseRecipientsText(rawText)
+  })
+
+  ipcMain.handle('directSend:run', async (_e, { recipients, message, folderName }) => {
+    if (demoMode) return { error: 'Estás en modo demostración — apagalo (botón arriba) para poder enviar mensajes reales.' }
+    if (!sock || waStatus !== 'conectado') return { error: 'Conectá WhatsApp primero (escaneá el código QR arriba a la derecha).' }
+    if (campaignRunning) return { error: 'Ya hay un envío en curso. Esperá a que termine o detenelo antes de iniciar otro.' }
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      return { error: 'Ingresá al menos un destinatario con teléfono válido.' }
+    }
+    if (!message || !message.trim()) {
+      return { error: 'Escribí el mensaje que querés enviar.' }
+    }
+
+    const now = new Date()
+    const fechaHora = `${now.toLocaleDateString('es-AR')} ${now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+    const nombreFinal = (folderName && folderName.trim()) ? folderName.trim() : `Envío Directo (${fechaHora})`
+
+    let carpeta = getDb().data.carpetas.find((c) => c.nombre.toLowerCase() === nombreFinal.toLowerCase())
+    if (!carpeta) {
+      carpeta = nuevaCarpeta(nombreFinal, 'personal')
+      getDb().data.carpetas.push(carpeta)
+    }
+    carpeta.config.template = message.trim()
+    getDb().data.config.carpetaActivaId = carpeta.id
+
+    const targetIds = []
+    for (const r of recipients) {
+      const telClean = normalizePhone(r.telefono)
+      if (!telClean) continue
+      const jid = formatToJid(telClean)
+      const personaId = jid.split('@')[0]
+
+      let persona = contactoPorId(personaId)
+      if (!persona) {
+        persona = {
+          id: personaId,
+          nombre: (r.nombre || '').trim() || personaId,
+          apellido: (r.apellido || '').trim() || '',
+          telefono: telClean,
+          variable: (r.variable || '').trim() || '',
+          waValido: true,
+          waMotivo: null,
+          notas: 'Carga manual directa'
+        }
+        getDb().data.contactos.push(persona)
+      } else {
+        if (r.nombre && r.nombre.trim()) persona.nombre = r.nombre.trim()
+        if (r.variable && r.variable.trim()) persona.variable = r.variable.trim()
+      }
+
+      let miembro = carpeta.miembros.find((m) => m.contactoId === persona.id)
+      if (!miembro) {
+        miembro = {
+          contactoId: persona.id,
+          estado: 'pendiente',
+          incluido: true,
+          fechaEnvio: null,
+          errorDetalle: null,
+          entregaStatus: 0,
+          historial: []
+        }
+        carpeta.miembros.push(miembro)
+      } else {
+        miembro.estado = 'pendiente'
+        miembro.incluido = true
+      }
+      targetIds.push(persona.id)
+    }
+
+    if (targetIds.length === 0) {
+      return { error: 'Ninguno de los contactos ingresados contiene un número de teléfono válido.' }
+    }
+
+    await getDb().write()
+    emitirContactos()
+    runCampaign(targetIds)
+    return { ok: true, carpetaId: carpeta.id, count: targetIds.length }
   })
 
   ipcMain.handle('campaign:start', async (_e, onlyIds) => {

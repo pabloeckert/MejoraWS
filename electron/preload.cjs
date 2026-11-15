@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('mejora', {
   stopCampaign: () => ipcRenderer.invoke('campaign:stop'),
   pauseCampaign: () => ipcRenderer.invoke('campaign:pause'),
   resumeCampaign: () => ipcRenderer.invoke('campaign:resume'),
+  directSend: (payload) => ipcRenderer.invoke('directSend:run', payload),
+  parseRecipients: (rawText) => ipcRenderer.invoke('recipients:parse', rawText),
 
   // Exportar a CSV (se abre con Excel)
   exportar: (tipo) => ipcRenderer.invoke('export:run', tipo),

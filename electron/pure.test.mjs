@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  normalizePhone, formatToJid, samePhone, toCsv, fechaLegible, etapaEntrega, findFieldKey,
+  normalizePhone, formatToJid, samePhone, parseRecipientsText, toCsv, fechaLegible, etapaEntrega, findFieldKey,
   randomDelayMs, extractText, renderTemplate, canSendMore,
   parseSpintax, gaussianRandomDelayMs, calculateTypingDurationMs,
   clasificarRespuesta, calculateSafetyLevel
@@ -31,6 +31,43 @@ describe('normalizePhone & formatToJid & samePhone', () => {
     expect(samePhone('3764358152', '5493764358152')).toBe(true)
     expect(samePhone('+54 9 3765-00-7805', '3765007805')).toBe(true)
     expect(samePhone('3764358152', '3765007805')).toBe(false)
+  })
+})
+
+describe('parseRecipientsText (carga manual y copy-paste)', () => {
+  it('parsea números línea por línea', () => {
+    const raw = `3764358152\n3765007805`
+    const res = parseRecipientsText(raw)
+    expect(res).toHaveLength(2)
+    expect(res[0].telefono).toBe('3764358152')
+    expect(res[1].telefono).toBe('3765007805')
+  })
+
+  it('parsea números separados por coma en una sola línea', () => {
+    const raw = `3764358152, 3765007805`
+    const res = parseRecipientsText(raw)
+    expect(res).toHaveLength(2)
+    expect(res[0].telefono).toBe('3764358152')
+    expect(res[1].telefono).toBe('3765007805')
+  })
+
+  it('parsea líneas con Nombre, Teléfono y Variable opcional', () => {
+    const raw = `Pablo, 3764358152, Mejora Continua\nMaria; 3765007805; Consulta Presupuesto`
+    const res = parseRecipientsText(raw)
+    expect(res).toHaveLength(2)
+    expect(res[0].nombre).toBe('Pablo')
+    expect(res[0].telefono).toBe('3764358152')
+    expect(res[0].variable).toBe('Mejora Continua')
+    expect(res[1].nombre).toBe('Maria')
+    expect(res[1].telefono).toBe('3765007805')
+    expect(res[1].variable).toBe('Consulta Presupuesto')
+  })
+
+  it('ignora líneas vacías y deduplica números repetidos', () => {
+    const raw = `\n  \n3764358152\n+54 9 3764-358152\n  `
+    const res = parseRecipientsText(raw)
+    expect(res).toHaveLength(1)
+    expect(res[0].telefono).toBe('3764358152')
   })
 })
 

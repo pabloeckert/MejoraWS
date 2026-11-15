@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
 import ExcelJS from 'exceljs'
 
-import { ESTADOS, CONTACTO_PRUEBA, renderTemplate, parseSpintax, calculateSafetyLevel, EMOJIS } from './constants'
+import { ESTADOS, CONTACTO_PRUEBA, renderTemplate, parseSpintax, calculateSafetyLevel, EMOJIS, parseRecipientsText, formatToJid } from './constants'
 import { EmojiPicker } from './components/EmojiPicker'
 import { WhatsappMockup } from './components/WhatsappMockup'
 import { EntregaTicks } from './components/EntregaTicks'
@@ -40,6 +40,17 @@ export default function App() {
   const fileInputRef = useRef(null)
   const templateRef = useRef(null)
   const [demoMode, setDemoModeState] = useState(true)
+
+  // --- Envío Directo / Carga Rápida (sin depender de carpetas previas) ---
+  const [envioDirectoOpen, setEnvioDirectoOpen] = useState(false)
+  const [directInputTab, setDirectInputTab] = useState('paste') // 'paste' | 'file'
+  const [directRawText, setDirectRawText] = useState('')
+  const [directRecipients, setDirectRecipients] = useState([])
+  const [directMessage, setDirectMessage] = useState('')
+  const [directSending, setDirectSending] = useState(false)
+  const [directFolderName, setDirectFolderName] = useState('')
+  const [directFileName, setDirectFileName] = useState('')
+  const directFileInputRef = useRef(null)
 
   useEffect(() => {
     window.mejora.getContacts().then(setContacts)
@@ -494,6 +505,146 @@ export default function App() {
     setLogSummary(await window.mejora.getLogSummary())
   }
 
+  useEffect(() => {
+    if (directInputTab === 'paste') {
+      const parsed = parseRecipientsText(directRawText)
+      setDirectRecipients(parsed)
+    }
+  }, [directRawText, directInputTab])
+
+  async function handleDirectFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setDirectFileName(file.name)
+    const isCsv = file.name.toLowerCase().endsWith('.csv')
+    const isTxt = file.name.toLowerCase().endsWith('.txt')
+
+    if (isTxt) {
+      const text = await file.text()
+      setDirectRawText(text)
+      setDirectRecipients(parseRecipientsText(text))
+      setDirectInputTab('paste')
+      return
+    }
+
+    if (isCsv) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => {
+          const rows = res.data || []
+          const list = []
+          for (const row of rows) {
+            const phoneKey = Object.keys(row).find((k) => /whatsapp|telefono|teléfono|phone|numero|número|cel/i.test(k))
+            const nameKey = Object.keys(row).find((k) => /nombre|name|contacto|cliente/i.test(k))
+            const varKey = Object.keys(row).find((k) => /variable|empresa|comercio|nota/i.test(k))
+            if (phoneKey && row[phoneKey]) {
+              list.push({
+                telefono: String(row[phoneKey]).trim(),
+                nombre: nameKey ? String(row[nameKey] || '').trim() : '',
+                variable: varKey ? String(row[varKey] || '').trim() : ''
+              })
+            }
+          }
+          setDirectRecipients(list)
+          if (!directRawText) {
+            setDirectRawText(list.map((r) => (r.nombre ? `${r.nombre}, ${r.telefono}` : r.telefono)).join('\n'))
+          }
+        }
+      })
+    } else {
+      try {
+        const buffer = await file.arrayBuffer()
+        const workbook = new ExcelJS.Workbook()
+        await workbook.xlsx.load(buffer)
+        const worksheet = workbook.worksheets[0]
+        if (worksheet) {
+          const rows = []
+          const headers = []
+          worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) {
+              row.eachCell((cell, colNumber) => {
+                headers[colNumber] = String(cell.value || '').trim()
+              })
+            } else {
+              const rowData = {}
+              row.eachCell((cell, colNumber) => {
+                const header = headers[colNumber]
+                if (header) {
+                  let val = cell.value
+                  if (val && typeof val === 'object') {
+                    if (val.text) val = val.text
+                    else if (val.result !== undefined) val = val.result
+                    else val = String(val)
+                  }
+                  rowData[header] = val
+                }
+              })
+              rows.push(rowData)
+            }
+          })
+          const list = []
+          for (const row of rows) {
+            const phoneKey = Object.keys(row).find((k) => /whatsapp|telefono|teléfono|phone|numero|número|cel/i.test(k))
+            const nameKey = Object.keys(row).find((k) => /nombre|name|contacto|cliente/i.test(k))
+            const varKey = Object.keys(row).find((k) => /variable|empresa|comercio|nota/i.test(k))
+            if (phoneKey && row[phoneKey]) {
+              list.push({
+                telefono: String(row[phoneKey]).trim(),
+                nombre: nameKey ? String(row[nameKey] || '').trim() : '',
+                variable: varKey ? String(row[varKey] || '').trim() : ''
+              })
+            }
+          }
+          setDirectRecipients(list)
+          if (!directRawText) {
+            setDirectRawText(list.map((r) => (r.nombre ? `${r.nombre}, ${r.telefono}` : r.telefono)).join('\n'))
+          }
+        }
+      } catch (err) {
+        alert('No se pudo leer el archivo Excel: ' + (err.message || 'formato inválido'))
+      }
+    }
+  }
+
+  async function handleStartDirectSend() {
+    let targets = directRecipients
+    if (!targets.length && directRawText.trim()) {
+      targets = parseRecipientsText(directRawText)
+    }
+    if (!targets || !targets.length) {
+      alert('Ingresá al menos un número de teléfono válido o importá un archivo.')
+      return
+    }
+    if (!directMessage.trim()) {
+      alert('Escribí el mensaje que querés enviar.')
+      return
+    }
+    if (status !== 'conectado') {
+      alert('WhatsApp está desconectado. Conectalo primero escaneando el código QR arriba a la derecha.')
+      return
+    }
+
+    setDirectSending(true)
+    const res = await window.mejora.directSend({
+      recipients: targets,
+      message: directMessage,
+      folderName: directFolderName
+    })
+    setDirectSending(false)
+
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+
+    setEnvioDirectoOpen(false)
+    setSending(true)
+    setPaused(false)
+    await refrescarCarpetas()
+    setContacts(await window.mejora.getContacts())
+  }
+
   if (!config) return null
 
   const conectado = status === 'conectado'
@@ -544,6 +695,15 @@ export default function App() {
               <span className={`w-2 h-2 rounded-full ${conectado ? 'bg-mc-azul' : 'bg-gray-300'}`} />
               {conectado ? 'WhatsApp conectado' : 'WhatsApp desconectado'}
             </span>
+            <button
+              onClick={() => setEnvioDirectoOpen(true)}
+              className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              title="Cargar números a mano, en lista o desde archivo y enviar directamente"
+            >
+              <span>⚡</span>
+              <span>Envío Directo</span>
+            </button>
+
             {!conectado ? (
               <button
                 onClick={() => window.mejora.connectWa()}
@@ -617,6 +777,232 @@ export default function App() {
           </div>
         )}
 
+        {/* Modal de Envío Directo y Carga Rápida */}
+        {envioDirectoOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-mc-tinta/50 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-base">
+                    ⚡
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-semibold text-mc-tinta text-base leading-tight">
+                      Carga Manual y Envío Directo
+                    </h3>
+                    <p className="text-xs text-mc-gris">
+                      Pegá números en texto, tipea a mano o importá un archivo y despachá de inmediato con protección anti-ban.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnvioDirectoOpen(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-gray-100 text-mc-gris flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Selector de modo de carga */}
+              <div className="flex gap-2 border-b border-gray-100 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setDirectInputTab('paste')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    directInputTab === 'paste'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-mc-tinta hover:bg-gray-200'
+                  }`}
+                >
+                  📝 Tipear o Pegar Lista (Copy-Paste)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectInputTab('file')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    directInputTab === 'file'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-mc-tinta hover:bg-gray-200'
+                  }`}
+                >
+                  📁 Importar Archivo (.csv, .xlsx, .txt)
+                </button>
+              </div>
+
+              {/* Tab 1: Pegar lista / números */}
+              {directInputTab === 'paste' ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-mc-tinta">
+                      Ingresá los números (uno por línea o separados por coma):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const testList = '3764358152, 3765007805'
+                        setDirectRawText(testList)
+                        setDirectRecipients(parseRecipientsText(testList))
+                      }}
+                      className="text-[11px] text-emerald-700 hover:underline font-medium cursor-pointer"
+                    >
+                      + Probar con 3764358152 y 3765007805
+                    </button>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={directRawText}
+                    onChange={(e) => {
+                      setDirectRawText(e.target.value)
+                      setDirectRecipients(parseRecipientsText(e.target.value))
+                    }}
+                    placeholder={`3764358152\n3765007805\nO con nombre: Pablo, 3764358152`}
+                    className="w-full border border-gray-200 rounded-xl p-3 text-xs font-mono focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+              ) : (
+                /* Tab 2: Archivo */
+                <div className="space-y-2">
+                  <input
+                    ref={directFileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls,.txt"
+                    onChange={handleDirectFile}
+                    className="hidden"
+                  />
+                  <div className="border-2 border-dashed border-gray-200 hover:border-emerald-400 rounded-xl p-5 text-center transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => directFileInputRef.current?.click()}
+                      className="px-4 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      Seleccionar archivo (.csv, .xlsx, .txt)
+                    </button>
+                    <p className="text-[11px] text-mc-gris mt-2">
+                      {directFileName
+                        ? `Archivo cargado: ${directFileName}`
+                        : 'Detecta automáticamente columnas de Teléfono, Nombre y Variable'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Destinatarios detectados */}
+              <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-mc-tinta">
+                    Destinatarios detectados: {directRecipients.length}
+                  </span>
+                  <span className="text-[11px] text-emerald-700">
+                    Auto-formateo a JID argentino (+54 9) activo
+                  </span>
+                </div>
+                {directRecipients.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {directRecipients.map((r, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-gray-200 text-[11px] font-mono text-mc-tinta"
+                      >
+                        <span className="text-emerald-600 font-semibold">
+                          {formatToJid(r.telefono).split('@')[0]}
+                        </span>
+                        {r.nombre && <span className="text-mc-gris">({r.nombre})</span>}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-mc-gris italic">
+                    Tipeá números arriba o subí un archivo para visualizar los destinatarios.
+                  </p>
+                )}
+              </div>
+
+              {/* Mensaje a enviar */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-mc-tinta">
+                    Mensaje a enviar:
+                  </label>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setDirectMessage((m) => m + ' {nombre}')}
+                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-[11px] text-mc-gris font-mono cursor-pointer"
+                    >
+                      {'{nombre}'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirectMessage((m) => m + ' {Hola|Buen día}')}
+                      className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-[11px] text-mc-gris font-mono cursor-pointer"
+                    >
+                      {'{Hola|Buen día}'}
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  rows={3}
+                  value={directMessage}
+                  onChange={(e) => setDirectMessage(e.target.value)}
+                  placeholder="¡Hola {nombre}! Te comparto la información solicitada..."
+                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                />
+              </div>
+
+              {/* Nombre opcional de la carpeta generada */}
+              <div>
+                <label className="block text-[11px] text-mc-gris mb-1">
+                  Nombre de la carpeta de registro (opcional):
+                </label>
+                <input
+                  type="text"
+                  value={directFolderName}
+                  onChange={(e) => setDirectFolderName(e.target.value)}
+                  placeholder="Envío Directo (se auto-asigna con fecha y hora si se deja vacío)"
+                  className="w-full border border-gray-200 rounded-lg p-2 text-xs"
+                />
+              </div>
+
+              {/* Advertencias de estado */}
+              {demoMode && (
+                <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>
+                    El <strong>Modo Demostración</strong> está activo. Apagalo arriba a la derecha si querés que los mensajes salgan de verdad a WhatsApp.
+                  </span>
+                </div>
+              )}
+              {!conectado && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>WhatsApp está desconectado. Hacé clic en "Conectar" arriba a la derecha primero.</span>
+                </div>
+              )}
+
+              {/* Footer con acciones */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEnvioDirectoOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartDirectSend}
+                  disabled={directSending || directRecipients.length === 0 || !directMessage.trim() || !conectado}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <span>{directSending ? 'Iniciando...' : '🚀 Iniciar Envío Directo'}</span>
+                  <span>({directRecipients.length})</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Carpetas — cada uso tiene la suya y no se pisan entre sí */}
         <section className="rounded-2xl border border-gray-100 bg-white shadow-sm p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -647,6 +1033,14 @@ export default function App() {
                 className="px-3 py-1.5 rounded-lg border border-dashed border-gray-300 hover:bg-gray-50 text-sm text-mc-gris transition-colors"
               >
                 + Nueva carpeta
+              </button>
+              <button
+                onClick={() => setEnvioDirectoOpen(true)}
+                className="px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-sm font-semibold transition-colors flex items-center gap-1.5"
+                title="Carga manual de números o lista copy-paste para enviar directo sin carpeta"
+              >
+                <span>⚡</span>
+                <span>Carga y Envío Directo</span>
               </button>
             </div>
 
@@ -902,6 +1296,14 @@ export default function App() {
             </div>
             <div className="flex gap-2">
               <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} className="hidden" />
+              <button
+                onClick={() => setEnvioDirectoOpen(true)}
+                className="px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-xs font-semibold text-emerald-800 transition-colors flex items-center gap-1.5"
+                title="Pegar lista de números o importar y enviar directo"
+              >
+                <span>⚡</span>
+                <span>Pegar lista / Enviar directo</span>
+              </button>
               <button
                 onClick={() => setManualOpen((v) => !v)}
                 className="px-3.5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors"

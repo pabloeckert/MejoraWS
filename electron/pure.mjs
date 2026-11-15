@@ -29,6 +29,69 @@ export function samePhone(a, b) {
   return Boolean(jidA && jidB && jidA === jidB)
 }
 
+/**
+ * Parsea texto pegado (copy-paste) o ingresado manualmente.
+ * Soporta:
+ * - Teléfonos simples por línea o separados por coma: "3764358152, 3765007805"
+ * - Líneas con Nombre y Teléfono: "Juan, 3764358152" o "3764358152; Carlos; Ferretería"
+ */
+export function parseRecipientsText(rawText) {
+  if (!rawText || typeof rawText !== 'string') return []
+  const lines = rawText.split(/\r?\n/)
+  const recipients = []
+  const seenPhones = new Set()
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    // Si tiene separadores (coma, punto y coma, tabulación)
+    if (/[;,\t]/.test(trimmed)) {
+      const parts = trimmed.split(/[;,\t]/).map((p) => p.trim()).filter(Boolean)
+      if (parts.length > 0) {
+        // Caso A: Todas las partes son teléfonos (ej: "3764358152, 3765007805")
+        if (parts.every((p) => normalizePhone(p).length >= 7)) {
+          for (const p of parts) {
+            const norm = normalizePhone(p)
+            if (norm && !seenPhones.has(norm)) {
+              seenPhones.add(norm)
+              recipients.push({ telefono: p, nombre: '', variable: '' })
+            }
+          }
+          continue
+        }
+
+        // Caso B: Mezcla de nombre / teléfono / variable
+        const phoneIndex = parts.findIndex((p) => normalizePhone(p).length >= 7)
+        if (phoneIndex !== -1) {
+          const telefono = parts[phoneIndex]
+          const telNorm = normalizePhone(telefono)
+          if (telNorm && !seenPhones.has(telNorm)) {
+            seenPhones.add(telNorm)
+            const otherParts = parts.filter((_, idx) => idx !== phoneIndex)
+            const nombre = otherParts[0] || ''
+            const variable = otherParts.slice(1).join(' ') || ''
+            recipients.push({ telefono, nombre, variable })
+          }
+          continue
+        }
+      }
+    }
+
+    // Línea simple o lista separada por espacios
+    const words = trimmed.split(/[\s,;]+/).map((w) => w.trim()).filter(Boolean)
+    for (const w of words) {
+      const norm = normalizePhone(w)
+      if (norm.length >= 7 && !seenPhones.has(norm)) {
+        seenPhones.add(norm)
+        recipients.push({ telefono: w, nombre: '', variable: '' })
+      }
+    }
+  }
+
+  return recipients
+}
+
 // --- Exportación a CSV ---
 // Excel en español espera punto y coma como separador, no coma. Y sin el BOM
 // del principio se come los acentos y las ñ.

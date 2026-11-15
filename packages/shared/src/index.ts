@@ -136,7 +136,81 @@ export function formatToJid(phone: string): string {
   if (norm.length === 10 && !norm.startsWith('54')) {
     return `549${norm}@s.whatsapp.net`;
   }
+  // Si viene con 54 pero sin el 9 móvil argentino (ej. 543764358152 -> 12 dígitos)
+  if (norm.length === 12 && norm.startsWith('54') && !norm.startsWith('549')) {
+    return `549${norm.slice(2)}@s.whatsapp.net`;
+  }
   return `${norm}@s.whatsapp.net`;
+}
+
+export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const jidA = formatToJid(a);
+  const jidB = formatToJid(b);
+  return Boolean(jidA && jidB && jidA === jidB);
+}
+
+export interface ParsedRecipient {
+  telefono: string;
+  nombre: string;
+  variable: string;
+}
+
+/**
+ * Parsea texto pegado (copy-paste) o ingresado manualmente.
+ * Soporta números simples, líneas con "Nombre, Teléfono", listas por comas, etc.
+ */
+export function parseRecipientsText(rawText: string | null | undefined): ParsedRecipient[] {
+  if (!rawText || typeof rawText !== 'string') return [];
+  const lines = rawText.split(/\r?\n/);
+  const recipients: ParsedRecipient[] = [];
+  const seenPhones = new Set<string>();
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (/[;,\t]/.test(trimmed)) {
+      const parts = trimmed.split(/[;,\t]/).map((p) => p.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        if (parts.every((p) => normalizePhone(p).length >= 7)) {
+          for (const p of parts) {
+            const norm = normalizePhone(p);
+            if (norm && !seenPhones.has(norm)) {
+              seenPhones.add(norm);
+              recipients.push({ telefono: p, nombre: '', variable: '' });
+            }
+          }
+          continue;
+        }
+
+        const phoneIndex = parts.findIndex((p) => normalizePhone(p).length >= 7);
+        if (phoneIndex !== -1) {
+          const telefono = parts[phoneIndex];
+          const telNorm = normalizePhone(telefono);
+          if (telNorm && !seenPhones.has(telNorm)) {
+            seenPhones.add(telNorm);
+            const otherParts = parts.filter((_, idx) => idx !== phoneIndex);
+            const nombre = otherParts[0] || '';
+            const variable = otherParts.slice(1).join(' ') || '';
+            recipients.push({ telefono, nombre, variable });
+          }
+          continue;
+        }
+      }
+    }
+
+    const words = trimmed.split(/[\s,;]+/).map((w) => w.trim()).filter(Boolean);
+    for (const w of words) {
+      const norm = normalizePhone(w);
+      if (norm.length >= 7 && !seenPhones.has(norm)) {
+        seenPhones.add(norm);
+        recipients.push({ telefono: w, nombre: '', variable: '' });
+      }
+    }
+  }
+
+  return recipients;
 }
 
 /**
