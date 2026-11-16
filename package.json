@@ -29,6 +29,8 @@
     "dist": "npm run build && electron-builder",
     "test": "vitest run",
     "doctor": "node scripts/doctor.mjs",
+    "smoke:prd": "node scripts/smoke_test_production.mjs",
+    "verify:all": "npm test && npm run doctor && npm run smoke:prd",
     "test:prd": "vitest run packages/ apps/ scripts/test_prd_v1_acceptance.test.ts"
   },
   "dependencies": {
