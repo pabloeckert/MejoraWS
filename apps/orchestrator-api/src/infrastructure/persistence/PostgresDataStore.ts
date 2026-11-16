@@ -23,7 +23,7 @@ export class PostgresDataStore implements IDataStore {
   private readonly pool: pg.Pool;
 
   constructor(connectionString: string) {
-    this.pool = new Pool({ connectionString });
+    this.pool = new Pool({ connectionString, connectionTimeoutMillis: 2000 });
   }
 
   async testConnection(): Promise<boolean> {

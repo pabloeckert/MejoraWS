@@ -927,12 +927,20 @@ export async function registerApiV1Routes(
         mutedUntil
       );
 
-      const sendResult = await messagingProvider.sendMessage(contact.jid, {
-        text: parsed.data.text,
-        mediaUrl: parsed.data.mediaUrl,
-        mediaFilename: parsed.data.mediaFilename,
-        contentType: parsed.data.contentType,
-      });
+      let sendResult;
+      try {
+        sendResult = await messagingProvider.sendMessage(contact.jid, {
+          text: parsed.data.text,
+          mediaUrl: parsed.data.mediaUrl,
+          mediaFilename: parsed.data.mediaFilename,
+          contentType: parsed.data.contentType,
+        });
+      } catch (err) {
+        return reply.code(502).send({
+          error: 'Bad Gateway',
+          message: `El proveedor de mensajería no está accesible: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
 
       await queueDispatcher.markMessageSentBySystem(sendResult.messageId);
 

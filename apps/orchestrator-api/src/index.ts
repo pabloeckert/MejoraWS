@@ -1,3 +1,4 @@
+import { Redis } from 'ioredis';
 import { env } from './config/env.js';
 import { buildApp } from './app.js';
 import type { IDataStore, IQueueDispatcher } from './domain/ports.js';
@@ -27,13 +28,24 @@ async function bootstrap() {
     dataStore = new InMemoryDataStore();
   }
 
-  const bullDispatcher = new BullMQDispatcher(env.REDIS_URL);
+  const candidateRedis = new Redis(env.REDIS_URL, {
+    lazyConnect: true,
+    connectTimeout: 2000,
+    maxRetriesPerRequest: 1,
+    retryStrategy: () => null,
+  });
+  candidateRedis.on('error', () => {});
+
   try {
+    await candidateRedis.connect();
+    await candidateRedis.ping();
+    await candidateRedis.quit();
+    const bullDispatcher = new BullMQDispatcher(env.REDIS_URL);
     await bullDispatcher.connect();
     queueDispatcher = bullDispatcher;
     console.log('[orchestrator-api] Conectado a Redis + BullMQ');
   } catch (err) {
-    await bullDispatcher.close().catch(() => {});
+    await candidateRedis.quit().catch(() => {});
     console.warn(
       '[orchestrator-api] Redis no disponible, usando InMemoryQueueDispatcher de respaldo:',
       err instanceof Error ? err.message : err
