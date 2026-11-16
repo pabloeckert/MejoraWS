@@ -1,13 +1,18 @@
 import type {
   AIConfig,
   AIMode,
+  AIUsageLogRecord,
   Contact,
   JobStatus,
   Message,
   MessageStatus,
   OwnerAlertPayload,
   ScheduledJob,
+  StructuredRetentionOutput,
 } from '@mejoraws/shared';
+import type { LLMCompletionParams } from '@mejoraws/shared/server';
+
+export type { LLMCompletionParams };
 
 export interface IWorkerDataStore {
   getContactById(id: string): Promise<Contact | null>;
@@ -55,6 +60,9 @@ export interface IWorkerDataStore {
   listScheduledJobsByStatus(status: JobStatus): Promise<ScheduledJob[]>;
 
   getAIConfig(): Promise<AIConfig>;
+  recordAIUsage?(
+    log: Omit<AIUsageLogRecord, 'id' | 'created_at'>
+  ): Promise<void>;
 }
 
 export interface ISentCacheAndLimiter {
@@ -65,6 +73,9 @@ export interface ISentCacheAndLimiter {
     ttlSeconds?: number
   ): Promise<void>;
   wasMessageSentBySystem(whatsappMessageId: string): Promise<boolean>;
+  markOutboundInflight?(jid: string, ttlSeconds?: number): Promise<void>;
+  clearOutboundInflight?(jid: string): Promise<void>;
+  hasOutboundInflight?(jid: string): Promise<boolean>;
   acquireIdempotencyLock(
     idempotencyKey: string,
     ttlSeconds?: number
@@ -75,14 +86,6 @@ export interface ISentCacheAndLimiter {
   ): Promise<{ allowed: boolean; currentCount: number }>;
 }
 
-export interface LLMCompletionParams {
-  systemPrompt: string;
-  history: Message[];
-  userMessage: string;
-  contactName: string;
-  modelName?: string;
-}
-
 export interface ILLMProvider {
   generateRetentionReply(params: LLMCompletionParams): Promise<string>;
   summarizeConversationTwoLines(
@@ -90,6 +93,9 @@ export interface ILLMProvider {
     latestUserMessage: string,
     contactName: string
   ): Promise<string>;
+  generateStructuredRetentionDecision?(
+    params: LLMCompletionParams
+  ): Promise<StructuredRetentionOutput>;
 }
 
 export interface IOwnerAlertNotifier {

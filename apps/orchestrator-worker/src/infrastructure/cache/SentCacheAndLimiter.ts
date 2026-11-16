@@ -1,5 +1,8 @@
 import { Redis } from 'ioredis';
+import type { RealtimeEvent } from '@mejoraws/shared';
 import type { ISentCacheAndLimiter } from '../../domain/ports.js';
+
+export const REALTIME_EVENTS_CHANNEL = 'mejoraws:realtime:events';
 
 function getHourBucket(date: Date): string {
   const y = date.getUTCFullYear();
@@ -61,6 +64,25 @@ export class RedisSentCacheAndLimiter implements ISentCacheAndLimiter {
     return val === '1';
   }
 
+  async markOutboundInflight(jid: string, ttlSeconds = 15): Promise<void> {
+    await this.redis.set(`outbound_inflight:${jid}`, '1', 'EX', ttlSeconds);
+  }
+
+  async clearOutboundInflight(jid: string): Promise<void> {
+    await this.redis.del(`outbound_inflight:${jid}`);
+  }
+
+  async hasOutboundInflight(jid: string): Promise<boolean> {
+    const val = await this.redis.get(`outbound_inflight:${jid}`);
+    return val === '1';
+  }
+
+  async publishRealtimeEvent(event: RealtimeEvent): Promise<void> {
+    await this.redis
+      .publish(REALTIME_EVENTS_CHANNEL, JSON.stringify(event))
+      .catch(() => undefined);
+  }
+
   async acquireIdempotencyLock(
     idempotencyKey: string,
     ttlSeconds = 86400
@@ -95,6 +117,7 @@ export class RedisSentCacheAndLimiter implements ISentCacheAndLimiter {
 export class InMemorySentCacheAndLimiter implements ISentCacheAndLimiter {
   private paused = false;
   private readonly sentCache = new Map<string, number>();
+  private readonly inflightLocks = new Map<string, number>();
   private readonly idempotencyLocks = new Map<string, number>();
   private readonly hourlyCounters = new Map<string, number>();
 
@@ -119,6 +142,24 @@ export class InMemorySentCacheAndLimiter implements ISentCacheAndLimiter {
     if (!exp) return false;
     if (Date.now() > exp) {
       this.sentCache.delete(whatsappMessageId);
+      return false;
+    }
+    return true;
+  }
+
+  async markOutboundInflight(jid: string, ttlSeconds = 15): Promise<void> {
+    this.inflightLocks.set(jid, Date.now() + ttlSeconds * 1000);
+  }
+
+  async clearOutboundInflight(jid: string): Promise<void> {
+    this.inflightLocks.delete(jid);
+  }
+
+  async hasOutboundInflight(jid: string): Promise<boolean> {
+    const exp = this.inflightLocks.get(jid);
+    if (!exp) return false;
+    if (Date.now() > exp) {
+      this.inflightLocks.delete(jid);
       return false;
     }
     return true;

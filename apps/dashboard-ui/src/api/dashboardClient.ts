@@ -429,4 +429,72 @@ export class DashboardApiClient {
       body: JSON.stringify({ label }),
     });
   }
+
+  async uploadMedia(file: File): Promise<{
+    ok: boolean;
+    url: string;
+    filename: string;
+    contentType: ContentType;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    const res = await fetch(`${this.baseUrl}/api/v1/media/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error || `Error subiendo archivo: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  createEventSource(onEvent: (event: unknown) => void): () => void {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return () => {};
+    }
+    const url = `${this.baseUrl}/api/v1/events`;
+    const es = new EventSource(url, { withCredentials: true });
+
+    es.onmessage = (e) => {
+      try {
+        const parsed = JSON.parse(e.data);
+        onEvent(parsed);
+      } catch {
+        // ignore
+      }
+    };
+
+    const eventTypes = [
+      'qr.updated',
+      'connection.updated',
+      'message.created',
+      'message.received',
+      'message.status',
+      'contact.mode_updated',
+      'ai.alert',
+      'queue.toggled',
+    ];
+
+    for (const evt of eventTypes) {
+      es.addEventListener(evt, (e: MessageEvent) => {
+        try {
+          const parsed = JSON.parse(e.data);
+          onEvent(parsed);
+        } catch {
+          // ignore
+        }
+      });
+    }
+
+    return () => {
+      es.close();
+    };
+  }
 }

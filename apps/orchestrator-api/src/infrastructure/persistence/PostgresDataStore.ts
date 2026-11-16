@@ -2,6 +2,7 @@ import pg from 'pg';
 import type {
   AIConfig,
   AIMode,
+  AIUsageLogRecord,
   ApiKey,
   Contact,
   JobStatus,
@@ -99,6 +100,18 @@ export class PostgresDataStore implements IDataStore {
     return res.rows[0] ?? null;
   }
 
+  async findContactByLid(lid: string): Promise<Contact | null> {
+    const res = await this.pool.query<Contact>(
+      `SELECT * FROM contacts 
+       WHERE metadata->>'lid' = $1 
+          OR jid = $1 
+          OR metadata->>'remoteJidAlt' = $1
+       LIMIT 1`,
+      [lid]
+    );
+    return res.rows[0] ?? null;
+  }
+
   async listContacts(filters?: ContactListFilters): Promise<Contact[]> {
     const clauses: string[] = [];
     const params: unknown[] = [];
@@ -161,7 +174,8 @@ export class PostgresDataStore implements IDataStore {
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT (whatsapp_message_id) DO UPDATE SET
-        status = EXCLUDED.status
+        status = EXCLUDED.status,
+        body = CASE WHEN EXCLUDED.body IS NOT NULL AND EXCLUDED.body != '' THEN EXCLUDED.body ELSE messages.body END
       RETURNING *
       `,
       [
@@ -308,7 +322,32 @@ export class PostgresDataStore implements IDataStore {
     const res = await this.pool.query<AIConfig>(
       'SELECT * FROM ai_config WHERE id = 1'
     );
-    return res.rows[0];
+    if (!res.rows[0]) {
+      return {
+        id: 1,
+        is_global_enabled: true,
+        system_prompt:
+          'Eres el asistente de atención y retención de Mejora Continua. Tu tono es empático, profesional, natural y humano. Respondes con brevedad para clarificar y contener.',
+        model_name: env.AI_MODEL || 'gemini-3.8-flash',
+        thinking_level: env.AI_THINKING_LEVEL || 'high',
+        max_auto_turns: 2,
+        handoff_keywords: [
+          'precio',
+          'comprar',
+          'reunion',
+          'llamame',
+          'asesor',
+          'info',
+          'costo',
+        ],
+        auto_mute_hours_on_human_reply: env.AI_AUTO_MUTE_HOURS_ON_HUMAN_REPLY || 24,
+        alert_webhook_url: env.OWNER_ALERT_WEBHOOK_URL || null,
+      };
+    }
+    return {
+      ...res.rows[0],
+      thinking_level: res.rows[0].thinking_level || env.AI_THINKING_LEVEL || 'high',
+    };
   }
 
   async updateAIConfig(patch: Partial<AIConfig>): Promise<AIConfig> {
@@ -319,10 +358,11 @@ export class PostgresDataStore implements IDataStore {
         is_global_enabled = $1,
         system_prompt = $2,
         model_name = $3,
-        max_auto_turns = $4,
-        handoff_keywords = $5::jsonb,
-        auto_mute_hours_on_human_reply = $6,
-        alert_webhook_url = $7,
+        thinking_level = $4,
+        max_auto_turns = $5,
+        handoff_keywords = $6::jsonb,
+        auto_mute_hours_on_human_reply = $7,
+        alert_webhook_url = $8,
         updated_at = NOW()
       WHERE id = 1
       RETURNING *
@@ -331,6 +371,7 @@ export class PostgresDataStore implements IDataStore {
         patch.is_global_enabled ?? current.is_global_enabled,
         patch.system_prompt ?? current.system_prompt,
         patch.model_name ?? current.model_name,
+        patch.thinking_level ?? current.thinking_level ?? 'high',
         patch.max_auto_turns ?? current.max_auto_turns,
         JSON.stringify(patch.handoff_keywords ?? current.handoff_keywords),
         patch.auto_mute_hours_on_human_reply ??
@@ -340,7 +381,33 @@ export class PostgresDataStore implements IDataStore {
           : current.alert_webhook_url,
       ]
     );
-    return res.rows[0];
+    return res.rows[0] ?? current;
+  }
+
+  async recordAIUsage(
+    data: Omit<AIUsageLogRecord, 'id' | 'created_at'>
+  ): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO ai_usage_logs (
+        contact_id, message_id, provider, model_name,
+        prompt_tokens, completion_tokens, total_tokens,
+        latency_ms, intent, confidence, raw_response
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        data.contact_id ?? null,
+        data.message_id ?? null,
+        data.provider,
+        data.model_name ?? data.model,
+        data.prompt_tokens,
+        data.completion_tokens ?? data.output_tokens,
+        data.total_tokens ??
+          data.prompt_tokens + (data.completion_tokens ?? data.output_tokens),
+        data.latency_ms,
+        data.intent ?? null,
+        data.confidence ?? null,
+        data.raw_response ? JSON.stringify(data.raw_response) : null,
+      ]
+    );
   }
 
   async validateApiKeyHash(keyHash: string): Promise<boolean> {

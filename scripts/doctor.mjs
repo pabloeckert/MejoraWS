@@ -96,11 +96,13 @@ const sharedDist = path.join(ROOT_DIR, 'packages', 'shared', 'dist', 'index.js')
 const apiDist = path.join(ROOT_DIR, 'apps', 'orchestrator-api', 'dist', 'index.js')
 const workerDist = path.join(ROOT_DIR, 'apps', 'orchestrator-worker', 'dist', 'index.js')
 const dashboardDist = path.join(ROOT_DIR, 'apps', 'dashboard-ui', 'dist', 'index.html')
+const migration2Path = path.join(ROOT_DIR, 'database', 'migrations', '002_ai_telemetry_and_migrations.sql')
 
 check('@mejoraws/shared compilado', fs.existsSync(sharedDist), 'Núcleo de dominio disponible')
 check('@mejoraws/orchestrator-api compilado', fs.existsSync(apiDist), 'Backend Fastify listo')
 check('@mejoraws/orchestrator-worker compilado', fs.existsSync(workerDist), 'Consumidor BullMQ listo')
 check('@mejoraws/dashboard-ui compilado', fs.existsSync(dashboardDist), 'Dashboard Web listo')
+check('Migración 002 (Telemetría IA y Gemini 3.8)', fs.existsSync(migration2Path), 'Migración SQL 2026/2027 presente')
 
 // 7. Chequeo de puertos locales
 async function checkPortFree(port) {
@@ -116,11 +118,11 @@ async function checkPortFree(port) {
 }
 
 const p3000 = await checkPortFree(3000)
-const p5173 = await checkPortFree(5173)
+const p5174 = await checkPortFree(5174)
 const p5176 = await checkPortFree(5176)
 
 check('Puerto 3000 (Orchestrator API)', p3000, p3000 ? 'Libre para usar' : 'Ocupado por otro proceso')
-check('Puerto 5173 (Dashboard Web Vite)', p5173, p5173 ? 'Libre para usar' : 'Ocupado por otro proceso')
+check('Puerto 5174 (Dashboard Web Vite)', p5174, p5174 ? 'Libre para usar' : 'Ocupado por otro proceso')
 check('Puerto 5176 (Desktop Renderer Vite)', p5176, p5176 ? 'Libre para usar' : 'Ocupado por otro proceso')
 
 console.log('\n--------------------------------------------------------------------')

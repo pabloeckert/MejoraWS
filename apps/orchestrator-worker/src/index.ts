@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url';
-import { Worker, type Job } from 'bullmq';
+import { Queue, Worker, type Job } from 'bullmq';
+import type { IMessagingProvider } from '@mejoraws/shared';
+import { MetaCloudApiProvider } from '@mejoraws/shared/server';
 import { env } from './config/env.js';
 import type {
   ISentCacheAndLimiter,
@@ -22,6 +24,7 @@ import { AIRetentionEngine } from './application/AIRetentionEngine.js';
 import { OutboundMessageProcessor } from './application/OutboundMessageProcessor.js';
 
 export const OUTBOUND_QUEUE_NAME = 'outbound_messages';
+export const INBOUND_AI_QUEUE_NAME = 'inbound_ai_events';
 
 export interface OutboundBullJobData {
   jobId: string;
@@ -31,14 +34,22 @@ export interface OutboundBullJobData {
     media_url?: string;
     media_filename?: string;
     content_type?: string;
+    sender_type?: string;
     urgent?: boolean;
   };
   idempotencyKey?: string | null;
 }
 
+export interface InboundAIBullJobData {
+  contactId: string;
+  inboundMessageText: string;
+  receivedAtIso?: string;
+}
+
 export {
   env,
   EvolutionApiProvider,
+  MetaCloudApiProvider,
   RedisSentCacheAndLimiter,
   InMemorySentCacheAndLimiter,
   PostgresWorkerStore,
@@ -48,6 +59,22 @@ export {
   AIRetentionEngine,
   OutboundMessageProcessor,
 };
+
+function createMessagingProviderFromEnv(): IMessagingProvider {
+  if (env.MESSAGING_PROVIDER === 'meta_cloud') {
+    return new MetaCloudApiProvider({
+      phoneNumberId: env.META_PHONE_NUMBER_ID,
+      accessToken: env.META_ACCESS_TOKEN,
+      apiVersion: env.META_API_VERSION,
+      instanceName: env.INSTANCE_NAME,
+    });
+  }
+  return new EvolutionApiProvider({
+    baseUrl: env.EVOLUTION_API_URL,
+    apiKey: env.EVOLUTION_API_KEY,
+    instanceName: env.INSTANCE_NAME,
+  });
+}
 
 export async function bootstrapWorker(): Promise<void> {
   let dataStore: IWorkerDataStore;
@@ -83,11 +110,11 @@ export async function bootstrapWorker(): Promise<void> {
     sentCache = new InMemorySentCacheAndLimiter();
   }
 
-  const messagingProvider = new EvolutionApiProvider({
-    baseUrl: env.EVOLUTION_API_URL,
-    apiKey: env.EVOLUTION_API_KEY,
-    instanceName: env.INSTANCE_NAME,
-  });
+  const messagingProvider = createMessagingProviderFromEnv();
+  const publishEvent = redisLimiter
+    ? (ev: Parameters<RedisSentCacheAndLimiter['publishRealtimeEvent']>[0]) =>
+        redisLimiter!.publishRealtimeEvent(ev)
+    : undefined;
 
   const processor = new OutboundMessageProcessor({
     dataStore,
@@ -96,7 +123,9 @@ export async function bootstrapWorker(): Promise<void> {
     enforceWhitelist: env.ENFORCE_WHITELIST,
     safeHoursStart: env.SAFE_HOURS_START,
     safeHoursEnd: env.SAFE_HOURS_END,
+    timeZone: env.TZ,
     maxMessagesPerHour: env.MAX_MESSAGES_PER_HOUR,
+    onRealtimeEvent: publishEvent,
   });
 
   if (!redisLimiter) {
@@ -106,7 +135,39 @@ export async function bootstrapWorker(): Promise<void> {
     return;
   }
 
-  const bullWorker = new Worker<OutboundBullJobData>(
+  const outboundQueue = new Queue<OutboundBullJobData>(OUTBOUND_QUEUE_NAME, {
+    connection: redisLimiter.getConnection(),
+  });
+
+  const aiEngine = new AIRetentionEngine({
+    dataStore,
+    llmProvider: new MultiProviderLLMAdapter(),
+    alertNotifier: new OwnerWebhookNotifier(),
+    dashboardBaseUrl: env.DASHBOARD_BASE_URL,
+    defaultThinkingLevel: env.AI_THINKING_LEVEL,
+    enqueueOutboundJob: async (job, delayMs) => {
+      await outboundQueue.add(
+        'dispatch_message',
+        {
+          jobId: job.id,
+          contactId: job.contact_id,
+          payload: job.payload,
+          idempotencyKey: job.idempotency_key,
+        },
+        {
+          jobId: job.id,
+          delay: Math.max(0, Math.round(delayMs)),
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: 500,
+          removeOnFail: 500,
+        }
+      );
+    },
+    onRealtimeEvent: publishEvent,
+  });
+
+  const outboundWorker = new Worker<OutboundBullJobData>(
     OUTBOUND_QUEUE_NAME,
     async (bullJob: Job<OutboundBullJobData>) => {
       const targetJobId = String(bullJob.data.jobId || bullJob.id);
@@ -118,23 +179,55 @@ export async function bootstrapWorker(): Promise<void> {
     }
   );
 
-  bullWorker.on('completed', (job, result) => {
+  const inboundAIWorker = new Worker<InboundAIBullJobData>(
+    INBOUND_AI_QUEUE_NAME,
+    async (bullJob: Job<InboundAIBullJobData>) => {
+      return aiEngine.processInboundMessage({
+        contactId: bullJob.data.contactId,
+        inboundMessageText: bullJob.data.inboundMessageText,
+        now: bullJob.data.receivedAtIso
+          ? new Date(bullJob.data.receivedAtIso)
+          : new Date(),
+      });
+    },
+    {
+      connection: redisLimiter.getConnection(),
+      concurrency: 3,
+    }
+  );
+
+  outboundWorker.on('completed', (job, result) => {
     console.log(
-      `[orchestrator-worker] Trabajo ${job.id} procesado:`,
+      `[orchestrator-worker] Salida ${job.id} procesada:`,
       JSON.stringify(result)
     );
   });
 
-  bullWorker.on('failed', (job, err) => {
+  outboundWorker.on('failed', (job, err) => {
     console.error(
-      `[orchestrator-worker] Fallo en trabajo ${job?.id}:`,
+      `[orchestrator-worker] Fallo en salida ${job?.id}:`,
+      err.message
+    );
+  });
+
+  inboundAIWorker.on('completed', (job, result) => {
+    console.log(
+      `[orchestrator-worker] IA Inbound ${job.id} resuelta (shouldReply=${result.shouldReply}, escalated=${result.escalated})`
+    );
+  });
+
+  inboundAIWorker.on('failed', (job, err) => {
+    console.error(
+      `[orchestrator-worker] Fallo en IA Inbound ${job?.id}:`,
       err.message
     );
   });
 
   const shutdown = async () => {
-    console.log('[orchestrator-worker] Cerrando consumidor BullMQ...');
-    await bullWorker.close().catch(() => {});
+    console.log('[orchestrator-worker] Cerrando consumidores BullMQ...');
+    await outboundWorker.close().catch(() => {});
+    await inboundAIWorker.close().catch(() => {});
+    await outboundQueue.close().catch(() => {});
     await redisLimiter?.close().catch(() => {});
     await pgStore.close().catch(() => {});
     process.exit(0);
@@ -144,7 +237,7 @@ export async function bootstrapWorker(): Promise<void> {
   process.on('SIGTERM', shutdown);
 
   console.log(
-    `[orchestrator-worker] Escuchando cola "${OUTBOUND_QUEUE_NAME}" (concurrency=1, instance=${env.INSTANCE_NAME})`
+    `[orchestrator-worker] Escuchando "${OUTBOUND_QUEUE_NAME}" + "${INBOUND_AI_QUEUE_NAME}" (provider=${env.MESSAGING_PROVIDER}, ai=${env.AI_PROVIDER}/${env.AI_MODEL}:${env.AI_THINKING_LEVEL})`
   );
 }
 

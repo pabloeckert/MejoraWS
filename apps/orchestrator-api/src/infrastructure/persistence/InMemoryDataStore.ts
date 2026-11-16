@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   AIConfig,
   AIMode,
+  AIUsageLogRecord,
   ApiKey,
   Contact,
   JobStatus,
@@ -23,13 +24,15 @@ export class InMemoryDataStore implements IDataStore {
   private jobs = new Map<string, ScheduledJob>();
   private idempotencyIndex = new Map<string, string>();
   private apiKeys = new Map<string, ApiKey>();
+  public aiUsageLogs: AIUsageLogRecord[] = [];
 
   private aiConfig: AIConfig = {
     id: 1,
     is_global_enabled: true,
     system_prompt:
       'Eres el asistente de atención y retención de Mejora Continua. Tu tono es empático, profesional, natural y humano. Respondes con brevedad para clarificar y contener.',
-    model_name: env.AI_MODEL || 'gpt-4o-mini',
+    model_name: env.AI_MODEL || 'gemini-3.8-flash',
+    thinking_level: env.AI_THINKING_LEVEL || 'high',
     max_auto_turns: 2,
     handoff_keywords: [
       'precio',
@@ -124,6 +127,19 @@ export class InMemoryDataStore implements IDataStore {
     return this.contacts.get(id) ?? null;
   }
 
+  async findContactByLid(lid: string): Promise<Contact | null> {
+    for (const contact of this.contacts.values()) {
+      if (
+        contact.jid === lid ||
+        contact.metadata?.lid === lid ||
+        contact.metadata?.remoteJidAlt === lid
+      ) {
+        return contact;
+      }
+    }
+    return null;
+  }
+
   async listContacts(filters?: ContactListFilters): Promise<Contact[]> {
     let list = Array.from(this.contacts.values());
 
@@ -184,9 +200,15 @@ export class InMemoryDataStore implements IDataStore {
   async createMessage(
     msg: Omit<Message, 'id' | 'created_at'>
   ): Promise<Message> {
-    for (const existing of this.messages.values()) {
+    for (const [id, existing] of this.messages.entries()) {
       if (existing.whatsapp_message_id === msg.whatsapp_message_id) {
-        return existing;
+        const updated: Message = {
+          ...existing,
+          status: msg.status,
+          body: msg.body || existing.body,
+        };
+        this.messages.set(id, updated);
+        return updated;
       }
     }
 
@@ -291,6 +313,17 @@ export class InMemoryDataStore implements IDataStore {
   async updateAIConfig(patch: Partial<AIConfig>): Promise<AIConfig> {
     this.aiConfig = { ...this.aiConfig, ...patch, id: 1 };
     return { ...this.aiConfig };
+  }
+
+  async recordAIUsage(
+    data: Omit<AIUsageLogRecord, 'id' | 'created_at'>
+  ): Promise<void> {
+    const record: AIUsageLogRecord = {
+      ...data,
+      id: randomUUID(),
+      created_at: new Date(),
+    };
+    this.aiUsageLogs.push(record);
   }
 
   async validateApiKeyHash(keyHash: string): Promise<boolean> {

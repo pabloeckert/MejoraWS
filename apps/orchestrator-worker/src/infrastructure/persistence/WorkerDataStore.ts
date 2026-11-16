@@ -3,6 +3,7 @@ import pg from 'pg';
 import type {
   AIConfig,
   AIMode,
+  AIUsageLogRecord,
   Contact,
   JobStatus,
   Message,
@@ -280,7 +281,58 @@ export class PostgresWorkerStore implements IWorkerDataStore {
     const res = await this.pool.query<AIConfig>(
       'SELECT * FROM ai_config WHERE id = 1'
     );
-    return res.rows[0];
+    if (res.rows[0]) {
+      return res.rows[0];
+    }
+
+    const defaultPrompt =
+      'Eres el asistente de atención y retención de Mejora Continua. Tu tono es empático, profesional, natural y humano. Respondes con brevedad para clarificar y contener sin usar frases robóticas ni avisos de transferencia.';
+    const inserted = await this.pool.query<AIConfig>(
+      `
+      INSERT INTO ai_config (
+        id, is_global_enabled, system_prompt, model_name, thinking_level,
+        max_auto_turns, auto_mute_hours_on_human_reply, alert_webhook_url
+      )
+      VALUES (1, true, $1, $2, $3, 2, $4, $5)
+      ON CONFLICT (id) DO UPDATE SET updated_at = NOW()
+      RETURNING *
+      `,
+      [
+        defaultPrompt,
+        env.AI_MODEL,
+        env.AI_THINKING_LEVEL,
+        env.AI_AUTO_MUTE_HOURS_ON_HUMAN_REPLY,
+        env.OWNER_ALERT_WEBHOOK_URL || null,
+      ]
+    );
+    return inserted.rows[0];
+  }
+
+  async recordAIUsage(
+    log: Omit<AIUsageLogRecord, 'id' | 'created_at'>
+  ): Promise<void> {
+    await this.pool
+      .query(
+        `
+        INSERT INTO ai_usage_logs (
+          instance_id, contact_id, provider, model,
+          prompt_tokens, thought_tokens, output_tokens, latency_ms, intent
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `,
+        [
+          env.INSTANCE_NAME,
+          log.contact_id,
+          log.provider,
+          log.model,
+          log.prompt_tokens,
+          log.thought_tokens,
+          log.output_tokens,
+          log.latency_ms,
+          log.intent,
+        ]
+      )
+      .catch(() => undefined);
   }
 }
 
@@ -288,12 +340,14 @@ export class InMemoryWorkerStore implements IWorkerDataStore {
   private readonly contacts = new Map<string, Contact>();
   private readonly messages = new Map<string, Message>();
   private readonly jobs = new Map<string, ScheduledJob>();
+  public readonly aiUsageLogs: AIUsageLogRecord[] = [];
   private aiConfig: AIConfig = {
     id: 1,
     is_global_enabled: true,
     system_prompt:
       'Eres el asistente de atención y retención de Mejora Continua. Tu tono es empático, profesional, natural y humano. Respondes con brevedad para clarificar y contener sin usar frases robóticas ni avisos de transferencia.',
     model_name: env.AI_MODEL,
+    thinking_level: env.AI_THINKING_LEVEL,
     max_auto_turns: 2,
     handoff_keywords: [
       'precio',
@@ -535,5 +589,15 @@ export class InMemoryWorkerStore implements IWorkerDataStore {
 
   async getAIConfig(): Promise<AIConfig> {
     return { ...this.aiConfig };
+  }
+
+  async recordAIUsage(
+    log: Omit<AIUsageLogRecord, 'id' | 'created_at'>
+  ): Promise<void> {
+    this.aiUsageLogs.push({
+      ...log,
+      id: randomUUID(),
+      created_at: new Date(),
+    });
   }
 }

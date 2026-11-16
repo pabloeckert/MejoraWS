@@ -1,10 +1,13 @@
 import {
   sanitizeRoboticPhrases,
   type AIRetentionDecision,
+  type AIThinkingLevel,
   type Contact,
   type EscalationReason,
   type Message,
   type OwnerAlertPayload,
+  type RealtimeEvent,
+  type StructuredRetentionOutput,
 } from '@mejoraws/shared';
 import type {
   ILLMProvider,
@@ -18,10 +21,12 @@ export interface AIRetentionEngineDeps {
   llmProvider: ILLMProvider;
   alertNotifier: IOwnerAlertNotifier;
   dashboardBaseUrl?: string;
+  defaultThinkingLevel?: AIThinkingLevel;
   enqueueOutboundJob?: (
     job: NonNullable<AIRetentionDecision['scheduledJob']>,
     delayMs: number
   ) => Promise<void>;
+  onRealtimeEvent?: (event: RealtimeEvent) => Promise<void>;
 }
 
 function normalizeText(value: string): string {
@@ -106,7 +111,9 @@ export class AIRetentionEngine {
   private readonly llmProvider: ILLMProvider;
   private readonly alertNotifier: IOwnerAlertNotifier;
   private readonly dashboardBaseUrl: string;
+  private readonly defaultThinkingLevel: AIThinkingLevel;
   private readonly enqueueOutboundJob?: AIRetentionEngineDeps['enqueueOutboundJob'];
+  private readonly onRealtimeEvent?: AIRetentionEngineDeps['onRealtimeEvent'];
 
   constructor(deps: AIRetentionEngineDeps) {
     this.dataStore = deps.dataStore;
@@ -115,7 +122,9 @@ export class AIRetentionEngine {
     this.dashboardBaseUrl = (
       deps.dashboardBaseUrl || env.DASHBOARD_BASE_URL
     ).replace(/\/+$/, '');
+    this.defaultThinkingLevel = deps.defaultThinkingLevel ?? env.AI_THINKING_LEVEL;
     this.enqueueOutboundJob = deps.enqueueOutboundJob;
+    this.onRealtimeEvent = deps.onRealtimeEvent;
   }
 
   async processInboundMessage(params: {
@@ -199,7 +208,82 @@ export class AIRetentionEngine {
       };
     }
 
-    // 4. Evaluar reglas de Escalado y Traspaso Invisible (PRD § 3)
+    // 4. Inferencia Estructurada (Gemini 3.8 High o proveedor configurado) + Reglas Escalado
+    const thinkingLevel = aiConfig.thinking_level ?? this.defaultThinkingLevel;
+    let structuredDecision: StructuredRetentionOutput | null = null;
+    let rawReply: string;
+
+    if (this.llmProvider.generateStructuredRetentionDecision) {
+      structuredDecision =
+        await this.llmProvider.generateStructuredRetentionDecision({
+          systemPrompt: aiConfig.system_prompt,
+          history,
+          userMessage: params.inboundMessageText,
+          contactName,
+          modelName: aiConfig.model_name,
+          thinkingLevel,
+        });
+      rawReply = structuredDecision.replyText;
+
+      if (structuredDecision.usage) {
+        await this.dataStore.recordAIUsage?.({
+          contact_id: contact.id,
+          provider: structuredDecision.usage.provider,
+          model: structuredDecision.usage.model,
+          prompt_tokens: structuredDecision.usage.promptTokens,
+          thought_tokens: structuredDecision.usage.thoughtTokens,
+          output_tokens: structuredDecision.usage.outputTokens,
+          latency_ms: structuredDecision.usage.latencyMs,
+          intent: structuredDecision.intent,
+        });
+      }
+
+      if (
+        structuredDecision.intent === 'OPT_OUT' &&
+        structuredDecision.confidence >= 0.85
+      ) {
+        await this.dataStore.updateContactMode(contact.id, 'MUTED', null);
+        const alertPayload = this.buildAlertPayload(
+          contact,
+          contactName,
+          'OPT_OUT_REQUEST',
+          structuredDecision.ownerSummaryTwoLines,
+          now
+        );
+        await this.alertNotifier.sendOwnerAlert(
+          alertPayload,
+          aiConfig.alert_webhook_url
+        );
+        await this.dataStore.updateContactMetadata(contact.id, {
+          last_ai_alert: alertPayload,
+        });
+        await this.onRealtimeEvent?.({
+          type: 'ai.alert',
+          payload: alertPayload as unknown as Record<string, unknown>,
+          timestamp: now.toISOString(),
+        });
+
+        return {
+          shouldReply: false,
+          replyText: null,
+          escalated: true,
+          escalationReason: 'OPT_OUT_REQUEST',
+          nextMode: 'MUTED',
+          mutedUntil: null,
+          alertPayload,
+        };
+      }
+    } else {
+      rawReply = await this.llmProvider.generateRetentionReply({
+        systemPrompt: aiConfig.system_prompt,
+        history,
+        userMessage: params.inboundMessageText,
+        contactName,
+        modelName: aiConfig.model_name,
+        thinkingLevel,
+      });
+    }
+
     const matchedKeyword = hasCommercialHandoffIntent(
       params.inboundMessageText,
       aiConfig.handoff_keywords || []
@@ -209,21 +293,20 @@ export class AIRetentionEngine {
     const nextTurnNumber = priorAiTurns + 1;
     const reachedMaxTurns = nextTurnNumber >= Math.max(1, aiConfig.max_auto_turns);
 
+    const aiDetectedCommercial =
+      structuredDecision?.intent === 'COMMERCIAL_HANDOFF' &&
+      structuredDecision.confidence >= 0.75;
+
     let escalationReason: EscalationReason | null = null;
     if (matchedKeyword) {
       escalationReason = 'KEYWORD_MATCH';
+    } else if (aiDetectedCommercial) {
+      escalationReason = 'AI_INTENT_DETECTED';
     } else if (reachedMaxTurns) {
       escalationReason = 'MAX_TURNS_REACHED';
     }
 
-    // 5. Generar respuesta humana de contención (sin jerga robótica ni aviso de transferencia)
-    const rawReply = await this.llmProvider.generateRetentionReply({
-      systemPrompt: aiConfig.system_prompt,
-      history,
-      userMessage: params.inboundMessageText,
-      contactName,
-      modelName: aiConfig.model_name,
-    });
+    // 5. Garantizar respuesta humana de contención (sin jerga robótica ni aviso de transferencia)
     const replyText = sanitizeRoboticPhrases(rawReply);
 
     // 6. Encolar el mensaje saliente para que orchestrator-worker lo envíe con simulación "composing"
@@ -234,6 +317,7 @@ export class AIRetentionEngine {
       payload: {
         body: replyText,
         content_type: 'TEXT',
+        sender_type: 'AI_AGENT',
         urgent: true,
       },
       scheduled_for: now,
@@ -259,6 +343,12 @@ export class AIRetentionEngine {
       await this.enqueueOutboundJob(scheduledJob, 0);
     }
 
+    await this.onRealtimeEvent?.({
+      type: 'message.created',
+      payload: { contactId: contact.id, message: outboundMessage },
+      timestamp: now.toISOString(),
+    });
+
     // 7. Si aplica escalado, disparar alerta al dueño y pasar a HUMAN_TAKEOVER de forma invisible
     if (escalationReason) {
       const muteHours =
@@ -274,11 +364,12 @@ export class AIRetentionEngine {
       );
 
       const summaryTwoLines =
-        await this.llmProvider.summarizeConversationTwoLines(
+        structuredDecision?.ownerSummaryTwoLines ||
+        (await this.llmProvider.summarizeConversationTwoLines(
           [...history, outboundMessage],
           params.inboundMessageText,
           contactName
-        );
+        ));
 
       const alertPayload = this.buildAlertPayload(
         contact,
@@ -294,6 +385,11 @@ export class AIRetentionEngine {
       );
       await this.dataStore.updateContactMetadata(contact.id, {
         last_ai_alert: alertPayload,
+      });
+      await this.onRealtimeEvent?.({
+        type: 'ai.alert',
+        payload: alertPayload as unknown as Record<string, unknown>,
+        timestamp: now.toISOString(),
       });
 
       return {

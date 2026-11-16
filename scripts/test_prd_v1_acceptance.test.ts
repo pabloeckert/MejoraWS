@@ -149,6 +149,21 @@ class UnifiedAcceptanceDataStore implements IDataStore, IWorkerDataStore {
     return id ? this.contacts.get(id) ?? null : null;
   }
 
+  async findContactByLid(lid: string): Promise<Contact | null> {
+    for (const contact of this.contacts.values()) {
+      if (
+        contact.jid === lid ||
+        contact.metadata?.lid === lid ||
+        contact.metadata?.remoteJidAlt === lid
+      ) {
+        return contact;
+      }
+    }
+    return null;
+  }
+
+  async recordAIUsage(_data: any): Promise<void> {}
+
   async listContacts(filters?: ContactListFilters): Promise<Contact[]> {
     let list = Array.from(this.contacts.values());
     if (filters?.isInBroadcast !== undefined) {
@@ -397,6 +412,30 @@ class UnifiedQueueAndCache
   async cancelOutboundJob(jobId: string): Promise<void> {
     const idx = this.enqueuedJobs.findIndex((i) => i.job.id === jobId);
     if (idx !== -1) this.enqueuedJobs.splice(idx, 1);
+  }
+
+  public readonly enqueuedAIPayloads: any[] = [];
+  private realtimeListeners = new Set<(event: any) => void>();
+
+  async enqueueInboundAI(payload: any): Promise<void> {
+    this.enqueuedAIPayloads.push(payload);
+  }
+
+  async publishRealtimeEvent(event: any): Promise<void> {
+    for (const listener of this.realtimeListeners) {
+      try {
+        listener(event);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  async subscribeRealtimeEvents(listener: (event: any) => void): Promise<() => void> {
+    this.realtimeListeners.add(listener);
+    return () => {
+      this.realtimeListeners.delete(listener);
+    };
   }
 }
 

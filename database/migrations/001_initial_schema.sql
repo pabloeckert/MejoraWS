@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS ai_config (
     id SERIAL PRIMARY KEY,
     is_global_enabled BOOLEAN DEFAULT true,
     system_prompt TEXT NOT NULL,
-    model_name VARCHAR(64) DEFAULT 'gpt-4o-mini',
+    model_name VARCHAR(64) DEFAULT 'gemini-3.8-flash',
+    thinking_level VARCHAR(16) NOT NULL DEFAULT 'high',
     max_auto_turns INTEGER DEFAULT 2,
     handoff_keywords JSONB DEFAULT '["precio", "comprar", "reunion", "llamame", "asesor", "info", "costo"]'::jsonb,
     auto_mute_hours_on_human_reply INTEGER DEFAULT 24,
@@ -87,12 +88,13 @@ CREATE TABLE IF NOT EXISTS ai_config (
 );
 
 -- Inserción inicial de configuración de IA por defecto
-INSERT INTO ai_config (id, is_global_enabled, system_prompt, model_name, max_auto_turns, auto_mute_hours_on_human_reply)
+INSERT INTO ai_config (id, is_global_enabled, system_prompt, model_name, thinking_level, max_auto_turns, auto_mute_hours_on_human_reply)
 VALUES (
     1,
     true,
     'Eres el asistente de atención y retención de Mejora Continua. Tu tono es empático, profesional, natural y humano. Respondes con brevedad para clarificar y contener. Si el contacto muestra intención de compra o pide hablar con un responsable, confirmas amablemente y notificas al equipo sin usar frases robóticas ni avisos de transferencia.',
-    'gpt-4o-mini',
+    'gemini-3.8-flash',
+    'high',
     2,
     24
 ) ON CONFLICT (id) DO NOTHING;

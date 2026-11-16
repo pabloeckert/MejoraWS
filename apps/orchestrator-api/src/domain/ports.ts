@@ -1,11 +1,13 @@
 import type {
   AIConfig,
   AIMode,
+  AIUsageLogRecord,
   ApiKey,
   Contact,
   JobStatus,
   Message,
   MessageStatus,
+  RealtimeEvent,
   ScheduledJob,
 } from '@mejoraws/shared';
 
@@ -28,6 +30,7 @@ export interface IDataStore {
   ): Promise<Contact>;
   getContactById(id: string): Promise<Contact | null>;
   getContactByJid(jid: string): Promise<Contact | null>;
+  findContactByLid(lid: string): Promise<Contact | null>;
   listContacts(filters?: ContactListFilters): Promise<Contact[]>;
   updateContactMode(
     contactId: string,
@@ -64,6 +67,7 @@ export interface IDataStore {
 
   getAIConfig(): Promise<AIConfig>;
   updateAIConfig(patch: Partial<AIConfig>): Promise<AIConfig>;
+  recordAIUsage(data: Omit<AIUsageLogRecord, 'id' | 'created_at'>): Promise<void>;
 
   validateApiKeyHash(keyHash: string): Promise<boolean>;
   listApiKeys(): Promise<ApiKey[]>;
@@ -72,9 +76,18 @@ export interface IDataStore {
   getDailyMetrics(): Promise<DailyMetrics>;
 }
 
+export interface InboundAIPayload {
+  jid: string;
+  contactId?: string;
+  incomingText: string;
+  messageId: string;
+  timestamp?: string;
+}
+
 export interface IQueueDispatcher {
   enqueueOutboundJob(job: ScheduledJob, delayMs: number): Promise<void>;
   cancelOutboundJob(jobId: string): Promise<void>;
+  enqueueInboundAI(payload: InboundAIPayload): Promise<void>;
   setQueuePaused(paused: boolean): Promise<boolean>;
   isQueuePaused(): Promise<boolean>;
   markMessageSentBySystem(
@@ -82,4 +95,9 @@ export interface IQueueDispatcher {
     ttlSeconds?: number
   ): Promise<void>;
   wasMessageSentBySystem(whatsappMessageId: string): Promise<boolean>;
+  markOutboundInflight(jid: string, ttlSeconds?: number): Promise<void>;
+  clearOutboundInflight(jid: string): Promise<void>;
+  hasOutboundInflight(jid: string): Promise<boolean>;
+  publishRealtimeEvent(event: RealtimeEvent): Promise<void>;
+  subscribeRealtimeEvents(listener: (event: RealtimeEvent) => void): Promise<() => void>;
 }

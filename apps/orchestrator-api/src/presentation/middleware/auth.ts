@@ -1,9 +1,19 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { env } from '../../config/env.js';
 import type { IDataStore } from '../../domain/ports.js';
 
 export const AUTH_COOKIE_NAME = 'mejoraws_token';
+
+export function timingSafeStringCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) {
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
 
 export function hashApiKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex');
@@ -34,10 +44,10 @@ export function createAuthMiddleware(dataStore: IDataStore) {
     // 1. Verificar x-api-key para integraciones externas
     const rawApiKey = request.headers['x-api-key'];
     if (typeof rawApiKey === 'string' && rawApiKey.trim().length > 0) {
-      if (rawApiKey === env.MASTER_API_KEY) {
+      if (timingSafeStringCompare(rawApiKey.trim(), env.MASTER_API_KEY)) {
         return;
       }
-      const keyHash = hashApiKey(rawApiKey);
+      const keyHash = hashApiKey(rawApiKey.trim());
       const valid = await dataStore.validateApiKeyHash(keyHash);
       if (valid) {
         return;

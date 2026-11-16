@@ -1,11 +1,16 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { randomBytes } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   formatToJid,
   normalizePhone,
+  resolveEvolutionRemoteTarget,
   sanitizeRoboticPhrases,
   type AIMode,
+  type AIThinkingLevel,
   type ContentType,
   type EscalationReason,
   type IMessagingProvider,
@@ -13,8 +18,10 @@ import {
   type Message,
   type MessageStatus,
   type OwnerAlertPayload,
+  type RealtimeEvent,
   type ScheduledJob,
 } from '@mejoraws/shared';
+import { verifyMetaWebhookSignature } from '@mejoraws/shared/server';
 import { env } from '../../config/env.js';
 import type { IDataStore, IQueueDispatcher } from '../../domain/ports.js';
 import { SmartDripCalculator } from '../../application/SmartDripCalculator.js';
@@ -22,6 +29,7 @@ import {
   AUTH_COOKIE_NAME,
   createAuthMiddleware,
   hashApiKey,
+  timingSafeStringCompare,
 } from '../middleware/auth.js';
 
 export interface RouteDependencies {
@@ -41,6 +49,7 @@ const contentTypeEnum = z.enum([
 ]);
 
 const aiModeEnum = z.enum(['AI_RETENTION', 'HUMAN_TAKEOVER', 'MUTED']);
+const thinkingLevelEnum = z.enum(['low', 'medium', 'high', 'xhigh']);
 
 const loginSchema = z.object({
   username: z.string().min(1),
@@ -121,6 +130,7 @@ const aiConfigPatchSchema = z.object({
   is_global_enabled: z.boolean().optional(),
   system_prompt: z.string().min(1).optional(),
   model_name: z.string().min(1).optional(),
+  thinking_level: thinkingLevelEnum.optional(),
   max_auto_turns: z.number().int().min(1).max(20).optional(),
   handoff_keywords: z.array(z.string()).optional(),
   auto_mute_hours_on_human_reply: z.number().int().min(1).max(168).optional(),
@@ -174,7 +184,9 @@ function extractEvolutionText(msgObj: Record<string, unknown> | undefined): {
     | { caption?: string; url?: string; fileName?: string; mimetype?: string }
     | undefined;
   if (doc) {
-    const isPdf = (doc.mimetype || '').includes('pdf') || (doc.fileName || '').toLowerCase().endsWith('.pdf');
+    const isPdf =
+      (doc.mimetype || '').includes('pdf') ||
+      (doc.fileName || '').toLowerCase().endsWith('.pdf');
     return {
       text: doc.caption || doc.fileName || '[Documento]',
       contentType: isPdf ? 'PDF' : 'DOCUMENT',
@@ -204,6 +216,9 @@ function mapEvolutionStatus(rawStatus: unknown): MessageStatus | null {
     rawStatus === 'PLAYED'
   ) {
     return 'READ';
+  }
+  if (rawStatus === 'FAILED' || rawStatus === 'ERROR') {
+    return 'FAILED';
   }
   return null;
 }
@@ -281,7 +296,7 @@ export async function registerApiV1Routes(
   const dripCalculator = new SmartDripCalculator();
 
   // ==========================================================================
-  // AUTENTICACIÓN (Dashboard Web — Usuario Maestro Único)
+  // AUTENTICACIÓN (Dashboard Web — Usuario Maestro Único & Timing-Safe)
   // ==========================================================================
 
   app.post('/api/v1/auth/login', async (request, reply) => {
@@ -291,7 +306,10 @@ export async function registerApiV1Routes(
     }
 
     const { username, password } = parsed.data;
-    if (username !== env.ADMIN_USER || password !== env.ADMIN_PASSWORD) {
+    const isUserValid = timingSafeStringCompare(username, env.ADMIN_USER);
+    const isPassValid = timingSafeStringCompare(password, env.ADMIN_PASSWORD);
+
+    if (!isUserValid || !isPassValid) {
       return reply.code(401).send({ error: 'Usuario o contraseña inválidos' });
     }
 
@@ -300,18 +318,20 @@ export async function registerApiV1Routes(
       { expiresIn: '24h' }
     );
 
+    const secureFlag = env.COOKIE_SECURE ? '; Secure' : '';
     reply.header(
       'Set-Cookie',
-      `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=86400`
+      `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=86400${secureFlag}`
     );
 
     return reply.send({ ok: true, user: env.ADMIN_USER, token });
   });
 
   app.post('/api/v1/auth/logout', async (_request, reply) => {
+    const secureFlag = env.COOKIE_SECURE ? '; Secure' : '';
     reply.header(
       'Set-Cookie',
-      `${AUTH_COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`
+      `${AUTH_COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${secureFlag}`
     );
     return reply.send({ ok: true });
   });
@@ -324,6 +344,89 @@ export async function registerApiV1Routes(
         authenticated: true,
         user: request.user ?? { user: 'api_key', role: 'integration' },
       };
+    }
+  );
+
+  // ==========================================================================
+  // EVENTOS EN TIEMPO REAL (SSE / Server-Sent Events)
+  // ==========================================================================
+
+  app.get(
+    '/api/v1/events',
+    { preHandler: authenticate },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      reply.raw.setHeader('Content-Type', 'text/event-stream');
+      reply.raw.setHeader('Cache-Control', 'no-cache, no-transform');
+      reply.raw.setHeader('Connection', 'keep-alive');
+      reply.raw.setHeader('X-Accel-Buffering', 'no');
+      reply.raw.flushHeaders?.();
+
+      reply.raw.write(`: connected\n\n`);
+
+      const unsubscribe = await queueDispatcher.subscribeRealtimeEvents(
+        (event: RealtimeEvent) => {
+          try {
+            reply.raw.write(
+              `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
+            );
+          } catch {
+            // ignore broken pipe
+          }
+        }
+      );
+
+      const heartbeatInterval = setInterval(() => {
+        try {
+          reply.raw.write(`: heartbeat ${Date.now()}\n\n`);
+        } catch {
+          clearInterval(heartbeatInterval);
+        }
+      }, 20000);
+
+      request.raw.on('close', () => {
+        clearInterval(heartbeatInterval);
+        Promise.resolve(unsubscribe()).catch(() => {});
+      });
+    }
+  );
+
+  // ==========================================================================
+  // CARGA DE MULTIMEDIA (Uploads para Scheduler & Chats)
+  // ==========================================================================
+
+  app.post(
+    '/api/v1/media/upload',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const data = await request.file();
+      if (!data) {
+        return reply.code(400).send({ error: 'No se envió ningún archivo' });
+      }
+
+      const safeOriginalName = path
+        .basename(data.filename)
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+      const uniqueName = `${Date.now()}_${randomBytes(4).toString('hex')}_${safeOriginalName}`;
+      const savePath = path.join(env.UPLOADS_DIR, uniqueName);
+
+      await pipeline(data.file, fs.createWriteStream(savePath));
+
+      const ext = path.extname(safeOriginalName).toLowerCase();
+      let contentType: ContentType = 'DOCUMENT';
+      if (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) {
+        contentType = 'IMAGE';
+      } else if (ext === '.pdf') {
+        contentType = 'PDF';
+      }
+
+      const publicUrl = `/api/v1/media/${uniqueName}`;
+
+      return reply.code(201).send({
+        ok: true,
+        url: publicUrl,
+        filename: safeOriginalName,
+        contentType,
+      });
     }
   );
 
@@ -436,6 +539,14 @@ export async function registerApiV1Routes(
       });
 
       await queueDispatcher.enqueueOutboundJob(job, 0);
+
+      await queueDispatcher.publishRealtimeEvent({
+        type: 'message.created',
+        contactId: contact.id,
+        jid: contact.jid,
+        data: msg,
+        timestamp: new Date().toISOString(),
+      });
 
       return reply.code(202).send({
         ok: true,
@@ -761,6 +872,17 @@ export async function registerApiV1Routes(
         return reply.code(404).send({ error: 'Contacto no encontrado' });
       }
 
+      await queueDispatcher.publishRealtimeEvent({
+        type: 'contact.mode_updated',
+        contactId: updated.id,
+        jid: updated.jid,
+        data: {
+          aiMode: updated.ai_mode,
+          aiMutedUntil: updated.ai_muted_until,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
       return { ok: true, contact: updated };
     }
   );
@@ -828,6 +950,14 @@ export async function registerApiV1Routes(
         status: sendResult.status,
       });
 
+      await queueDispatcher.publishRealtimeEvent({
+        type: 'message.created',
+        contactId: contact.id,
+        jid: contact.jid,
+        data: message,
+        timestamp: new Date().toISOString(),
+      });
+
       return reply.code(201).send({ ok: true, message });
     }
   );
@@ -863,6 +993,7 @@ export async function registerApiV1Routes(
       return {
         ok: true,
         instanceName: env.INSTANCE_NAME,
+        messagingProvider: env.MESSAGING_PROVIDER,
         whatsapp,
         queuePaused,
         metrics,
@@ -924,6 +1055,20 @@ export async function registerApiV1Routes(
   // ==========================================================================
 
   app.post('/api/v1/webhooks/evolution', async (request, reply) => {
+    // Verificación de secreto webhook opcional
+    if (env.EVOLUTION_WEBHOOK_SECRET) {
+      const reqSecret =
+        request.headers['apikey'] ||
+        request.headers['x-api-key'] ||
+        (request.query as Record<string, string>)?.secret;
+      if (
+        !reqSecret ||
+        !timingSafeStringCompare(String(reqSecret), env.EVOLUTION_WEBHOOK_SECRET)
+      ) {
+        return reply.code(401).send({ error: 'Secreto de webhook inválido' });
+      }
+    }
+
     const body = (request.body as Record<string, unknown>) || {};
     const event = String(body.event || '').toLowerCase();
 
@@ -941,24 +1086,41 @@ export async function registerApiV1Routes(
 
       for (const item of items) {
         const key = (item.key as Record<string, unknown>) || {};
-        const remoteJid = String(key.remoteJid || '');
+        const rawRemoteJid = String(key.remoteJid || '');
+        const remoteJidAlt = String(key.remoteJidAlt || '');
+        const participant = String(key.participant || '');
         const fromMe = Boolean(key.fromMe);
         const waMsgId = String(key.id || `evo_${Date.now()}`);
 
-        if (!remoteJid || remoteJid.endsWith('@g.us')) continue;
+        if (!rawRemoteJid || rawRemoteJid.endsWith('@g.us')) continue;
 
-        const isBroadcast = remoteJid.endsWith('@broadcast');
-        const targetJid = isBroadcast
-          ? String(key.participant || remoteJid)
-          : remoteJid;
+        // Resolución de @lid, @broadcast y multi-device (G-05)
+        const resolution = resolveEvolutionRemoteTarget({
+          remoteJid: rawRemoteJid,
+          remoteJidAlt,
+          participant,
+        });
+        if (!resolution) continue;
+
+        const targetJid = resolution.targetJid;
         const phone = normalizePhone(targetJid.split('@')[0]);
         if (!phone) continue;
 
+        const isBroadcast = resolution.isBroadcast;
         const extracted = extractEvolutionText(
           item.message as Record<string, unknown> | undefined
         );
 
-        const contact = await dataStore.upsertContact({
+        // Buscar contacto por JID o por LID
+        let contact = await dataStore.getContactByJid(targetJid);
+        if (!contact && resolution.lid) {
+          contact = await dataStore.findContactByLid(resolution.lid);
+        }
+
+        const upsertData: Partial<typeof contact> & {
+          jid: string;
+          phone_number: string;
+        } = {
           instance_id: String(body.instance || env.INSTANCE_NAME),
           jid: targetJid,
           phone_number: phone,
@@ -967,15 +1129,23 @@ export async function registerApiV1Routes(
               ? item.pushName
               : undefined,
           is_in_broadcast: isBroadcast,
-          broadcast_lists: isBroadcast ? [remoteJid] : undefined,
+          broadcast_lists: isBroadcast ? [rawRemoteJid] : undefined,
+          metadata: {
+            remoteJidAlt: remoteJidAlt || undefined,
+            lid: resolution.lid || (targetJid.endsWith('@lid') ? targetJid : undefined),
+          },
           last_interaction_at: new Date(),
-        });
+        };
+
+        contact = await dataStore.upsertContact(upsertData);
 
         if (fromMe) {
           const sentBySystem =
             await queueDispatcher.wasMessageSentBySystem(waMsgId);
+          const hasInflight =
+            await queueDispatcher.hasOutboundInflight(targetJid);
 
-          if (!sentBySystem) {
+          if (!sentBySystem && !hasInflight) {
             // Salvaguarda de Celular Físico (PRD § 3): el dueño respondió desde su teléfono
             const mutedUntil = new Date(
               Date.now() +
@@ -1001,11 +1171,19 @@ export async function registerApiV1Routes(
               is_broadcast: isBroadcast,
               status: 'SENT',
             });
+
+            await queueDispatcher.publishRealtimeEvent({
+              type: 'contact.mode_updated',
+              contactId: contact.id,
+              jid: contact.jid,
+              data: { aiMode: 'HUMAN_TAKEOVER', mutedUntil },
+              timestamp: new Date().toISOString(),
+            });
           } else {
             await dataStore.updateMessageStatus(waMsgId, 'SENT');
           }
         } else {
-          await dataStore.createMessage({
+          const inboundMsg = await dataStore.createMessage({
             instance_id: contact.instance_id,
             whatsapp_message_id: waMsgId,
             contact_id: contact.id,
@@ -1021,7 +1199,24 @@ export async function registerApiV1Routes(
             status: 'DELIVERED',
           });
 
-          // Evaluación automática del Motor de Retención IA (PRD § 3)
+          await queueDispatcher.publishRealtimeEvent({
+            type: 'message.received',
+            contactId: contact.id,
+            jid: contact.jid,
+            data: inboundMsg,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Encolar al worker en cola inbound_ai_events
+          await queueDispatcher.enqueueInboundAI({
+            jid: targetJid,
+            contactId: contact.id,
+            incomingText: extracted.text,
+            messageId: waMsgId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Evaluación automática inmediata del Motor de Retención IA (PRD § 3)
           if (!isBroadcast && aiConfig.is_global_enabled) {
             const now = new Date();
             let activeContact = contact;
@@ -1173,6 +1368,142 @@ export async function registerApiV1Routes(
         );
         if (waMsgId && mappedStatus) {
           await dataStore.updateMessageStatus(waMsgId, mappedStatus);
+          await queueDispatcher.publishRealtimeEvent({
+            type: 'message.status',
+            data: { whatsappMessageId: waMsgId, status: mappedStatus },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    return reply.code(200).send({ received: true });
+  });
+
+  // ==========================================================================
+  // META CLOUD API WEBHOOK (WHATSAPP COEXISTENCE 2026-2027)
+  // ==========================================================================
+
+  app.get('/api/v1/webhooks/meta-cloud', async (request, reply) => {
+    const query = request.query as Record<string, string>;
+    const mode = query['hub.mode'];
+    const token = query['hub.verify_token'];
+    const challenge = query['hub.challenge'];
+
+    if (mode === 'subscribe' && token === env.META_VERIFY_TOKEN) {
+      return reply.code(200).send(challenge);
+    }
+    return reply.code(403).send({ error: 'Forbidden' });
+  });
+
+  app.post('/api/v1/webhooks/meta-cloud', async (request, reply) => {
+    const rawBody = JSON.stringify(request.body);
+    const signature = request.headers['x-hub-signature-256'] as
+      | string
+      | undefined;
+
+    if (env.META_APP_SECRET && signature) {
+      const isValid = verifyMetaWebhookSignature(
+        rawBody,
+        signature,
+        env.META_APP_SECRET
+      );
+      if (!isValid) {
+        return reply
+          .code(401)
+          .send({ error: 'Firma de webhook de Meta inválida' });
+      }
+    }
+
+    const body = (request.body as Record<string, unknown>) || {};
+    const entries = Array.isArray(body.entry) ? body.entry : [];
+
+    for (const entry of entries as Array<Record<string, unknown>>) {
+      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      for (const change of changes as Array<Record<string, unknown>>) {
+        const val = (change.value as Record<string, unknown>) || {};
+        const messages = Array.isArray(val.messages) ? val.messages : [];
+        const statuses = Array.isArray(val.statuses) ? val.statuses : [];
+
+        // Mensajes entrantes
+        for (const m of messages as Array<Record<string, unknown>>) {
+          const from = String(m.from || '');
+          const waId = String(m.id || '');
+          const jid = formatToJid(from);
+          const phone = normalizePhone(from);
+
+          let text = '';
+          let contentType: ContentType = 'TEXT';
+          let mediaUrl: string | null = null;
+
+          if (m.type === 'text') {
+            text = String((m.text as { body?: string })?.body || '');
+          } else if (m.type === 'image') {
+            contentType = 'IMAGE';
+            text = String((m.image as { caption?: string })?.caption || '[Imagen]');
+          } else if (m.type === 'document') {
+            contentType = 'DOCUMENT';
+            text = String(
+              (m.document as { filename?: string })?.filename || '[Documento]'
+            );
+          }
+
+          const contact = await dataStore.upsertContact({
+            instance_id: env.INSTANCE_NAME,
+            jid,
+            phone_number: phone,
+            last_interaction_at: new Date(),
+          });
+
+          const created = await dataStore.createMessage({
+            instance_id: env.INSTANCE_NAME,
+            whatsapp_message_id: waId,
+            contact_id: contact.id,
+            direction: 'INBOUND',
+            sender_type: 'CONTACT',
+            content_type: contentType,
+            body: text,
+            media_url: mediaUrl,
+            media_filename: null,
+            is_broadcast: false,
+            status: 'DELIVERED',
+          });
+
+          await queueDispatcher.publishRealtimeEvent({
+            type: 'message.received',
+            contactId: contact.id,
+            jid: contact.jid,
+            data: created,
+            timestamp: new Date().toISOString(),
+          });
+
+          await queueDispatcher.enqueueInboundAI({
+            jid,
+            contactId: contact.id,
+            incomingText: text,
+            messageId: waId,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        // Estados de entrega de Meta
+        for (const s of statuses as Array<Record<string, unknown>>) {
+          const waId = String(s.id || '');
+          const statusStr = String(s.status || '').toLowerCase();
+          let mapped: MessageStatus | null = null;
+          if (statusStr === 'sent') mapped = 'SENT';
+          if (statusStr === 'delivered') mapped = 'DELIVERED';
+          if (statusStr === 'read') mapped = 'READ';
+          if (statusStr === 'failed') mapped = 'FAILED';
+
+          if (waId && mapped) {
+            await dataStore.updateMessageStatus(waId, mapped);
+            await queueDispatcher.publishRealtimeEvent({
+              type: 'message.status',
+              data: { whatsappMessageId: waId, status: mapped },
+              timestamp: new Date().toISOString(),
+            });
+          }
         }
       }
     }

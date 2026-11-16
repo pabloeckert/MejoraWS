@@ -6,6 +6,7 @@ import {
   renderTemplate,
   type ContentType,
   type IMessagingProvider,
+  type RealtimeEvent,
 } from '@mejoraws/shared';
 import type {
   ISentCacheAndLimiter,
@@ -38,8 +39,10 @@ export interface OutboundMessageProcessorDeps {
   enforceWhitelist?: boolean;
   safeHoursStart?: string;
   safeHoursEnd?: string;
+  timeZone?: string;
   maxMessagesPerHour?: number;
   sleepFn?: (ms: number) => Promise<void>;
+  onRealtimeEvent?: (event: RealtimeEvent) => Promise<void>;
 }
 
 const defaultSleep = (ms: number): Promise<void> =>
@@ -52,8 +55,10 @@ export class OutboundMessageProcessor {
   private readonly enforceWhitelist: boolean;
   private readonly safeHoursStart: string;
   private readonly safeHoursEnd: string;
+  private readonly timeZone?: string;
   private readonly maxMessagesPerHour: number;
   private readonly sleepFn: (ms: number) => Promise<void>;
+  private readonly onRealtimeEvent?: (event: RealtimeEvent) => Promise<void>;
 
   constructor(deps: OutboundMessageProcessorDeps) {
     this.dataStore = deps.dataStore;
@@ -62,9 +67,11 @@ export class OutboundMessageProcessor {
     this.enforceWhitelist = deps.enforceWhitelist ?? env.ENFORCE_WHITELIST;
     this.safeHoursStart = deps.safeHoursStart ?? env.SAFE_HOURS_START;
     this.safeHoursEnd = deps.safeHoursEnd ?? env.SAFE_HOURS_END;
+    this.timeZone = deps.timeZone;
     this.maxMessagesPerHour =
       deps.maxMessagesPerHour ?? env.MAX_MESSAGES_PER_HOUR;
     this.sleepFn = deps.sleepFn ?? defaultSleep;
+    this.onRealtimeEvent = deps.onRealtimeEvent;
   }
 
   async processJob(
@@ -141,12 +148,13 @@ export class OutboundMessageProcessor {
     // 4. Ventana Horaria Segura SAFE_HOURS (PRD § 4.1) salvo urgent: true
     if (
       !job.payload.urgent &&
-      !isWithinSafeHours(now, this.safeHoursStart, this.safeHoursEnd)
+      !isWithinSafeHours(now, this.safeHoursStart, this.safeHoursEnd, this.timeZone)
     ) {
       const nextSafeDate = clampDateToSafeHours(
         now,
         this.safeHoursStart,
-        this.safeHoursEnd
+        this.safeHoursEnd,
+        this.timeZone
       );
       await this.dataStore.updateScheduledJob(job.id, {
         effective_send_at: nextSafeDate,
@@ -204,11 +212,12 @@ export class OutboundMessageProcessor {
       await this.sleepFn(typingDurationMs);
       await this.messagingProvider.sendPresenceUpdate(contact.jid, 'paused');
 
-      // 8. Envío físico a través de IMessagingProvider (Evolution API v2)
+      // 8. Bloqueo pre-vuelo (anti race-condition sent_cache) + Envío físico vía IMessagingProvider
       const contentType: ContentType =
         job.payload.content_type ||
         (/https?:\/\/\S+/i.test(renderedText) ? 'URL' : 'TEXT');
 
+      await this.sentCache.markOutboundInflight?.(contact.jid, 15);
       const sendResult = await this.messagingProvider.sendMessage(contact.jid, {
         text: renderedText,
         mediaUrl: job.payload.media_url,
@@ -219,6 +228,7 @@ export class OutboundMessageProcessor {
 
       // 9. Registro inmediato en sent_cache para Salvaguarda de Celular Físico (PRD § 3)
       await this.sentCache.markMessageSentBySystem(sendResult.messageId);
+      await this.sentCache.clearOutboundInflight?.(contact.jid);
 
       // 10. Persistir trazabilidad final en messages y scheduled_jobs
       await this.dataStore.updatePendingJobMessage(
@@ -233,6 +243,18 @@ export class OutboundMessageProcessor {
         error_log: null,
       });
 
+      await this.onRealtimeEvent?.({
+        type: 'message.status',
+        payload: {
+          contactId: contact.id,
+          jobId: job.id,
+          messageId: sendResult.messageId,
+          status: sendResult.status,
+          body: renderedText,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
       return {
         outcome: 'SENT',
         jobId: job.id,
@@ -241,6 +263,7 @@ export class OutboundMessageProcessor {
         renderedText,
       };
     } catch (err) {
+      await this.sentCache.clearOutboundInflight?.(contact.jid).catch(() => {});
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.dataStore.updateScheduledJob(job.id, {
         status: 'FAILED',

@@ -7,5 +7,6 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'evolution')\gexec
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Carga automática del esquema inicial
+-- Carga automática del esquema inicial y migraciones idempotentes
 \i /docker-entrypoint-initdb.d/migrations/001_initial_schema.sql;
+\i /docker-entrypoint-initdb.d/migrations/002_ai_telemetry_and_migrations.sql;

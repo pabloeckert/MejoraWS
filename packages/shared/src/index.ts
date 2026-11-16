@@ -52,6 +52,9 @@ export interface ScheduledJobPayload {
   media_url?: string;
   media_filename?: string;
   content_type?: ContentType;
+  sender_type?: SenderType;
+  template_name?: string;
+  language_code?: string;
   urgent?: boolean;
 }
 
@@ -74,6 +77,7 @@ export interface AIConfig {
   is_global_enabled: boolean;
   system_prompt: string;
   model_name: string;
+  thinking_level?: 'low' | 'medium' | 'high' | 'xhigh';
   max_auto_turns: number;
   handoff_keywords: string[];
   auto_mute_hours_on_human_reply: number;
@@ -129,9 +133,23 @@ export function normalizePhone(p: string | null | undefined): string {
   return (p || '').toString().replace(/\D/g, '');
 }
 
+export function isLidJid(jid: string | null | undefined): boolean {
+  return Boolean(jid && jid.trim().toLowerCase().endsWith('@lid'));
+}
+
 export function formatToJid(phone: string): string {
-  const norm = normalizePhone(phone);
-  if (norm.endsWith('@s.whatsapp.net')) return norm;
+  const raw = (phone || '').toString().trim();
+  if (!raw) return '';
+  if (raw.endsWith('@lid') || raw.endsWith('@broadcast') || raw.endsWith('@g.us')) {
+    return raw;
+  }
+
+  const localPart = raw.endsWith('@s.whatsapp.net')
+    ? raw.slice(0, -'@s.whatsapp.net'.length)
+    : raw;
+  const norm = normalizePhone(localPart);
+  if (!norm) return '';
+
   // Prefijo argentino 549 si viene con código de área local (ej. 376... -> 549376...)
   if (norm.length === 10 && !norm.startsWith('54')) {
     return `549${norm}@s.whatsapp.net`;
@@ -141,6 +159,66 @@ export function formatToJid(phone: string): string {
     return `549${norm.slice(2)}@s.whatsapp.net`;
   }
   return `${norm}@s.whatsapp.net`;
+}
+
+export interface EvolutionTargetResolution {
+  targetJid: string;
+  phone: string;
+  lid: string | null;
+  isBroadcast: boolean;
+  hasVerifiedPhone: boolean;
+}
+
+/**
+ * Resuelve el destino canónico desde payload key de Evolution API v2 (incluyendo @lid y remoteJidAlt 2026-2027).
+ */
+export function resolveEvolutionRemoteTarget(
+  key: Record<string, unknown>
+): EvolutionTargetResolution | null {
+  const remoteJid = String(key.remoteJid || '').trim();
+  if (!remoteJid || remoteJid.endsWith('@g.us')) return null;
+
+  const isBroadcast = remoteJid.endsWith('@broadcast');
+  const participant = String(key.participant || '').trim();
+  const remoteJidAlt = String(key.remoteJidAlt || '').trim();
+  const participantAlt = String(key.participantAlt || '').trim();
+
+  const rawPrimary = isBroadcast ? participant || remoteJid : remoteJid;
+  const rawAlt = isBroadcast ? participantAlt || remoteJidAlt : remoteJidAlt;
+
+  if (rawPrimary.endsWith('@lid')) {
+    if (rawAlt && rawAlt.endsWith('@s.whatsapp.net')) {
+      const phone = normalizePhone(rawAlt.split('@')[0]);
+      if (phone) {
+        return {
+          targetJid: formatToJid(phone),
+          phone,
+          lid: rawPrimary,
+          isBroadcast,
+          hasVerifiedPhone: true,
+        };
+      }
+    }
+    const lidDigits = normalizePhone(rawPrimary.split('@')[0]);
+    if (!lidDigits) return null;
+    return {
+      targetJid: rawPrimary,
+      phone: `lid_${lidDigits}`,
+      lid: rawPrimary,
+      isBroadcast,
+      hasVerifiedPhone: false,
+    };
+  }
+
+  const phone = normalizePhone(rawPrimary.split('@')[0]);
+  if (!phone) return null;
+  return {
+    targetJid: formatToJid(rawPrimary),
+    phone,
+    lid: rawAlt.endsWith('@lid') ? rawAlt : null,
+    isBroadcast,
+    hasVerifiedPhone: true,
+  };
 }
 
 export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -307,11 +385,95 @@ export function clasificarRespuesta(texto: string): ResponseClassification {
   return 'otro';
 }
 
+function getZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const num = (t: string) =>
+    Number.parseInt(parts.find((p) => p.type === t)?.value || '0', 10);
+  let h = num('hour');
+  if (h === 24) h = 0;
+  const asUtc = Date.UTC(
+    num('year'),
+    num('month') - 1,
+    num('day'),
+    h,
+    num('minute'),
+    num('second'),
+    0
+  );
+  const flooredSec = Math.floor(date.getTime() / 1000) * 1000;
+  return asUtc - flooredSec;
+}
+
+function getTimePartsInZone(
+  date: Date,
+  timeZone?: string
+): { year: number; month: number; day: number; hour: number; minute: number } {
+  if (!timeZone) {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+    };
+  }
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const num = (t: string) =>
+    Number.parseInt(parts.find((p) => p.type === t)?.value || '0', 10);
+  let hour = num('hour');
+  if (hour === 24) hour = 0;
+  return {
+    year: num('year'),
+    month: num('month'),
+    day: num('day'),
+    hour,
+    minute: num('minute'),
+  };
+}
+
+function wallClockInZoneToDate(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timeZone: string
+): Date {
+  const utcGuessMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  const offset1 = getZoneOffsetMs(new Date(utcGuessMs), timeZone);
+  const candidate = new Date(utcGuessMs - offset1);
+  const offset2 = getZoneOffsetMs(candidate, timeZone);
+  return offset2 === offset1 ? candidate : new Date(utcGuessMs - offset2);
+}
+
 /**
- * Verificación de Horario Humano Seguro (SAFE_HOURS)
+ * Verificación de Horario Humano Seguro (SAFE_HOURS) consciente de zona horaria
  */
-export function isWithinSafeHours(date: Date, startHHMM: string, endHHMM: string): boolean {
-  const currentMinutes = date.getHours() * 60 + date.getMinutes();
+export function isWithinSafeHours(
+  date: Date,
+  startHHMM: string,
+  endHHMM: string,
+  timeZone?: string
+): boolean {
+  const { hour, minute } = getTimePartsInZone(date, timeZone);
+  const currentMinutes = hour * 60 + minute;
 
   const [startH, startM] = (startHHMM || '08:30').split(':').map(Number);
   const [endH, endM] = (endHHMM || '20:30').split(':').map(Number);
@@ -328,10 +490,11 @@ export function isWithinSafeHours(date: Date, startHHMM: string, endHHMM: string
 export function clampDateToSafeHours(
   date: Date,
   safeHoursStart = '08:30',
-  safeHoursEnd = '20:30'
+  safeHoursEnd = '20:30',
+  timeZone?: string
 ): Date {
   const result = new Date(date.getTime());
-  if (isWithinSafeHours(result, safeHoursStart, safeHoursEnd)) {
+  if (isWithinSafeHours(result, safeHoursStart, safeHoursEnd, timeZone)) {
     return result;
   }
 
@@ -341,6 +504,22 @@ export function clampDateToSafeHours(
   const startM = Number.isFinite(rawStartM) ? rawStartM : 30;
   const endH = Number.isFinite(rawEndH) ? rawEndH : 20;
   const endM = Number.isFinite(rawEndM) ? rawEndM : 30;
+
+  if (timeZone) {
+    const { year, month, day, hour, minute } = getTimePartsInZone(result, timeZone);
+    const currentMinutes = hour * 60 + minute;
+    const endMinutes = endH * 60 + endM;
+    const dayOffset = currentMinutes > endMinutes ? 1 : 0;
+    const nextCalendar = new Date(Date.UTC(year, month - 1, day + dayOffset));
+    return wallClockInZoneToDate(
+      nextCalendar.getUTCFullYear(),
+      nextCalendar.getUTCMonth() + 1,
+      nextCalendar.getUTCDate(),
+      startH,
+      startM,
+      timeZone
+    );
+  }
 
   const currentMinutes = result.getHours() * 60 + result.getMinutes();
   const endMinutes = endH * 60 + endM;
@@ -357,11 +536,74 @@ export function clampDateToSafeHours(
 // ==============================================================================
 
 export type AIProviderName = 'openai' | 'gemini' | 'anthropic';
+export type AIThinkingLevel = 'low' | 'medium' | 'high' | 'xhigh';
+export type MessagingProviderType = 'evolution' | 'meta_cloud';
+export type RetentionIntent =
+  | 'CONTAIN'
+  | 'COMMERCIAL_HANDOFF'
+  | 'OPT_OUT'
+  | 'DEFER';
+
+export interface AIUsageMetrics {
+  provider: AIProviderName;
+  model: string;
+  promptTokens: number;
+  thoughtTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+}
+
+export interface AIUsageLogRecord {
+  id: string;
+  contact_id: string | null;
+  message_id?: string | null;
+  provider: AIProviderName;
+  model: string;
+  model_name?: string;
+  prompt_tokens: number;
+  thought_tokens?: number;
+  completion_tokens?: number;
+  output_tokens: number;
+  total_tokens?: number;
+  latency_ms: number;
+  intent: string;
+  confidence?: number;
+  raw_response?: Record<string, unknown> | null;
+  created_at: Date;
+}
+
+export interface StructuredRetentionOutput {
+  replyText: string;
+  intent: RetentionIntent;
+  confidence: number;
+  ownerSummaryTwoLines: string;
+  usage?: AIUsageMetrics;
+}
+
+export type RealtimeEventType =
+  | 'qr.updated'
+  | 'connection.updated'
+  | 'message.created'
+  | 'message.received'
+  | 'message.status'
+  | 'contact.mode_updated'
+  | 'ai.alert'
+  | 'queue.toggled';
+
+export interface RealtimeEvent {
+  type: RealtimeEventType;
+  payload?: Record<string, unknown>;
+  contactId?: string;
+  jid?: string;
+  data?: unknown;
+  timestamp: string;
+}
 
 export type EscalationReason =
   | 'KEYWORD_MATCH'
   | 'MAX_TURNS_REACHED'
-  | 'OPT_OUT_REQUEST';
+  | 'OPT_OUT_REQUEST'
+  | 'AI_INTENT_DETECTED';
 
 export interface OwnerAlertPayload {
   contactId: string;
