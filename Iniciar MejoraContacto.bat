@@ -21,8 +21,14 @@ if not exist "node_modules" (
     )
 )
 
-echo Iniciando MejoraContacto...
-call npm run dev
+if not exist "dist\index.html" (
+    echo Compilando interfaz de escritorio...
+    call npm run build
+)
+
+echo Iniciando MejoraContacto (App de Escritorio Local)...
+set ELECTRON_SERVE_DIST=1
+call npm start
 
 echo.
 echo Se cerro MejoraContacto.

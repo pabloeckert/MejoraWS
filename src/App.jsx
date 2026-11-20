@@ -39,7 +39,7 @@ export default function App() {
   const [editForm, setEditForm] = useState({ nombre: '', apellido: '', telefono: '', variable: '' })
   const fileInputRef = useRef(null)
   const templateRef = useRef(null)
-  const [demoMode, setDemoModeState] = useState(true)
+  const [demoMode, setDemoModeState] = useState(false)
 
   // --- Envío Directo / Carga Rápida (sin depender de carpetas previas) ---
   const [envioDirectoOpen, setEnvioDirectoOpen] = useState(false)
@@ -58,6 +58,10 @@ export default function App() {
     window.mejora.getConfig().then(setConfigState)
     window.mejora.getLogSummary().then(setLogSummary)
     window.mejora.getDemoMode().then(setDemoModeState)
+    window.mejora.getWaStatus?.().then((s) => {
+      if (s?.status) setStatus(s.status)
+      if (s?.qr) setQr(s.qr)
+    })
     refrescarCarpetas()
 
     window.mejora.onQr(setQr)
@@ -608,11 +612,42 @@ export default function App() {
     }
   }
 
-  async function handleStartDirectSend() {
+  function getDirectTargets() {
     let targets = directRecipients
     if (!targets.length && directRawText.trim()) {
       targets = parseRecipientsText(directRawText)
     }
+    return targets
+  }
+
+  async function handleSaveDirectList() {
+    const targets = getDirectTargets()
+    if (!targets || !targets.length) {
+      alert('Ingresá al menos un número de teléfono válido o importá un archivo.')
+      return
+    }
+    setDirectSending(true)
+    const res = await window.mejora.directSend({
+      recipients: targets,
+      message: directMessage,
+      folderName: directFolderName,
+      onlySave: true
+    })
+    setDirectSending(false)
+
+    if (res?.error) {
+      alert(res.error)
+      return
+    }
+
+    setEnvioDirectoOpen(false)
+    await refrescarCarpetas()
+    setConfigState(await window.mejora.getConfig())
+    setContacts(await window.mejora.getContacts())
+  }
+
+  async function handleStartDirectSend() {
+    const targets = getDirectTargets()
     if (!targets || !targets.length) {
       alert('Ingresá al menos un número de teléfono válido o importá un archivo.')
       return
@@ -621,8 +656,25 @@ export default function App() {
       alert('Escribí el mensaje que querés enviar.')
       return
     }
+
     if (status !== 'conectado') {
-      alert('WhatsApp está desconectado. Conectalo primero escaneando el código QR arriba a la derecha.')
+      setDirectSending(true)
+      const saveRes = await window.mejora.directSend({
+        recipients: targets,
+        message: directMessage,
+        folderName: directFolderName,
+        onlySave: true
+      })
+      setDirectSending(false)
+      if (saveRes?.error) {
+        alert(saveRes.error)
+        return
+      }
+      setEnvioDirectoOpen(false)
+      await refrescarCarpetas()
+      setConfigState(await window.mejora.getConfig())
+      setContacts(await window.mejora.getContacts())
+      window.mejora.connectWa()
       return
     }
 
@@ -630,7 +682,8 @@ export default function App() {
     const res = await window.mejora.directSend({
       recipients: targets,
       message: directMessage,
-      folderName: directFolderName
+      folderName: directFolderName,
+      onlySave: false
     })
     setDirectSending(false)
 
@@ -643,6 +696,7 @@ export default function App() {
     setSending(true)
     setPaused(false)
     await refrescarCarpetas()
+    setConfigState(await window.mejora.getConfig())
     setContacts(await window.mejora.getContacts())
   }
 
@@ -663,6 +717,7 @@ export default function App() {
   if (!config) return null
 
   const conectado = status === 'conectado'
+  const conectando = status === 'conectando' || status === 'reconectando'
 
   return (
     <div className="min-h-screen bg-white">
@@ -670,11 +725,11 @@ export default function App() {
       <header className="border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src="/brand/lockup-horizontal-color.png" alt="Mejora Continua" className="h-8" />
+            <img src="./brand/lockup-horizontal-color.png" alt="Mejora Continua" className="h-8" />
             <div className="h-6 w-px bg-gray-200" />
             <div>
               <p className="font-heading font-medium text-mc-tinta leading-tight">MejoraContacto</p>
-              <p className="text-xs text-mc-gris">Uso personal — lista chica, gente que ya te conoce</p>
+              <p className="text-xs text-mc-gris">App de Escritorio 100% Local — lista chica, gente que ya te conoce</p>
             </div>
           </div>
 
@@ -706,9 +761,9 @@ export default function App() {
               <span className="text-[10px] opacity-75 font-mono">({safety.score}/100)</span>
             </div>
 
-            <span className={`inline-flex items-center gap-2 text-sm ${conectado ? 'text-mc-azul' : 'text-mc-gris'}`}>
-              <span className={`w-2 h-2 rounded-full ${conectado ? 'bg-mc-azul' : 'bg-gray-300'}`} />
-              {conectado ? 'WhatsApp conectado' : 'WhatsApp desconectado'}
+            <span className={`inline-flex items-center gap-2 text-sm ${conectado ? 'text-mc-azul' : conectando ? 'text-amber-700' : 'text-mc-gris'}`}>
+              <span className={`w-2 h-2 rounded-full ${conectado ? 'bg-mc-azul' : conectando ? 'bg-mc-amarillo animate-pulse' : 'bg-gray-300'}`} />
+              {conectado ? 'WhatsApp conectado' : conectando ? 'Conectando WhatsApp...' : 'WhatsApp desconectado'}
             </span>
             <button
               onClick={() => setEnvioDirectoOpen(true)}
@@ -722,14 +777,14 @@ export default function App() {
             {!conectado ? (
               <button
                 onClick={() => window.mejora.connectWa()}
-                className="px-4 py-2 rounded-lg bg-mc-azul hover:bg-[#152f66] text-white text-sm font-medium transition-colors"
+                className="px-4 py-2 rounded-lg bg-mc-azul hover:bg-[#152f66] text-white text-sm font-medium transition-colors cursor-pointer"
               >
-                Conectar
+                {conectando ? (qr ? 'Ver QR' : 'Generando QR...') : 'Conectar / Generar QR'}
               </button>
             ) : (
               <button
                 onClick={() => window.mejora.logoutWa()}
-                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors"
+                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium text-mc-tinta transition-colors cursor-pointer"
               >
                 Cerrar sesión
               </button>
@@ -742,12 +797,31 @@ export default function App() {
         {/* QR — panel flotante, liquid glass acotado: blanco translúcido + blur, sin gradiente */}
         {qr && !conectado && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-mc-tinta/40 backdrop-blur-[2px]">
-            <div className="bg-white/90 backdrop-blur-md border border-gray-100 rounded-2xl p-8 shadow-xl flex flex-col items-center gap-4 max-w-sm">
+            <div className="bg-white/95 backdrop-blur-md border border-gray-100 rounded-2xl p-8 shadow-xl flex flex-col items-center gap-4 max-w-sm">
               <p className="font-heading font-medium text-mc-tinta">Vinculá tu WhatsApp</p>
               <p className="text-sm text-mc-gris text-center">
                 Desde el celu: WhatsApp → Configuración → Dispositivos vinculados → Vincular dispositivo
               </p>
               <img src={qr} alt="QR de WhatsApp" className="w-56 h-56 rounded-lg border border-gray-100" />
+              <div className="flex items-center gap-2 pt-1 w-full justify-center">
+                <button
+                  type="button"
+                  onClick={() => window.mejora.connectWa()}
+                  className="px-3.5 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium text-mc-tinta transition-colors cursor-pointer"
+                >
+                  🔄 Actualizar QR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQr(null)
+                    window.mejora.cancelQr?.()
+                  }}
+                  className="px-3.5 py-2 rounded-lg border border-gray-200 hover:bg-red-50 hover:text-mc-rojo text-xs font-medium text-mc-gris transition-colors cursor-pointer"
+                >
+                  ✕ Cerrar
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1070,14 +1144,14 @@ export default function App() {
                 </div>
               )}
               {!conectado && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-                  <span className="text-base">⚠️</span>
-                  <span>WhatsApp está desconectado. Hacé clic en "Conectar" arriba a la derecha primero.</span>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                  <span className="text-base">📲</span>
+                  <span>WhatsApp está desconectado. Podés guardar esta lista en una carpeta o vincular tu celular directo con el QR.</span>
                 </div>
               )}
 
               {/* Footer con acciones */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setEnvioDirectoOpen(false)}
@@ -1087,11 +1161,25 @@ export default function App() {
                 </button>
                 <button
                   type="button"
+                  onClick={handleSaveDirectList}
+                  disabled={directSending || directRecipients.length === 0}
+                  className="px-4 py-2 rounded-xl border border-mc-azul/30 bg-blue-50 hover:bg-blue-100 text-mc-azul text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <span>💾 Guardar en Carpeta</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleStartDirectSend}
-                  disabled={directSending || directRecipients.length === 0 || !directMessage.trim() || !conectado}
+                  disabled={directSending || directRecipients.length === 0 || !directMessage.trim()}
                   className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <span>{directSending ? 'Iniciando...' : '🚀 Iniciar Envío Directo'}</span>
+                  <span>
+                    {directSending
+                      ? 'Procesando...'
+                      : conectado
+                      ? '🚀 Iniciar Envío Directo'
+                      : '📲 Guardar y Conectar WhatsApp'}
+                  </span>
                   <span>({directRecipients.length})</span>
                 </button>
               </div>
@@ -1357,6 +1445,7 @@ export default function App() {
               {progress && (
                 <span className="text-xs text-mc-tinta font-medium">
                   {progress.status === 'enviando' && `Enviando... ${progress.enviadosHoy}/${progress.dailyCap} hoy`}
+                  {progress.status === 'pausa_lote' && `Pausa preventiva anti-ban (${progress.pausaSegundos || 60}s)...`}
                   {progress.status === 'pausado' && `Pausado (${progress.enviadosHoy}/${progress.dailyCap})`}
                   {progress.status === 'tope_diario_alcanzado' && 'Tope diario alcanzado'}
                   {progress.status === 'detenido' && 'Envío detenido'}
@@ -1459,6 +1548,8 @@ export default function App() {
             <p className="text-xs text-mc-gris border-l-2 border-mc-amarillo pl-2">
               {progress.status === 'enviando' &&
                 `Enviando... ${progress.enviadosHoy}/${progress.dailyCap} hoy${progress.totalVariantes > 1 ? ` — variante ${progress.variantIndex}/${progress.totalVariantes}` : ''}`}
+              {progress.status === 'pausa_lote' &&
+                `Pausa preventiva anti-ban de ${progress.pausaSegundos || 60}s tras completar un bloque de 15 envíos (${progress.enviadosHoy}/${progress.dailyCap} hoy).`}
               {progress.status === 'pausado' &&
                 `En pausa — ${progress.enviadosHoy}/${progress.dailyCap} enviados hoy. Corregí el mensaje si hace falta y dale Reanudar: el texto nuevo se usa desde el próximo envío.`}
               {progress.status === 'tope_diario_alcanzado' && 'Tope diario alcanzado — se retoma mañana.'}
@@ -1718,9 +1809,9 @@ export default function App() {
                 onBlur={() => saveConfig({ reportPhone: config.reportPhone })} />
             </Field>
 
-            <Field label="API key de Anthropic (para el botón Revisar con IA)">
+            <Field label="API key de IA (Gemini / Anthropic — opcional, incluye motor local offline)">
               <input type="password" className="w-full mt-1.5 border border-gray-200 rounded-lg p-2.5 text-sm"
-                placeholder={config.apiKeyConfigured ? '••••••••••• (guardada, cifrada)' : 'sk-ant-...'}
+                placeholder={config.apiKeyConfigured ? '••••••••••• (guardada, cifrada)' : 'AIza... (Gemini) o sk-ant-... (Anthropic)'}
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
                 onBlur={() => {
@@ -1729,7 +1820,7 @@ export default function App() {
                   setApiKeyInput('')
                 }} />
               <p className="text-xs text-mc-gris mt-1">
-                {config.apiKeyConfigured ? 'Ya tenés una key guardada (cifrada con el sistema operativo). Escribí acá solo si querés reemplazarla.' : 'Se cifra y se guarda solo en tu máquina.'} La sacás en console.anthropic.com → API Keys. Cada revisión consume crédito de tu cuenta.
+                {config.apiKeyConfigured ? 'Ya tenés una key guardada (cifrada localmente con Windows DPAPI).' : 'Se cifra y se guarda solo en tu PC.'} Si la dejás vacía, el botón "Revisar con IA" funciona igual con el motor local 100% offline.
               </p>
             </Field>
           </div>

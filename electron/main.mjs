@@ -1,4 +1,4 @@
-import { app, BrowserWindow, WebContentsView, ipcMain, Notification, shell, clipboard, safeStorage, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, shell, clipboard, safeStorage, dialog } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -85,42 +85,22 @@ let stopRequested = false
 let pauseRequested = false
 let LOG_FILE = null
 
-// Modo demostración (Fase 7 de MejoraSuite, ver mejorasuite/DECISIONES.md).
-// Activo por default: una instalación nueva muestra una carpeta y contactos
-// de ejemplo en vez de una base vacía. Nunca toca el archivo real
-// (data.json) ni Baileys — es una db paralela en memoria que se descarta al
-// cerrar la app. getDb() es lo que leen TODOS los handlers de IPC en vez de
-// `db` directo, salvo el bootstrap inicial en app.whenReady() que siempre
-// opera sobre los datos reales.
-let demoMode = true
+// Modo real por defecto para operar directamente como App de Escritorio 100% local.
+let demoMode = false
 let demoDb = null
-// Estado de conexión + bridge local — parte de la fusión MejoraSuite, ver
-// electron/bridge.mjs para el detalle. No cambia nada del comportamiento
-// existente, solo espeja lo que ya se manda por IPC hacia afuera del proceso.
 let waStatus = 'desconectado'
+let latestQrDataUrl = null
+let manualDisconnect = false
+const sentMessageIds = new Set()
 let bridge = null
 
-// Fase 2 de MejoraSuite: MejoraWS embebe MejoraContactos (producto público
-// aparte, sigue siendo independiente — ver mejorasuite/ESPECIFICACION.md en
-// el repo de MejoraCRM). Un solo WebContentsView, creado una vez y
-// reusado — se oculta/muestra en vez de destruirse y recrearse, así no
-// se pierde la sesión/estado de MejoraContactos al cambiar de pestaña.
-const MEJORACONTACTOS_URL = 'https://pabloeckert.github.io/MejoraContactos/'
-let contactosView = null
-
-function ensureContactosView() {
-  if (contactosView) return contactosView
-  contactosView = new WebContentsView({
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  contactosView.webContents.loadURL(MEJORACONTACTOS_URL)
-  mainWindow.contentView.addChildView(contactosView)
-  contactosView.setVisible(false)
-  return contactosView
+function recordSentMessageId(msgId) {
+  if (!msgId) return
+  sentMessageIds.add(msgId)
+  if (sentMessageIds.size > 2000) {
+    const oldest = sentMessageIds.values().next().value
+    if (oldest) sentMessageIds.delete(oldest)
+  }
 }
 
 // --- Modelo de datos ---
@@ -641,6 +621,62 @@ ${ultimos}
 `
 }
 
+function resolveIncomingTarget(key) {
+  const rawJid = String(key?.remoteJid || '').trim()
+  if (
+    !rawJid ||
+    rawJid.endsWith('@g.us') ||
+    rawJid.endsWith('@broadcast') ||
+    rawJid.endsWith('@newsletter')
+  ) {
+    return null
+  }
+  const altJid = String(key?.remoteJidAlt || key?.senderPn || key?.participant || '').trim()
+  if (rawJid.endsWith('@lid')) {
+    if (altJid && altJid.endsWith('@s.whatsapp.net')) {
+      const phone = normalizePhone(altJid.split('@')[0])
+      if (phone) return { jid: altJid, phone }
+    }
+    const altDigits = normalizePhone(altJid.split('@')[0])
+    if (altDigits && altDigits.length >= 8) {
+      return { jid: formatToJid(altDigits), phone: altDigits }
+    }
+    const lidDigits = normalizePhone(rawJid.split('@')[0])
+    return lidDigits ? { jid: rawJid, phone: lidDigits } : null
+  }
+  const phone = normalizePhone(rawJid.split('@')[0])
+  return phone ? { jid: rawJid, phone } : null
+}
+
+async function handleHumanPhoneReply(phone) {
+  let carpeta = null
+  let miembro = null
+  const persona = getDb().data.contactos.find((c) => samePhone(c.telefono, phone))
+  if (persona) {
+    let ultimoEnvio = ''
+    for (const c of getDb().data.carpetas) {
+      const m = c.miembros.find((x) => x.contactoId === persona.id)
+      if (!m) continue
+      const cuando = m.fechaEnvio || ''
+      if (!miembro || cuando >= ultimoEnvio) {
+        carpeta = c
+        miembro = m
+        ultimoEnvio = cuando
+      }
+    }
+  }
+  if (miembro) {
+    miembro.autoRespondido = true
+    await getDb().write()
+    emitirContactos()
+    logEvent('intervencion_humana_celular', {
+      carpeta: carpeta?.nombre || '',
+      telefono: phone,
+      nombre: persona?.nombre || phone
+    })
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -659,7 +695,11 @@ function createWindow() {
   })
 
   const distPath = path.join(__dirname, '../dist/index.html')
-  if (!app.isPackaged && !process.env.ELECTRON_SERVE_DIST && process.env.NODE_ENV !== 'production') {
+  const forceDist = process.env.ELECTRON_SERVE_DIST === '1' || process.env.NODE_ENV === 'production' || app.isPackaged
+  if (!forceDist) {
+    mainWindow.webContents.once('did-fail-load', () => {
+      if (fs.existsSync(distPath)) mainWindow.loadFile(distPath)
+    })
     mainWindow.loadURL('http://localhost:5176').catch(() => {
       if (fs.existsSync(distPath)) mainWindow.loadFile(distPath)
     })
@@ -669,186 +709,191 @@ function createWindow() {
 }
 
 let socketWatchdogInterval = null
+let reconnectTimer = null
 
-async function connectWhatsApp() {
-  const authDir = path.join(app.getPath('userData'), 'auth')
-  const { state, saveCreds } = await useMultiFileAuthState(authDir)
-  const { version } = await fetchLatestBaileysVersion()
-
-  sock = makeWASocket({
-    version,
-    auth: state,
-    logger,
-    printQRInTerminal: false,
-    browser: ['MejoraContacto', 'Desktop', '1.0.0']
-  })
-
-  sock.ev.on('creds.update', saveCreds)
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update
-
-    if (qr) {
-      const dataUrl = await QRCode.toDataURL(qr)
-      mainWindow?.webContents.send('wa:qr', dataUrl)
-    }
-
-    if (connection === 'open') {
-      waStatus = 'conectado'
-      mainWindow?.webContents.send('wa:status', waStatus)
-      bridge?.broadcastEvent('status', waStatus)
-      logEvent('wa_conectado')
-
-      // Watchdog activo contra Deadlock / Deaf Session en Baileys
-      if (socketWatchdogInterval) clearInterval(socketWatchdogInterval)
-      socketWatchdogInterval = setInterval(async () => {
-        if (waStatus === 'conectado' && sock) {
-          try {
-            await sock.sendPresenceUpdate('available')
-          } catch (err) {
-            logger.warn({ err }, '[Watchdog] Socket sordo detectado en heartbeat')
-          }
-        }
-      }, 120000)
-    }
-
-    if (connection === 'close') {
-      if (socketWatchdogInterval) {
-        clearInterval(socketWatchdogInterval)
-        socketWatchdogInterval = null
-      }
-      const statusCode = lastDisconnect?.error?.output?.statusCode
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut
-      waStatus = shouldReconnect ? 'reconectando' : 'desconectado'
-      mainWindow?.webContents.send('wa:status', waStatus)
-      bridge?.broadcastEvent('status', waStatus)
-      logEvent('wa_desconectado', { motivo: shouldReconnect ? 'reconectando' : 'logout' })
-      if (shouldReconnect) {
-        connectWhatsApp()
-      } else {
-        sock = null
-        // El server de WhatsApp invalidó la sesión (logout real, no un corte
-        // de red). Si no se borran las credenciales viejas, el próximo
-        // "Conectar" reintenta con la misma sesión ya muerta y vuelve a
-        // fallar al toque, sin mostrar QR nunca. Borrándolas, el próximo
-        // intento arranca de cero y pide un QR nuevo para revincular.
-        try {
-          fs.rmSync(path.join(app.getPath('userData'), 'auth'), { recursive: true, force: true })
-        } catch {
-          // si falla el borrado, el próximo intento va a repetir el mismo error
-        }
-      }
-    }
-  })
-
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return
-    for (const msg of messages) {
-      if (msg.key.fromMe) continue
-      const jid = msg.key.remoteJid || ''
-      // Solo chats individuales. Ignora grupos (@g.us), status (@broadcast),
-      // canales/newsletters (@newsletter) y el formato @lid — nada de eso
-      // es un contacto tuyo respondiendo.
-      if (!jid.endsWith('@s.whatsapp.net')) continue
-      const phone = normalizePhone(jid.split('@')[0])
-      const text = extractText(msg)
-      if (!phone || !text) continue
-      await handleIncomingMessage(phone, text)
-      bridge?.broadcastEvent('message', { phone, text, recibidoEn: new Date().toISOString() })
-    }
-  })
-
-  // Los tres tildes de WhatsApp, tal cual los ves en el celu:
-  //   status 2 = salió    (un tilde)   — el servidor de WhatsApp lo recibió
-  //   status 3 = llegó    (dos tildes) — entró al teléfono del contacto
-  //   status 4 = leído    (dos azules) — el contacto abrió el chat
-  // sendMessage() resolver sin error NO prueba nada de esto: solo dice que
-  // WhatsApp aceptó encolarlo. Esto es la prueba real.
-  // Ojo: "leído" solo llega si el contacto tiene las confirmaciones de
-  // lectura activadas en su WhatsApp. Si las tiene apagadas, el mensaje
-  // puede haberse leído igual y nunca vas a ver el tilde azul.
-  sock.ev.on('messages.update', async (updates) => {
-    for (const u of updates) {
-      const msgId = u.key?.id
-      const status = u.update?.status
-      if (!msgId || status == null || status < 2) continue
-
-      // El mensaje puede pertenecer a cualquier carpeta, no solo a la abierta.
-      let carpeta = null
-      let miembro = null
-      for (const c of getDb().data.carpetas) {
-        const m = c.miembros.find((x) => x.msgId === msgId)
-        if (m) { carpeta = c; miembro = m; break }
-      }
-      if (!miembro) continue
-
-      // Los estados solo avanzan, nunca retroceden: si ya estaba leído, un
-      // update tardío de "llegó" no lo tiene que pisar.
-      const previo = miembro.entregaStatus || 0
-      if (status <= previo) continue
-
-      const ahora = new Date().toISOString()
-      miembro.entregaStatus = status
-      if (status >= 2 && !miembro.fechaSalio) miembro.fechaSalio = ahora
-      if (status >= 3 && !miembro.fechaLlego) miembro.fechaLlego = ahora
-      if (status >= 4 && !miembro.fechaLeido) miembro.fechaLeido = ahora
-
-      await getDb().write()
-      const persona = contactoPorId(miembro.contactoId)
-      logEvent('mensaje_confirmado_whatsapp', {
-        carpeta: carpeta.nombre,
-        telefono: persona?.telefono,
-        nombre: persona?.nombre,
-        status,
-        etapa: DELIVERY_LABELS[status] || String(status)
-      })
-      emitirContactos()
-    }
-  })
-}
-
-async function reportarRespuestaAContactosApi({ phone, nombre, text, estado = 'respondio', carpeta = 'General', persona_id = null }) {
-  try {
-    const url = process.env.CONTACTOS_API_URL || 'https://tzatuvxatsduuslxqdtm.supabase.co/functions/v1/contactos-api'
-    const key = process.env.CONTACTOS_API_KEY || '66005e1e7b99040265523d6be7cbbe75468da7fbe58fa6c60aed74b917dee46f'
-    
-    const body = {
-      source: 'MejoraWS',
-      telefono: phone,
-      whatsapp: [phone],
-      nombre: nombre || phone,
-      tag: `whatsapp_${(carpeta || 'general').toLowerCase().replace(/\s+/g, '_')}`,
-      nota_referencia: `[MejoraWS] Respondió en carpeta '${carpeta}': "${text ? text.slice(0, 250) : ''}"`
-    }
-    if (persona_id) body.persona_id = persona_id
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': key,
-        'Authorization': `Bearer ${key}`
-      },
-      body: JSON.stringify(body)
-    })
-
-    if (!res.ok) {
-      const errTxt = await res.text()
-      logEvent('reporte_contactos_error', { phone, status: res.status, error: errTxt })
-      return null
-    }
-
-    const data = await res.json()
-    logEvent('reporte_contactos_exito', { phone, persona_id: data.persona_id, creado: data.creado })
-    return data
-  } catch (err) {
-    // Fail-soft: no bloquear la app ante fallo de red
-    logEvent('reporte_contactos_excepcion', { phone, error: err.message })
-    return null
+function cleanupSocket() {
+  if (socketWatchdogInterval) {
+    clearInterval(socketWatchdogInterval)
+    socketWatchdogInterval = null
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (sock) {
+    try { sock.ev.removeAllListeners() } catch {}
+    try { sock.end() } catch {}
+    sock = null
   }
 }
 
-async function handleIncomingMessage(phone, text) {
+async function fetchBaileysVersionSafe() {
+  const FALLBACK_VERSION = [2, 3000, 1043857760]
+  try {
+    const res = await Promise.race([
+      fetchLatestBaileysVersion(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+    ])
+    return res?.version || FALLBACK_VERSION
+  } catch {
+    return FALLBACK_VERSION
+  }
+}
+
+async function connectWhatsApp() {
+  cleanupSocket()
+  manualDisconnect = false
+  latestQrDataUrl = null
+  waStatus = 'conectando'
+  mainWindow?.webContents.send('wa:status', waStatus)
+  bridge?.broadcastEvent('status', waStatus)
+
+  try {
+    const authDir = path.join(app.getPath('userData'), 'auth')
+    const { state, saveCreds } = await useMultiFileAuthState(authDir)
+    const version = await fetchBaileysVersionSafe()
+
+    const currentSock = makeWASocket({
+      version,
+      auth: state,
+      logger,
+      printQRInTerminal: false,
+      browser: ['MejoraContacto', 'Desktop', '1.0.0']
+    })
+    sock = currentSock
+
+    currentSock.ev.on('creds.update', saveCreds)
+
+    currentSock.ev.on('connection.update', async (update) => {
+      if (sock !== currentSock) return
+      const { connection, lastDisconnect, qr } = update
+
+      if (qr) {
+        const dataUrl = await QRCode.toDataURL(qr)
+        latestQrDataUrl = dataUrl
+        mainWindow?.webContents.send('wa:qr', dataUrl)
+      }
+
+      if (connection === 'open') {
+        latestQrDataUrl = null
+        waStatus = 'conectado'
+        mainWindow?.webContents.send('wa:qr', null)
+        mainWindow?.webContents.send('wa:status', waStatus)
+        bridge?.broadcastEvent('status', waStatus)
+        logEvent('wa_conectado')
+
+        if (socketWatchdogInterval) clearInterval(socketWatchdogInterval)
+        socketWatchdogInterval = setInterval(async () => {
+          if (waStatus === 'conectado' && sock === currentSock) {
+            try {
+              await currentSock.sendPresenceUpdate('available')
+            } catch (err) {
+              logger.warn({ err }, '[Watchdog] Socket sordo detectado en heartbeat')
+            }
+          }
+        }, 120000)
+      }
+
+      if (connection === 'close') {
+        if (socketWatchdogInterval) {
+          clearInterval(socketWatchdogInterval)
+          socketWatchdogInterval = null
+        }
+        const statusCode = lastDisconnect?.error?.output?.statusCode
+        const shouldReconnect = !manualDisconnect && statusCode !== DisconnectReason.loggedOut
+        latestQrDataUrl = null
+        sock = null
+        waStatus = shouldReconnect ? 'reconectando' : 'desconectado'
+        mainWindow?.webContents.send('wa:status', waStatus)
+        bridge?.broadcastEvent('status', waStatus)
+        logEvent('wa_desconectado', { motivo: shouldReconnect ? 'reconectando' : 'logout' })
+
+        if (shouldReconnect) {
+          reconnectTimer = setTimeout(() => {
+            if (!manualDisconnect) connectWhatsApp().catch(() => {})
+          }, 1500)
+        } else {
+          try {
+            fs.rmSync(path.join(app.getPath('userData'), 'auth'), { recursive: true, force: true })
+          } catch {
+            // si falla el borrado, el próximo intento va a repetir el mismo error
+          }
+        }
+      }
+    })
+
+    currentSock.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (sock !== currentSock) return
+      if (type !== 'notify') return
+      for (const msg of messages) {
+        const target = resolveIncomingTarget(msg.key)
+        if (!target) continue
+
+        if (msg.key.fromMe) {
+          if (msg.key.id && sentMessageIds.has(msg.key.id)) continue
+          await handleHumanPhoneReply(target.phone)
+          continue
+        }
+
+        const text = extractText(msg)
+        if (!target.phone || !text) continue
+        await handleIncomingMessage(target.phone, text, target.jid)
+        bridge?.broadcastEvent('message', { phone: target.phone, text, recibidoEn: new Date().toISOString() })
+      }
+    })
+
+    currentSock.ev.on('messages.update', async (updates) => {
+      if (sock !== currentSock) return
+      for (const u of updates) {
+        const msgId = u.key?.id
+        const status = u.update?.status
+        if (!msgId || status == null || status < 2) continue
+
+        let carpeta = null
+        let miembro = null
+        for (const c of getDb().data.carpetas) {
+          const m = c.miembros.find((x) => x.msgId === msgId)
+          if (m) { carpeta = c; miembro = m; break }
+        }
+        if (!miembro) continue
+
+        const previo = miembro.entregaStatus || 0
+        if (status <= previo) continue
+
+        const ahora = new Date().toISOString()
+        miembro.entregaStatus = status
+        if (status >= 2 && !miembro.fechaSalio) miembro.fechaSalio = ahora
+        if (status >= 3 && !miembro.fechaLlego) miembro.fechaLlego = ahora
+        if (status >= 4 && !miembro.fechaLeido) miembro.fechaLeido = ahora
+
+        await getDb().write()
+        const persona = contactoPorId(miembro.contactoId)
+        logEvent('mensaje_confirmado_whatsapp', {
+          carpeta: carpeta.nombre,
+          telefono: persona?.telefono,
+          nombre: persona?.nombre,
+          status,
+          etapa: DELIVERY_LABELS[status] || String(status)
+        })
+        emitirContactos()
+      }
+    })
+  } catch (err) {
+    sock = null
+    latestQrDataUrl = null
+    waStatus = 'desconectado'
+    mainWindow?.webContents.send('wa:status', waStatus)
+    bridge?.broadcastEvent('status', waStatus)
+    logEvent('wa_desconectado', { motivo: String(err?.message || err) })
+  }
+}
+
+// Operación 100% local: registra eventos de sincronización solo en el log local sin salir a servidores web.
+async function reportarRespuestaAContactosApi() {
+  return null
+}
+
+async function handleIncomingMessage(phone, text, incomingJid = null) {
   const now = new Date().toISOString()
 
   // ¿A qué carpeta corresponde esta respuesta? A la que le escribió último.
@@ -961,7 +1006,7 @@ async function handleIncomingMessage(phone, text) {
       miembro.fechaAutoRespuesta = new Date().toISOString()
       await getDb().write()
 
-      const jid = `${phone}@s.whatsapp.net`
+      const jid = incomingJid || formatToJid(phone)
       const delayAntesDeTipear = 3000 + Math.random() * 4000
       setTimeout(async () => {
         try {
@@ -973,7 +1018,8 @@ async function handleIncomingMessage(phone, text) {
           await sleep(typingDuration)
           await sock.sendPresenceUpdate('paused', jid).catch(() => {})
           await sleep(300 + Math.random() * 400)
-          await sock.sendMessage(jid, { text: texto })
+          const autoSent = await sock.sendMessage(jid, { text: texto })
+          recordSentMessageId(autoSent?.key?.id)
           logEvent('auto_respuesta_enviada', {
             carpeta: carpeta.nombre,
             telefono: phone,
@@ -1111,6 +1157,7 @@ async function runCampaign(onlyIds = null) {
       await sleep(400 + Math.random() * 400)
 
       const sentMsg = await sock.sendMessage(jid, { text: texto })
+      recordSentMessageId(sentMsg?.key?.id)
       miembro.estado = 'enviado'
       miembro.fechaEnvio = new Date().toISOString()
       miembro.msgId = sentMsg?.key?.id || null
@@ -1159,7 +1206,34 @@ async function runCampaign(onlyIds = null) {
       totalVariantes: variantes.length
     })
 
-    await sleep(gaussianRandomDelayMs(cfg.delayMin, cfg.delayMax))
+    const quedanPendientes = carpeta.miembros.some((m) =>
+      m.estado === 'pendiente' &&
+      (onlyIds ? onlyIds.includes(m.contactoId) : m.incluido !== false)
+    )
+    if (quedanPendientes) {
+      if (indiceEnvio > 0 && indiceEnvio % 15 === 0) {
+        const pausaLoteMs = Math.round(45000 + Math.random() * 30000)
+        mainWindow?.webContents.send('campaign:progress', {
+          status: 'pausa_lote',
+          enviadosHoy: cfg.sentToday,
+          dailyCap: cfg.dailyCap,
+          pausaSegundos: Math.round(pausaLoteMs / 1000)
+        })
+        let elapsed = 0
+        while (elapsed < pausaLoteMs && !stopRequested) {
+          await sleep(1000)
+          elapsed += 1000
+        }
+      } else {
+        const delayMs = gaussianRandomDelayMs(cfg.delayMin, cfg.delayMax)
+        let elapsed = 0
+        while (elapsed < delayMs && !stopRequested) {
+          const step = Math.min(1000, delayMs - elapsed)
+          await sleep(step)
+          elapsed += step
+        }
+      }
+    }
   }
 
   campaignRunning = false
@@ -1515,22 +1589,21 @@ function registerIpcHandlers() {
     let errores = 0
 
     for (const contact of objetivo) {
-      const telefono = normalizePhone(contact.telefono)
+      const jid = formatToJid(contact.telefono)
+      const queryNum = jid ? jid.split('@')[0] : normalizePhone(contact.telefono)
 
       // Un número internacional válido tiene entre 8 y 15 dígitos (norma E.164).
       // Fuera de ese rango ni vale la pena preguntarle a WhatsApp.
-      if (telefono.length < 8 || telefono.length > 15) {
+      if (queryNum.length < 8 || queryNum.length > 15) {
         contact.waValido = false
-        contact.waMotivo = `El teléfono tiene ${telefono.length} dígitos — un número válido tiene entre 8 y 15`
+        contact.waMotivo = `El teléfono tiene ${queryNum.length} dígitos — un número válido tiene entre 8 y 15`
         formatoRaro++
         continue
       }
 
       try {
-        // onWhatsApp toma el número pelado y puede devolver undefined (no un
-        // array vacío) si la consulta no trae respuesta — de ahí el `|| []`,
-        // sin eso el destructuring tira TypeError.
-        const resultados = (await sock.onWhatsApp(telefono)) || []
+        // onWhatsApp puede devolver undefined si la consulta no trae respuesta.
+        const resultados = (await sock.onWhatsApp(jid || queryNum)) || []
         const res = resultados[0]
         if (res?.exists) {
           contact.waValido = true
@@ -1681,19 +1754,45 @@ function registerIpcHandlers() {
     return configForRenderer()
   })
 
+  ipcMain.handle('wa:getStatus', () => ({
+    status: waStatus,
+    qr: latestQrDataUrl
+  }))
+
   ipcMain.handle('wa:connect', async () => {
-    if (!sock) await connectWhatsApp()
-    return true
+    if (waStatus !== 'conectado') {
+      await connectWhatsApp()
+    }
+    return { ok: true, status: waStatus, qr: latestQrDataUrl }
+  })
+
+  ipcMain.handle('wa:cancelQr', () => {
+    manualDisconnect = true
+    cleanupSocket()
+    latestQrDataUrl = null
+    waStatus = 'desconectado'
+    mainWindow?.webContents.send('wa:qr', null)
+    mainWindow?.webContents.send('wa:status', waStatus)
+    bridge?.broadcastEvent('status', waStatus)
+    return { ok: true }
   })
 
   ipcMain.handle('wa:logout', async () => {
+    manualDisconnect = true
     try {
       await sock?.logout()
     } catch {
       // sesión ya caída, no pasa nada
     }
-    sock = null
+    cleanupSocket()
+    latestQrDataUrl = null
     waStatus = 'desconectado'
+    try {
+      fs.rmSync(path.join(app.getPath('userData'), 'auth'), { recursive: true, force: true })
+    } catch {
+      // ignore cleanup errors
+    }
+    mainWindow?.webContents.send('wa:qr', null)
     mainWindow?.webContents.send('wa:status', waStatus)
     bridge?.broadcastEvent('status', waStatus)
     return true
@@ -1703,14 +1802,16 @@ function registerIpcHandlers() {
     return parseRecipientsText(rawText)
   })
 
-  ipcMain.handle('directSend:run', async (_e, { recipients, message, folderName }) => {
-    if (demoMode) return { error: 'Estás en modo demostración — apagalo (botón arriba) para poder enviar mensajes reales.' }
-    if (!sock || waStatus !== 'conectado') return { error: 'Conectá WhatsApp primero (escaneá el código QR arriba a la derecha).' }
-    if (campaignRunning) return { error: 'Ya hay un envío en curso. Esperá a que termine o detenelo antes de iniciar otro.' }
+  ipcMain.handle('directSend:run', async (_e, { recipients, message, folderName, onlySave = false }) => {
+    if (!onlySave) {
+      if (demoMode) return { error: 'Estás en modo demostración — apagalo (botón arriba) para poder enviar mensajes reales.' }
+      if (!sock || waStatus !== 'conectado') return { error: 'Conectá WhatsApp primero (escaneá el código QR arriba a la derecha).' }
+      if (campaignRunning) return { error: 'Ya hay un envío en curso. Esperá a que termine o detenelo antes de iniciar otro.' }
+    }
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return { error: 'Ingresá al menos un destinatario con teléfono válido.' }
     }
-    if (!message || !message.trim()) {
+    if (!onlySave && (!message || !message.trim())) {
       return { error: 'Escribí el mensaje que querés enviar.' }
     }
 
@@ -1723,7 +1824,9 @@ function registerIpcHandlers() {
       carpeta = nuevaCarpeta(nombreFinal, 'personal')
       getDb().data.carpetas.push(carpeta)
     }
-    carpeta.config.template = message.trim()
+    if (message && message.trim()) {
+      carpeta.config.template = message.trim()
+    }
     getDb().data.config.carpetaActivaId = carpeta.id
 
     const targetIds = []
@@ -1753,17 +1856,9 @@ function registerIpcHandlers() {
 
       let miembro = carpeta.miembros.find((m) => m.contactoId === persona.id)
       if (!miembro) {
-        miembro = {
-          contactoId: persona.id,
-          estado: 'pendiente',
-          incluido: true,
-          fechaEnvio: null,
-          errorDetalle: null,
-          entregaStatus: 0,
-          historial: []
-        }
+        miembro = nuevoMiembro(persona.id)
         carpeta.miembros.push(miembro)
-      } else {
+      } else if (!onlySave) {
         miembro.estado = 'pendiente'
         miembro.incluido = true
       }
@@ -1776,13 +1871,18 @@ function registerIpcHandlers() {
 
     await getDb().write()
     emitirContactos()
+
+    if (onlySave) {
+      return { ok: true, savedOnly: true, carpetaId: carpeta.id, count: targetIds.length }
+    }
+
     runCampaign(targetIds)
-    return { ok: true, carpetaId: carpeta.id, count: targetIds.length }
+    return { ok: true, savedOnly: false, carpetaId: carpeta.id, count: targetIds.length }
   })
 
   ipcMain.handle('campaign:start', async (_e, onlyIds) => {
     if (demoMode) return { error: 'Estás en modo demostración — apagalo (botón arriba) para poder enviar mensajes reales.' }
-    if (!sock) return { error: 'Conectá WhatsApp primero' }
+    if (!sock || waStatus !== 'conectado') return { error: 'Conectá WhatsApp primero' }
     if (campaignRunning) return { error: 'Ya está enviando' }
     runCampaign(Array.isArray(onlyIds) && onlyIds.length ? onlyIds : null)
     return { started: true }
@@ -1818,18 +1918,54 @@ function registerIpcHandlers() {
 
   ipcMain.handle('logs:summary', () => buildSummaryText())
 
+  function buildLocalReviewAndVariants(rawTemplate) {
+    const clean = rawTemplate.trim()
+    const improved = clean.replace(/\s{2,}/g, ' ')
+    const startsWithHi = /^(hola|buen d[ií]a|buenas|che|qu[eé] tal)/i.test(improved)
+
+    const bodySinSaludo = startsWithHi
+      ? improved.replace(/^(hola|buen d[ií]a|buenas|che|qu[eé] tal)[\s,!¡.]*(\{nombre\})?[\s,!.]*/i, '').trim()
+      : improved
+
+    const core = bodySinSaludo || improved
+    const hasNombreTag = /\{nombre\}/i.test(improved)
+    const saludoNombre = hasNombreTag ? '{nombre}' : ''
+
+    const v1 = startsWithHi
+      ? improved
+      : `Hola${saludoNombre ? ` ${saludoNombre}` : ''}, ¿cómo estás? ${core}`
+    const v2 = `Buen día${saludoNombre ? ` ${saludoNombre}` : ''}, ${core.charAt(0).toLowerCase() + core.slice(1)}`
+    const v3 = `¿Cómo andás${saludoNombre ? ` ${saludoNombre}` : ''}? Te escribo rápido: ${core}`
+    const v4 = `${core} — avisame cuando puedas${saludoNombre ? `, ${saludoNombre}` : ''}.`
+
+    const variantes = [v1, v2, v3, v4].map((v) => v.replace(/\s{2,}/g, ' ').trim())
+    return {
+      ok: true,
+      modoLocal: true,
+      esClaro: true,
+      feedback: 'Revisión y 4 variantes anti-ban generadas localmente en tu PC (sin dependencia web).',
+      correcciones: [],
+      versionMejorada: improved,
+      variantes
+    }
+  }
+
   ipcMain.handle('ai:reviewTemplate', async (_e, template) => {
-    const apiKey = getDecryptedApiKey()
-    if (!apiKey) return { error: 'Falta cargar tu API key de Anthropic en Configuración.' }
     if (!template?.trim()) return { error: 'Escribí un mensaje primero.' }
 
     const carpeta = carpetaActiva()
+    const apiKey = (getDecryptedApiKey() || process.env.AI_API_KEY || '').trim()
+
+    if (!apiKey) {
+      const localResult = buildLocalReviewAndVariants(template)
+      if (carpeta) carpeta.config.variantes = localResult.variantes
+      await getDb().write()
+      logEvent('mensaje_revisado_ia', { esClaro: true, variantesGeneradas: localResult.variantes.length, modo: 'local_offline' })
+      return localResult
+    }
+
     const tonos = { ...TONOS, ...(getDb().data.config.tonosPropios || {}) }
     const tono = tonos[carpeta?.tono] || TONOS.personal
-
-    // El manual de marca SOLO se aplica donde corresponde. Para el cumpleaños
-    // del hijo, Pablo es el papá, no la consultora: meterle criterio comercial
-    // ahí arruinaría el mensaje.
     const bloqueMarca = carpeta?.usarManualMarca ? BLOQUE_MEJORA_CONTINUA : ''
 
     const systemPrompt = `Sos el asistente de escritura de Pablo. Te pasa mensajes de WhatsApp antes de mandarlos y vos los revisás.
@@ -1850,80 +1986,136 @@ Revisá el mensaje contra todo lo de arriba.
 
 El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dicen lo mismo que versionMejorada pero cada una con otras palabras y otra estructura de oración — para que WhatsApp no vea el mismo texto exacto mensaje tras mensaje y lo tome por bot.`
 
-
-    // El JSON lo garantiza la API con un esquema (structured outputs) en vez de
-    // pedirlo por prompt y cruzar los dedos: así no puede volver mal formado ni
-    // cortado a la mitad. max_tokens generoso porque la respuesta trae la
-    // versión mejorada MÁS 4 variantes — o sea ~5 veces el largo del original.
-    const RESPUESTA_SCHEMA = {
-      type: 'object',
-      properties: {
-        esClaro: { type: 'boolean', description: 'true si el mensaje se entiende bien como está' },
-        feedback: { type: 'string', description: '2-3 líneas directas: qué funciona y qué no' },
-        correcciones: {
-          type: 'array',
-          description: 'Errores de ortografía, gramática o redacción encontrados en el original. Vacío si no hay.',
-          items: {
-            type: 'object',
-            properties: {
-              original: { type: 'string', description: 'El fragmento tal cual está escrito' },
-              corregido: { type: 'string', description: 'Cómo debería estar escrito' },
-              motivo: { type: 'string', description: 'Por qué, en pocas palabras' }
-            },
-            required: ['original', 'corregido', 'motivo'],
-            additionalProperties: false
-          }
-        },
-        versionMejorada: { type: 'string', description: 'El mensaje reescrito, corregido y más humano, con los mismos tags' },
-        variantes: {
-          type: 'array',
-          description: 'Exactamente 4 variantes que dicen lo mismo con otras palabras',
-          items: { type: 'string' }
-        }
-      },
-      required: ['esClaro', 'feedback', 'correcciones', 'versionMejorada', 'variantes'],
-      additionalProperties: false
-    }
+    const isGeminiKey = apiKey.startsWith('AIza') || (process.env.AI_PROVIDER || '').toLowerCase() === 'gemini'
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-5',
-          max_tokens: 16000,
-          system: systemPrompt,
-          output_config: { format: { type: 'json_schema', schema: RESPUESTA_SCHEMA } },
-          messages: [{ role: 'user', content: template }]
-        })
-      })
-
-      if (!response.ok) {
-        const errText = await response.text()
-        return { error: `Anthropic API error ${response.status}: ${errText.slice(0, 200)}` }
-      }
-
-      const data = await response.json()
-      if (data.stop_reason === 'refusal') {
-        return { error: 'La IA no quiso revisar este mensaje. Probá reformulándolo.' }
-      }
-      const textBlock = data.content?.find((b) => b.type === 'text')?.text || ''
-      const clean = textBlock.replace(/```json|```/g, '').trim()
-
       let parsed
-      try {
+
+      if (isGeminiKey) {
+        const model = process.env.AI_MODEL || 'gemini-3.8-flash'
+        const isGemini25 = model.toLowerCase().includes('gemini-2.5')
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              contents: [{ role: 'user', parts: [{ text: template }] }],
+              generationConfig: {
+                temperature: 0.6,
+                maxOutputTokens: 2048,
+                responseMimeType: 'application/json',
+                thinkingConfig: isGemini25
+                  ? { thinkingBudget: 2048, includeThoughts: false }
+                  : { thinkingLevel: 'high', includeThoughts: false },
+                responseSchema: {
+                  type: 'OBJECT',
+                  required: ['esClaro', 'feedback', 'correcciones', 'versionMejorada', 'variantes'],
+                  properties: {
+                    esClaro: { type: 'BOOLEAN' },
+                    feedback: { type: 'STRING' },
+                    correcciones: {
+                      type: 'ARRAY',
+                      items: {
+                        type: 'OBJECT',
+                        required: ['original', 'corregido', 'motivo'],
+                        properties: {
+                          original: { type: 'STRING' },
+                          corregido: { type: 'STRING' },
+                          motivo: { type: 'STRING' }
+                        }
+                      }
+                    },
+                    versionMejorada: { type: 'STRING' },
+                    variantes: { type: 'ARRAY', items: { type: 'STRING' } }
+                  }
+                }
+              }
+            })
+          }
+        )
+
+        if (!geminiRes.ok) {
+          const errText = await geminiRes.text()
+          return { error: `Gemini API error ${geminiRes.status}: ${errText.slice(0, 200)}` }
+        }
+        const gData = await geminiRes.json()
+        const parts = gData.candidates?.[0]?.content?.parts || []
+        const visibleText = parts
+          .filter((p) => !p.thought && typeof p.text === 'string')
+          .map((p) => p.text.trim())
+          .filter(Boolean)
+          .join('\n')
+          .trim()
+        const clean = visibleText.replace(/```json|```/g, '').trim()
         parsed = JSON.parse(clean)
-      } catch {
-        parsed = JSON.parse(sanitizeJsonStringLiterals(clean))
+      } else {
+        const RESPUESTA_SCHEMA = {
+          type: 'object',
+          properties: {
+            esClaro: { type: 'boolean', description: 'true si el mensaje se entiende bien como está' },
+            feedback: { type: 'string', description: '2-3 líneas directas: qué funciona y qué no' },
+            correcciones: {
+              type: 'array',
+              description: 'Errores de ortografía, gramática o redacción encontrados en el original. Vacío si no hay.',
+              items: {
+                type: 'object',
+                properties: {
+                  original: { type: 'string', description: 'El fragmento tal cual está escrito' },
+                  corregido: { type: 'string', description: 'Cómo debería estar escrito' },
+                  motivo: { type: 'string', description: 'Por qué, en pocas palabras' }
+                },
+                required: ['original', 'corregido', 'motivo'],
+                additionalProperties: false
+              }
+            },
+            versionMejorada: { type: 'string', description: 'El mensaje reescrito, corregido y más humano, con los mismos tags' },
+            variantes: {
+              type: 'array',
+              description: 'Exactamente 4 variantes que dicen lo mismo con otras palabras',
+              items: { type: 'string' }
+            }
+          },
+          required: ['esClaro', 'feedback', 'correcciones', 'versionMejorada', 'variantes'],
+          additionalProperties: false
+        }
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-opus-5',
+            max_tokens: 16000,
+            system: systemPrompt,
+            output_config: { format: { type: 'json_schema', schema: RESPUESTA_SCHEMA } },
+            messages: [{ role: 'user', content: template }]
+          })
+        })
+
+        if (!response.ok) {
+          const errText = await response.text()
+          return { error: `Anthropic API error ${response.status}: ${errText.slice(0, 200)}` }
+        }
+
+        const data = await response.json()
+        if (data.stop_reason === 'refusal') {
+          return { error: 'La IA no quiso revisar este mensaje. Probá reformulándolo.' }
+        }
+        const textBlock = data.content?.find((b) => b.type === 'text')?.text || ''
+        const clean = textBlock.replace(/```json|```/g, '').trim()
+
+        try {
+          parsed = JSON.parse(clean)
+        } catch {
+          parsed = JSON.parse(sanitizeJsonStringLiterals(clean))
+        }
       }
 
-      // Las variantes son de la carpeta abierta, no de la config global — si
-      // se guardaran en la global, quedarían tapadas por el carpeta.config.variantes
-      // vacío en el próximo configForRenderer() y la rotación nunca las usaría.
       const variantesGeneradas = Array.isArray(parsed.variantes) ? parsed.variantes : []
       if (carpeta) carpeta.config.variantes = variantesGeneradas
       await getDb().write()
@@ -2019,113 +2211,72 @@ El campo "variantes" tiene que traer SIEMPRE exactamente 4 elementos. Las 4 dice
     return true
   })
 
-  // Fase 2 de MejoraSuite — embebido de MejoraContactos. `bounds` viene del
-  // renderer (getBoundingClientRect() del slot donde tiene que aparecer),
-  // en las mismas coordenadas CSS de la ventana.
-  ipcMain.handle('contactos:show', (_e, bounds) => {
-    const view = ensureContactosView()
-    view.setBounds(bounds)
-    view.setVisible(true)
-    return true
-  })
+  // Operación 100% local de contactos sin embeber URLs web externas.
+  ipcMain.handle('contactos:show', () => true)
+  ipcMain.handle('contactos:hide', () => true)
+  ipcMain.handle('contactos:updateBounds', () => true)
 
-  ipcMain.handle('contactos:hide', () => {
-    contactosView?.setVisible(false)
-    return true
-  })
-
-  ipcMain.handle('contactos:updateBounds', (_e, bounds) => {
-    contactosView?.setBounds(bounds)
-    return true
-  })
-
-  // Fase 3 de MejoraSuite — MejoraContactos (web, sin acceso a filesystem)
-  // no puede leer bridge-token.txt del disco como sí puede otra app
-  // Electron. Este handler deja copiar el token a mano una sola vez desde
-  // acá; MejoraContactos lo guarda cifrado en su localStorage (mismo
-  // patrón que ya usa para las API keys de IA, ver api-keys.ts en ese repo).
   ipcMain.handle('bridge:getToken', () => bridge?.token ?? null)
   ipcMain.handle('bridge:copyToken', () => {
     if (bridge?.token) clipboard.writeText(bridge.token)
     return !!bridge?.token
   })
 
-  // Suite — API central de contactos (Fase 4)
-  ipcMain.handle('contactos:obtener', async (_e, tag) => {
-    const url = new URL(process.env.CONTACTOS_API_URL || 'https://tzatuvxatsduuslxqdtm.supabase.co/functions/v1/contactos-api')
-    url.searchParams.set('tamano', '2000')
-    if (tag) url.searchParams.set('tag', tag)
-    const key = process.env.CONTACTOS_API_KEY || '66005e1e7b99040265523d6be7cbbe75468da7fbe58fa6c60aed74b917dee46f'
-    const res = await fetch(url.toString(), {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': key,
-        'Authorization': `Bearer ${key}`
-      }
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
-    return await res.json()
+  // Acceso 100% local a la base de datos interna (sin servidores externos).
+  ipcMain.handle('contactos:obtener', () => {
+    return {
+      ok: true,
+      source: 'local',
+      contactos: getDb().data.contactos || []
+    }
   })
 
   ipcMain.handle('contactos:reportar', async (_e, payload) => {
-    const url = process.env.CONTACTOS_API_URL || 'https://tzatuvxatsduuslxqdtm.supabase.co/functions/v1/contactos-api'
-    const key = process.env.CONTACTOS_API_KEY || '66005e1e7b99040265523d6be7cbbe75468da7fbe58fa6c60aed74b917dee46f'
-    const tel = payload?.numero || payload?.telefono || (Array.isArray(payload?.whatsapp) ? payload.whatsapp[0] : payload?.whatsapp)
-    const estado = payload?.estado_respuesta || payload?.estado || 'registrado'
-    const detalleMensaje = payload?.mensaje ? ` - ${payload.mensaje}` : ''
-    const nota = payload?.nota_referencia || `[MejoraWS] Interacción: ${estado}${detalleMensaje}`
-    const body = { nota_referencia: nota }
-    if (payload?.persona_id) body.persona_id = payload.persona_id
-    if (payload?.nombre) body.nombre = payload.nombre
-    if (tel) body.telefono = tel
-    if (payload?.tag) body.tag = payload.tag
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': key,
-        'Authorization': `Bearer ${key}`
-      },
-      body: JSON.stringify(body)
+    logEvent('interaccion_local', {
+      telefono: payload?.numero || payload?.telefono || '',
+      estado: payload?.estado_respuesta || payload?.estado || 'registrado',
+      nota: payload?.nota_referencia || ''
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
-    return await res.json()
+    return { ok: true, local: true }
   })
 }
 
 app.whenReady().then(async () => {
-  // Si el primer lanzamiento ya viene de mejoraws://open?demo=..., aplica
-  // el valor antes de crear la ventana (evita el parpadeo de arrancar con
-  // el default y cambiar un instante después).
   const demoParamInicial = extraerDemoDeArgv(process.argv)
   if (demoParamInicial !== null) demoMode = demoParamInicial
 
   LOG_FILE = path.join(app.getPath('userData'), 'logs', 'actividad.jsonl')
   db = await JSONFilePreset(path.join(app.getPath('userData'), 'data.json'), DEFAULT_DATA)
-  // Si venís de una versión anterior, esto rellena los campos nuevos de
-  // config sin pisar lo que ya tenías configurado.
   db.data.config = { ...DEFAULT_DATA.config, ...db.data.config }
-  // Migración: si venís de una versión vieja que guardaba la key en texto
-  // plano, la cifra y borra el campo plano de la DB.
+
   if (db.data.config.anthropicApiKey) {
     const encrypted = encryptApiKey(db.data.config.anthropicApiKey)
     if (encrypted) db.data.config.anthropicApiKeyEncrypted = encrypted
     delete db.data.config.anthropicApiKey
   }
   migrarACarpetas()
-  // Instalación totalmente nueva (nunca tuvo el formato viejo, así que
-  // migrarACarpetas() no crea nada): igual tiene que arrancar con una carpeta,
-  // o la app queda inusable hasta que el usuario cree la primera a mano.
+
   if (db.data.carpetas.length === 0) {
     const primera = nuevaCarpeta('Mi primera carpeta', 'personal')
     db.data.carpetas.push(primera)
     db.data.config.carpetaActivaId = primera.id
   }
+
+  // Auto-reparación de data.json local: asegura carpetaActivaId válido y limpia plantilla residual de prueba.
+  const activaExiste = db.data.carpetas.some((c) => c.id === db.data.config.carpetaActivaId)
+  if (!activaExiste && db.data.carpetas[0]) {
+    db.data.config.carpetaActivaId = db.data.carpetas[0].id
+  }
+  const carpetaInicial = db.data.carpetas.find((c) => c.id === db.data.config.carpetaActivaId) || db.data.carpetas[0]
+  if (carpetaInicial && carpetaInicial.config?.template === 'ewee' && (!carpetaInicial.miembros || carpetaInicial.miembros.length === 0)) {
+    carpetaInicial.config.template = ''
+  }
+
   await db.write()
   registerIpcHandlers()
   createWindow()
-   bridge = startBridgeServer(app.getPath('userData'), () => ({
+
+  bridge = startBridgeServer(app.getPath('userData'), () => ({
     connected: waStatus === 'conectado',
     waStatus,
     campaignRunning,
@@ -2133,6 +2284,12 @@ app.whenReady().then(async () => {
     pauseRequested,
     demoMode,
   }), handleSend, handleAddAndSend)
+
+  // Auto-reconexión local automática si ya existe sesión vinculada en auth/creds.json
+  const credsPath = path.join(app.getPath('userData'), 'auth', 'creds.json')
+  if (fs.existsSync(credsPath)) {
+    connectWhatsApp().catch(() => {})
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

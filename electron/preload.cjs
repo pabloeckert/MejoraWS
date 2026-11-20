@@ -33,7 +33,9 @@ contextBridge.exposeInMainWorld('mejora', {
   setConfig: (config) => ipcRenderer.invoke('config:set', config),
 
   // WhatsApp
+  getWaStatus: () => ipcRenderer.invoke('wa:getStatus'),
   connectWa: () => ipcRenderer.invoke('wa:connect'),
+  cancelQr: () => ipcRenderer.invoke('wa:cancelQr'),
   logoutWa: () => ipcRenderer.invoke('wa:logout'),
 
   // Campaña de envío

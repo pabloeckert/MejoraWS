@@ -173,6 +173,10 @@ res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'not found' }))
   })
 
+  server.on('error', (err) => {
+    console.warn(`[bridge] aviso en puerto ${PORT}:`, err?.message || err)
+  })
+
   server.listen(PORT, HOST, () => {
     console.log(`[bridge] escuchando en http://${HOST}:${PORT} (token en ${path.join(userDataDir, 'bridge-token.txt')})`)
   })
